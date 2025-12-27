@@ -12,7 +12,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["engagement"]
+  schemas  = ["core"]
 }
 
 model Account {
@@ -32,7 +32,7 @@ model Account {
   suggestions        Suggestion[]
   decisions          SuggestionDecision[]
 
-  @@schema("engagement")
+  @@schema("core")
 }
 
 model Suggestion {
@@ -64,7 +64,7 @@ model Suggestion {
 
   @@index([workspace_id])
   @@index([event_id])
-  @@schema("engagement")
+  @@schema("core")
 }
 
 model SuggestionDecision {
@@ -81,7 +81,7 @@ model SuggestionDecision {
   account     Account    @relation(fields: [workspace_id], references: [id])
   user        User       @relation(fields: [user_id], references: [id])
 
-  @@schema("engagement")
+  @@schema("core")
 }
 
 model OwnerSettings {
@@ -103,7 +103,7 @@ model OwnerSettings {
   account Account @relation(fields: [workspace_id], references: [id])
 
   @@index([workspace_id])
-  @@schema("engagement")
+  @@schema("core")
 }
 
 model InstallRegistry {
@@ -117,7 +117,7 @@ model InstallRegistry {
   account    Account? @relation(fields: [account_id], references: [id])
 
   @@index([account_id])
-  @@schema("engagement")
+  @@schema("core")
 }
 
 model EngagementEvent {
@@ -146,7 +146,7 @@ model EngagementEvent {
   @@index([account_id])
   @@index([install_id])
   @@index([created_at])
-  @@schema("engagement")
+  @@schema("core")
 }
 
 model SuggestionSession {
@@ -161,7 +161,7 @@ model SuggestionSession {
   event    EngagementEvent @relation(fields: [event_id], references: [id])
   feedback FeedbackSignal?
 
-  @@schema("engagement")
+  @@schema("core")
 }
 
 model FeedbackSignal {
@@ -175,7 +175,7 @@ model FeedbackSignal {
 
   session SuggestionSession @relation(fields: [session_id], references: [id])
 
-  @@schema("engagement")
+  @@schema("core")
 }
 
 model User {
@@ -193,7 +193,7 @@ model User {
   sessions    Session[]
   decisions   SuggestionDecision[]
 
-  @@schema("engagement")
+  @@schema("core")
 }
 
 model AdminUser {
@@ -205,7 +205,7 @@ model AdminUser {
 
   sessions AdminSession[]
 
-  @@schema("engagement")
+  @@schema("core")
 }
 
 model AdminSession {
@@ -216,7 +216,7 @@ model AdminSession {
 
   admin AdminUser @relation(fields: [admin_id], references: [id])
 
-  @@schema("engagement")
+  @@schema("core")
 }
 
 model AuditLog {
@@ -235,7 +235,7 @@ model AuditLog {
   @@index([workspace_id, created_at])
   @@index([actor_id, created_at])
   @@index([correlation_id])
-  @@schema("engagement")
+  @@schema("core")
 }
 
 model WorkspaceMembership {
@@ -252,7 +252,7 @@ model WorkspaceMembership {
   @@index([workspace_id])
   @@index([user_id])
   @@unique([workspace_id, user_id])
-  @@schema("engagement")
+  @@schema("core")
 }
 
 model Session {
@@ -268,5 +268,5 @@ model Session {
 
   @@index([user_id])
   @@index([active_workspace_id])
-  @@schema("engagement")
+  @@schema("core")
 }
