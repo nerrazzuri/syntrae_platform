@@ -1,0 +1,9 @@
+{
+    "description": "Dummy Golden Dataset",
+    "cases": [
+        {
+            "query": "What is the vacation policy?",
+            "answer": "I don't have enough information."
+        }
+    ]
+}

@@ -1,0 +1,9 @@
+{
+    "name": "@syntrae/llm-contracts",
+    "version": "1.0.0",
+    "main": "index.js",
+    "dependencies": {},
+    "devDependencies": {
+        "typescript": "^5.3.3"
+    }
+}

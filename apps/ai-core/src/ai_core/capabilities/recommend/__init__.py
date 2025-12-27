@@ -1,0 +1,1 @@
+from .recommend_capability import RecommendCapability

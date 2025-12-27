@@ -1,0 +1,159 @@
+version: '3.8'
+
+networks:
+  syntrae_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  qdrant_storage:
+  video_storage:
+
+services:
+  # =========================
+  # INFRASTRUCTURE
+  # =========================
+  
+  postgresql:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chatbot_dev
+      POSTGRES_USER: chatbot_user
+      POSTGRES_PASSWORD: chatbot_password
+      POSTGRES_MULTIPLE_DATABASES: ai_backend_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../docker/postgres-init:/docker-entrypoint-initdb.d
+    networks:
+      - syntrae_net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U chatbot_user -d chatbot_dev" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: [ "redis-server", "--appendonly", "yes" ]
+    volumes:
+      - redis_data:/data
+    networks:
+      - syntrae_net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  qdrant:
+    image: qdrant/qdrant:v1.5.0
+    restart: unless-stopped
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    networks:
+      - syntrae_net
+
+  # =========================
+  # APPS
+  # =========================
+
+  ai-core:
+    build:
+      context: ../..
+      dockerfile: infra/docker/ai-core.Dockerfile
+    restart: unless-stopped
+    environment:
+      # Adjusted to use 'postgresql' service and create user/db in init
+      # Note: ai-core uses 'chatbot_user' which is the POSTGRES_USER.
+      - DATABASE_URL=postgresql://chatbot_user:chatbot_password@postgresql:5432/chatbot_dev
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_URL=http://qdrant:6333
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - RAG_EMBED_MODEL=text-embedding-3-large
+      - RAG_CHAT_MODEL=gpt-4o-mini
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    networks:
+      - syntrae_net
+
+  ingestion-service:
+    build:
+      context: ../..
+      dockerfile: infra/docker/ingestion-service.Dockerfile
+    container_name: ingestion-service
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    volumes:
+      # Mount data if needed, but relative path might be tricky. Using named volume or omitting for now unless critical.
+      # Original: ./ingestion-service/data:/app/data. 
+      # We can map it to a local folder in infra/compose/data/ingestion?
+      - ./data/ingestion:/app/data
+    networks:
+      - syntrae_net
+    environment:
+      - PORT=3005
+      - NODE_ENV=development
+      # Update connection string to use 'postgresql' service and 'chatbot_user' (superuser) to access 'ai_backend_db'
+      # Or we should separate users? For now simplicity: use same creds.
+      - DATABASE_URL=postgresql://chatbot_user:chatbot_password@postgresql:5432/ai_backend_db?schema=engagement
+      - AI_CORE_BASE_URL=http://ai-core:8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
+    depends_on:
+      - postgresql
+      - ai-core
+
+  operator-api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/operator-api.Dockerfile
+    container_name: operator-api
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    networks:
+      - syntrae_net
+    environment:
+      - PORT=3001
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://chatbot_user:chatbot_password@postgresql:5432/ai_backend_db?schema=engagement
+      - JWT_SECRET=dev_secret_operator_key_123
+    depends_on:
+      - postgresql
+
+  operator-ui:
+    build:
+      context: ../..
+      dockerfile: infra/docker/operator-ui.Dockerfile
+    container_name: operator-ui
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    networks:
+      - syntrae_net
+    depends_on:
+      - operator-api
+
+  video-detection-engine:
+    build:
+      context: ../..
+      dockerfile: infra/docker/video-detection-engine.Dockerfile
+    container_name: video-detection-engine
+    ports:
+      - "8000:8000"
+    volumes:
+      - video_storage:/data/storage
+    environment:
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    networks:
+      - syntrae_net

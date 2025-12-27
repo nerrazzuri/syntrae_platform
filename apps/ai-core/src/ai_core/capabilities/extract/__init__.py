@@ -1,0 +1,1 @@
+from ai_core.capabilities.extract.extract_capability import ExtractCapability

@@ -1,0 +1,1 @@
+from ai_core.capabilities.score.score_capability import ScoreCapability

@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+.env
+.DS_Store
+.turbo
+js_build
+.python_cache
+__pycache__
+.pytest_cache
+venv
+*.log

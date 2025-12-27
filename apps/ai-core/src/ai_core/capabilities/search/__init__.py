@@ -1,0 +1,1 @@
+from ai_core.capabilities.search.search_capability import SearchCapability

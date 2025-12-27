@@ -1,0 +1,23 @@
+id: jira
+display_name: "Jira Cloud"
+plan: enterprise
+auth:
+  type: oauth2
+  scopes: ["read:jira-work", "read:jira-user"]
+  token_url: "https://auth.atlassian.com/oauth/token"
+  refresh_url: "https://auth.atlassian.com/oauth/token"
+endpoints:
+  issues: "/rest/api/3/search?jql=project={project_key}"
+transform:
+  format: json_to_text
+  fields: ["summary", "description"]
+schedule:
+  type: cron
+  value: "0 */4 * * *"
+limits:
+  max_items: 500
+  max_size_mb: 50
+compliance:
+  classification: "internal"
+
+

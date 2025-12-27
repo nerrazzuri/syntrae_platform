@@ -1,0 +1,13 @@
+{
+  "name": "syntrae-platform",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "dev": "pnpm -r dev"
+  },
+  "devDependencies": {
+    "typescript": "latest",
+    "prettier": "latest"
+  }
+}
