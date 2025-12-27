@@ -57,6 +57,22 @@ services:
       - syntrae_net
 
   # =========================
+  # SERVICES
+  # =========================
+
+  db-migrate:
+    build:
+      context: ../..
+      dockerfile: infra/docker/db-migrate.Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://superuser:Syntrae!2025_dbRoot#A9@postgresql:5432/syntrae_core?schema=core
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    networks:
+      - syntrae_net
+
+  # =========================
   # APPS
   # =========================
 
