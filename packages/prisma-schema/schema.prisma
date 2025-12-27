@@ -132,10 +132,10 @@ model EngagementEvent {
   account    Account? @relation(fields: [account_id], references: [id])
   install_id String?
 
-  video_id     String
-  comment_id   String
-  content_text String
-  metadata     String?
+  video_id     String?
+  comment_id   String?
+  content_text String?
+  metadata     Json
   status       String
   failure_reason String? // Phase 28.2: Lossless Ingestion Reason
   created_at   DateTime @default(now())
