@@ -10,11 +10,12 @@ volumes:
   qdrant_storage:
   video_storage:
 
+
 services:
   # =========================
   # INFRASTRUCTURE
   # =========================
-  
+
   postgresql:
     image: postgres:15-alpine
     restart: unless-stopped
@@ -106,8 +107,6 @@ services:
       # Or we should separate users? For now simplicity: use same creds.
       - DATABASE_URL=postgresql://chatbot_user:chatbot_password@postgresql:5432/ai_backend_db?schema=engagement
       - AI_CORE_BASE_URL=http://ai-core:8000
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
     depends_on:
       - postgresql
       - ai-core
