@@ -31,26 +31,28 @@ RUN pnpm -r --filter ./packages/prisma-schema exec prisma generate
 WORKDIR /app/apps/operator-api
 RUN pnpm run build
 
-# 🚀 Create runtime bundle (THIS IS THE KEY)
-WORKDIR /app
-RUN pnpm deploy --filter ./apps/operator-api --prod --legacy /app/deploy
-
-# Generate Prisma Client in the deploy bundle
-WORKDIR /app/deploy
-RUN npx prisma generate --schema node_modules/@syntrae/prisma-schema/schema.prisma
-
-
 # =========================
 # Runtime Stage
 # =========================
 FROM node:20-alpine
 
-WORKDIR  /app
+WORKDIR /app
+
+RUN apk add --no-cache openssl
 
 ENV NODE_ENV=production
 
-# Copy runtime bundle (flattened deps + dist)
-COPY --from=build /app/deploy ./
+# Copy root node_modules (where dependencies are installed in workspace)
+COPY --from=build /app/node_modules /app/node_modules
+# Copy app-specific node_modules (if any)
+COPY --from=build /app/apps/operator-api/node_modules /app/apps/operator-api/node_modules
+# Copy packages (symlinked deps might point here)
+COPY --from=build /app/packages /app/packages
+# Copy built app
+COPY --from=build /app/apps/operator-api/dist /app/apps/operator-api/dist
+COPY --from=build /app/apps/operator-api/package.json /app/apps/operator-api/package.json
+
+WORKDIR /app/apps/operator-api
 
 EXPOSE 3001
 
