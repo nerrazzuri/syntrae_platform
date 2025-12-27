@@ -16,23 +16,23 @@ services:
   # INFRASTRUCTURE
   # =========================
 
-postgresql:
-  image: postgres:15-alpine
-  restart: unless-stopped
-  environment:
-    POSTGRES_DB: syntrae_core
-    POSTGRES_USER: superuser
-    POSTGRES_PASSWORD: Syntrae!2025_dbRoot#A9
-  volumes:
-    - postgres_data:/var/lib/postgresql/data
-    - ../docker/postgres-init:/docker-entrypoint-initdb.d
-  networks:
-    - syntrae_net
-  healthcheck:
-    test: [ "CMD-SHELL", "pg_isready -U superuser -d syntrae_core" ]
-    interval: 10s
-    timeout: 5s
-    retries: 5
+  postgresql:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: syntrae_core
+      POSTGRES_USER: superuser
+      POSTGRES_PASSWORD: Syntrae!2025_dbRoot#A9
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../docker/postgres-init:/docker-entrypoint-initdb.d
+    networks:
+      - syntrae_net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U superuser -d syntrae_core" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
