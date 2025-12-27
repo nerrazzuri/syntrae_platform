@@ -41,7 +41,7 @@ RUN pnpm deploy --filter ./apps/operator-api --prod --legacy /app/deploy
 # =========================
 FROM node:20-alpine
 
-WORKDIR /app
+WORKDIR  /app/apps/operator-api
 
 ENV NODE_ENV=production
 
