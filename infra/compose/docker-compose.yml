@@ -65,7 +65,7 @@ services:
       context: ../..
       dockerfile: infra/docker/db-migrate.Dockerfile
     environment:
-      - DATABASE_URL=postgresql://superuser:Syntrae!2025_dbRoot#A9@postgresql:5432/syntrae_core?schema=core
+      - DATABASE_URL=postgresql://superuser:Syntrae%212025_dbRoot%23A9@postgresql:5432/syntrae_core?schema=core
     depends_on:
       postgresql:
         condition: service_healthy
@@ -84,7 +84,7 @@ services:
     environment:
       # Adjusted to use 'postgresql' service and create user/db in init
       # Note: ai-core uses 'chatbot_user' which is the POSTGRES_USER.
-      - DATABASE_URL=postgresql://superuser:Syntrae!2025_dbRoot#A9@postgresql:5432/syntrae_core?schema=core
+      - DATABASE_URL=postgresql://superuser:Syntrae%212025_dbRoot%23A9@postgresql:5432/syntrae_core?schema=core
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_URL=http://qdrant:6333
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -120,7 +120,7 @@ services:
       - NODE_ENV=development
       # Update connection string to use 'postgresql' service and 'chatbot_user' (superuser) to access 'ai_backend_db'
       # Or we should separate users? For now simplicity: use same creds.
-      - DATABASE_URL=postgresql://superuser:Syntrae!2025_dbRoot#A9@postgresql:5432/syntrae_core?schema=core
+      - DATABASE_URL=postgresql://superuser:Syntrae%212025_dbRoot%23A9@postgresql:5432/syntrae_core?schema=core
       - AI_CORE_BASE_URL=http://ai-core:8000
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -141,7 +141,7 @@ services:
     environment:
       - PORT=3001
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://superuser:Syntrae!2025_dbRoot#A9@postgresql:5432/syntrae_core?schema=core
+      - DATABASE_URL=postgresql://superuser:Syntrae%212025_dbRoot%23A9@postgresql:5432/syntrae_core?schema=core
       - JWT_SECRET=dev_secret_operator_key_123
     depends_on:
       - postgresql
