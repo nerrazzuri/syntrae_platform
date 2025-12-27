@@ -47,6 +47,7 @@ WORKDIR /app/apps/operator-api
 # Actually, copying root node_modules and app node_modules works.
 # Copy root
 COPY --from=build /app/node_modules /app/node_modules
+COPY --from=build /app/apps/operator-api/node_modules ./node_modules
 COPY --from=build /app/package.json /app/package.json
 # Copy packages
 COPY --from=build /app/packages /app/packages
