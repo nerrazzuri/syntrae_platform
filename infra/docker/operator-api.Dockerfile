@@ -35,13 +35,17 @@ RUN pnpm run build
 WORKDIR /app
 RUN pnpm deploy --filter ./apps/operator-api --prod --legacy /app/deploy
 
+# Generate Prisma Client in the deploy bundle
+WORKDIR /app/deploy
+RUN npx prisma generate --schema node_modules/@syntrae/prisma-schema/schema.prisma
+
 
 # =========================
 # Runtime Stage
 # =========================
 FROM node:20-alpine
 
-WORKDIR  /app/apps/operator-api
+WORKDIR  /app
 
 ENV NODE_ENV=production
 
