@@ -2,7 +2,7 @@ FROM node:20-alpine
 
 WORKDIR /app
 RUN npm install -g pnpm && \
-    apk add --no-cache openssl
+    apk add --no-cache openssl ncurses-libs libstdc++ libgcc
 
 # Copy workspace config
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
