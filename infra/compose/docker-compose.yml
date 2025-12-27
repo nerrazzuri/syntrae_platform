@@ -11,6 +11,9 @@ volumes:
   video_storage:
 
 
+env_file:
+  - /etc/syntrae/runtime.env
+
 services:
   # =========================
   # INFRASTRUCTURE
