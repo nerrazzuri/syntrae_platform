@@ -84,7 +84,7 @@ services:
     environment:
       # Adjusted to use 'postgresql' service and create user/db in init
       # Note: ai-core uses 'chatbot_user' which is the POSTGRES_USER.
-      - DATABASE_URL=postgresql://superuser:Syntrae%212025_dbRoot%23A9@postgresql:5432/syntrae_core?options=-c%20search_path%3core
+      - DATABASE_URL=postgresql://superuser:Syntrae%212025_dbRoot%23A9@postgresql:5432/syntrae_core?options=-c%20search_path%3Dcore
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_URL=http://qdrant:6333
       - OPENAI_API_KEY=${OPENAI_API_KEY}
