@@ -16,8 +16,8 @@ export enum Aggressiveness {
 
 // Default Settings
 const DEFAULT_SETTINGS = {
-    mode: EngagementMode.OBSERVE_ONLY,
-    aggressiveness: Aggressiveness.CONSERVATIVE,
+    mode: EngagementMode.SUGGEST,
+    aggressiveness: Aggressiveness.BALANCED,
     enable_intents: JSON.stringify({}), // All disabled by default implies conservative
     min_intent_confidence: 0.7,
     platforms_enabled: JSON.stringify([]),
