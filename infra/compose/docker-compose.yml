@@ -117,6 +117,8 @@ services:
     networks:
       - syntrae_net
     environment:
+      - LOG_LEVEL=debug
+      - DEBUG=*
       - PORT=3005
       - NODE_ENV=development
       # Update connection string to use 'postgresql' service and 'chatbot_user' (superuser) to access 'ai_backend_db'
