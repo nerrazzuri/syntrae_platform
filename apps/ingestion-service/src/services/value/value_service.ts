@@ -31,9 +31,9 @@ export class ValueService {
             _count: { decision: true }
         });
 
-        const approved = decisions.find(d => d.decision === 'APPROVE')?._count.decision || 0;
-        const rejected = decisions.find(d => d.decision === 'REJECT')?._count.decision || 0;
-        const edited = decisions.find(d => d.decision === 'EDIT')?._count.decision || 0;
+        const approved = decisions.find((d: any) => d.decision === 'APPROVE')?._count.decision || 0;
+        const rejected = decisions.find((d: any) => d.decision === 'REJECT')?._count.decision || 0;
+        const edited = decisions.find((d: any) => d.decision === 'EDIT')?._count.decision || 0;
 
         // 2. Silent Value (Blocks/Ignores)
         // We look for EngagementEvents with status='IGNORED' and parse metadata (LIMITATION: SQL cannot parse JSON easily in basic Prisma)
@@ -55,7 +55,8 @@ export class ValueService {
 
         for (const ev of ignoredEvents) {
             try {
-                const meta = JSON.parse(ev.metadata || '{}');
+                const rawMeta = ev.metadata;
+                const meta: any = typeof rawMeta === 'string' ? JSON.parse(rawMeta) : (rawMeta || {});
                 const outcome = meta.value_outcome;
                 if (!outcome) {
                     silentMetrics.other_ignore++;
@@ -140,7 +141,7 @@ export class ValueService {
             include: { suggestion: { select: { created_at: true } } }
         });
 
-        return decisions.map(d => ({
+        return decisions.map((d: any) => ({
             id: d.id,
             suggestion_id: d.suggestion_id,
             decision: d.decision,
