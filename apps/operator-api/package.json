@@ -10,7 +10,9 @@
         "dev": "ts-node-dev --respawn --transpile-only src/index.ts"
     },
     "dependencies": {
+        "@syntrae/prisma-schema": "workspace:*",
         "bcrypt": "^6.0.0",
+        "cookie-parser": "^1.4.7",
         "cors": "^2.8.5",
         "dotenv": "^16.4.5",
         "express": "^4.18.2",
@@ -18,11 +20,11 @@
         "jsonwebtoken": "^9.0.2",
         "morgan": "^1.10.1",
         "prisma": "^5.7.0",
-        "zod": "^3.22.4",
-        "@syntrae/prisma-schema": "workspace:*"
+        "zod": "^3.22.4"
     },
     "devDependencies": {
         "@types/bcrypt": "^5.0.2",
+        "@types/cookie-parser": "^1.4.10",
         "@types/cors": "^2.8.17",
         "@types/express": "^4.17.21",
         "@types/jsonwebtoken": "^9.0.6",

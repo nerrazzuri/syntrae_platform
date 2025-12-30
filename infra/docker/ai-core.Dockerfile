@@ -8,8 +8,10 @@ FROM ${PY_BASE_IMAGE} AS builder
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update -o Acquire::Retries=5 && \
+# Install system dependencies with cache
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update -o Acquire::Retries=5 && \
     apt-get install -y --no-install-recommends \
     build-essential \
     gfortran \
@@ -73,7 +75,9 @@ RUN groupadd -r appuser && useradd -m -r -g appuser appuser
 
 WORKDIR /app
 
-RUN apt-get update -o Acquire::Retries=5 && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update -o Acquire::Retries=5 && \
     apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \

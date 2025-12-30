@@ -137,8 +137,9 @@ services:
       dockerfile: infra/docker/operator-api.Dockerfile
     container_name: operator-api
     restart: unless-stopped
-    ports:
-      - "3001:3001"
+    # PORTS REMOVED: Exposed only internally via network
+    # ports:
+    #   - "3001:3001"
     networks:
       - syntrae_net
     environment:
@@ -148,6 +149,8 @@ services:
       - JWT_SECRET=dev_secret_operator_key_123
       - AI_CORE_BASE_URL=http://ai-core:8000
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
+      # NGINX is now the edge
+      - TRUST_PROXY=true
     depends_on:
       - postgresql
 
@@ -157,12 +160,46 @@ services:
       dockerfile: infra/docker/operator-ui.Dockerfile
     container_name: operator-ui
     restart: unless-stopped
-    ports:
-      - "5173:80"
+    # PORTS REMOVED: Exposed only internally via network
+    # ports:
+    #   - "5173:80"
     networks:
       - syntrae_net
     depends_on:
       - operator-api
+
+  # =========================
+  # EDGE & PROXY
+  # =========================
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/proxy_params:/etc/nginx/proxy_params
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    networks:
+      - syntrae_net
+    depends_on:
+      - operator-api
+      - operator-ui
+      # Ensure config valid before start? NGINX handles it.
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    # Daily renewal check
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
   video-detection-engine:
     build:

@@ -9,8 +9,9 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 # Copy app config (UI likely doesn't need all packages yet, but for consistency)
 COPY apps/operator-ui/package.json apps/operator-ui/
 
-# Install deps
-RUN pnpm install --frozen-lockfile
+# Install deps with cache
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 # Copy source
 COPY apps/operator-ui apps/operator-ui

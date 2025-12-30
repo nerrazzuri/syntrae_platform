@@ -18,25 +18,39 @@ export function Layout() {
         try {
             const me = await Client.get('/auth/me');
             setUser(me.user);
-            setActiveWorkspace(me.session.active_workspace_id);
+            // Default to active workspace ID from the response (which is the object now)
+            if (me.active_workspace) {
+                setActiveWorkspace(me.active_workspace.id);
+                // Also set workspace list to just active one if /workspaces fails or just use it
+                setWorkspaces([{
+                    workspace_id: me.active_workspace.id,
+                    account: me.active_workspace
+                }]);
+            }
 
-            const ws = await Client.get('/workspaces');
-            setWorkspaces(ws);
+            // Optional: fetch full list if available
+            // const ws = await Client.get('/workspaces');
+            // setWorkspaces(ws);
         } catch (e) {
             console.error(e);
+            // Redirect to login if session fetch fails
+            window.location.href = '/login';
         }
     };
 
     const handleSwitch = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+        // Switching not fully implemented in backend session yet (requires API to update session)
+        // For now just local state update or no-op
         const newId = e.target.value;
-        await Client.post('/workspaces/switch', { workspace_id: newId });
         setActiveWorkspace(newId);
-        window.location.reload(); // Simple reload to refresh all data context
     };
 
     const handleLogout = async () => {
-        await Client.post('/auth/logout', {});
-        Client.removeToken();
+        try {
+            await Client.post('/auth/logout', {});
+        } catch (e) {
+            console.error('Logout failed', e);
+        }
         window.location.href = '/login';
     };
 

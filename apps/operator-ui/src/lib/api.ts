@@ -1,39 +1,25 @@
+/// <reference types="vite/client" />
 
-export const API_BASE = '/api'; // Proxied by Vite
+// In production, we talk to separate subdomain. In dev, we use Vite proxy.
+const IS_PROD = import.meta.env.PROD;
+export const API_BASE = IS_PROD ? 'https://api.syntrae.ai' : '/api';
 
 export class Client {
-    private static token: string | null = localStorage.getItem('op_token');
-
-    static setToken(token: string) {
-        this.token = token;
-        localStorage.setItem('op_token', token);
-    }
-
-    static getToken() {
-        return this.token;
-    }
-
-    static removeToken() {
-        this.token = null;
-        localStorage.removeItem('op_token');
-    }
 
     static async request(endpoint: string, options: RequestInit = {}) {
         const headers = new Headers(options.headers);
-        if (this.token) {
-            headers.set('Authorization', `Bearer ${this.token}`);
-        }
         headers.set('Content-Type', 'application/json');
 
         const res = await fetch(`${API_BASE}${endpoint}`, {
             ...options,
-            headers
+            headers,
+            credentials: 'include' // CRITICAL for Cookies
         });
 
         if (res.status === 401) {
-            // Unauth - verify if it's not the login page
-            if (!window.location.pathname.includes('/login')) {
-                this.removeToken();
+            // Unauth - verify if it's not the login page or signup page
+            const path = window.location.pathname;
+            if (!path.includes('/login') && !path.includes('/signup')) {
                 window.location.href = '/login';
             }
         }
@@ -63,4 +49,6 @@ export class Client {
             body: JSON.stringify(body)
         });
     }
+
+    // No setToken/getToken needed anymore
 }

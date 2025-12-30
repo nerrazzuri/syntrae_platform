@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
 import { PrismaClient } from '@syntrae/prisma-schema';
 
 // Import Routers
@@ -19,7 +20,25 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(helmet());
-app.use(cors()); // Allow all by default for operator UI dev
+
+// Proxy Configuration
+if (process.env.TRUST_PROXY === 'true') {
+    app.set('trust proxy', 1); // Trust local NGINX
+}
+
+// CORS Configuration
+app.use(cors({
+    origin: [
+        'https://app.syntrae.ai',
+        'https://syntrae.ai',
+        'http://localhost:5173', // Dev
+        'http://localhost:3000'
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+}));
+
+app.use(cookieParser());
 app.use(express.json());
 app.use(morgan('dev'));
 

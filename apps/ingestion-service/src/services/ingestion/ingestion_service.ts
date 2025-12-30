@@ -8,10 +8,11 @@ import { VideoEvent } from '../../adapters/video/schemas';
 import { BrainGateway } from '../brain/brain_gateway';
 import { SuggestionService } from '../hitl/suggestion_service';
 import { v4 as uuidv4 } from 'uuid';
+import { BrandLookupService } from '../brand_lookup_service';
 
 export enum IngestStatus {
     RECEIVED = 'RECEIVED',
-    DUPLICATE = 'DUPLICATE', // Virtual status (we return 200 OK)
+    DUPLICATE = 'DUPLICATE',
     BLOCKED_POLICY = 'BLOCKED_POLICY',
     BLOCKED_PLAN = 'BLOCKED_PLAN',
     OBSERVED = 'OBSERVED',
@@ -61,7 +62,6 @@ export class IngestionService {
         });
         if (existingSecondary) {
             console.log(`[Ingest][${correlationId}] Dedup Secondary Hit: ${dedupKey}`);
-            // Silent Discard - Do not insert.
             return { status: IngestStatus.DUPLICATE, id: existingSecondary.id };
         }
 
@@ -77,11 +77,23 @@ export class IngestionService {
         } catch (e) {
             console.warn(`[Ingest][${correlationId}] Plan Limit Exceeded:`, e);
             status = IngestStatus.BLOCKED_PLAN;
-            // Continue to persist as BLOCKED_PLAN
+        }
+
+        // 4.5 Resolve Brand (Strict)
+        let brandId: string | null = null;
+        try {
+            brandId = await BrandLookupService.resolveBrand(accountId);
+        } catch (e) {
+            console.warn(`[Ingest][${correlationId}] Brand Resolution Failed:`, e);
+            return { status: IngestStatus.ERROR };
+        }
+
+        if (!brandId) {
+            console.warn(`[Ingest][${correlationId}] No Brand found for Account ${accountId}`);
+            return { status: IngestStatus.ERROR };
         }
 
         // 5. Persistence (Immutable)
-        // We map strict contract to DB model
         const engagementEvent = await prisma.engagementEvent.create({
             data: {
                 external_event_id: event.event_id,
@@ -90,17 +102,19 @@ export class IngestionService {
                 video_id: event.platform_video_id,
                 comment_id: event.platform_comment_id || 'null',
                 content_text: event.raw_text || '',
-                target_id: 'unknown', // No enrichment allowed yet
+                target_id: 'unknown',
                 account_id: accountId,
                 install_id: installId,
-                status: status, // RECEIVED or BLOCKED_PLAN
+                brand_id: brandId,
+                status: status,
                 observed_at: new Date(event.observed_at),
                 metadata: JSON.stringify({
                     ...event,
                     correlation_id: correlationId
-                }) // Store full raw data
+                })
             }
         });
+
 
         if (status === IngestStatus.BLOCKED_PLAN) {
             return { status: IngestStatus.BLOCKED_PLAN, id: engagementEvent.id };

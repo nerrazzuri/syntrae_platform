@@ -18,24 +18,20 @@ COPY packages/llm-contracts/package.json packages/llm-contracts/
 # Copy app config
 COPY apps/ingestion-service/package.json apps/ingestion-service/
 
-# Install dependencies (only what's needed for this app effectively via lockfile)
-RUN pnpm install --frozen-lockfile
+# Install dependencies with cache
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 # Copy source code
 COPY packages packages
 COPY apps/ingestion-service apps/ingestion-service
 
-# Build Shared Packages (if needed, or pnpm install did it partially)
-# For domain-models which has a build script:
+# Build Shared Packages
 RUN pnpm -r --filter ./packages/domain-models build
-# For prisma-schema:
 RUN pnpm -r --filter ./packages/prisma-schema exec prisma generate
 
 # Build App
 WORKDIR /app/apps/ingestion-service
-# Update local prisma (if still needed? Package prisma-schema handles client, but app might run migrations?)
-# App doesn't have local schema anymore.
-# RUN npx prisma generate -> No schema file here.
 RUN pnpm run build
 
 # Explicitly copy signals (legacy behavior preservation)

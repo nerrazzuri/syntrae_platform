@@ -11,7 +11,9 @@ COPY packages/prisma-schema/package.json packages/prisma-schema/package.json
 COPY packages/intent-taxonomy/package.json packages/intent-taxonomy/package.json
 COPY packages/llm-contracts/package.json packages/llm-contracts/package.json
 
-RUN pnpm install --frozen-lockfile
+# Install dependencies with cache
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 # 2) Copy all source
 COPY apps/operator-api apps/operator-api
@@ -29,7 +31,10 @@ FROM node:20-bookworm-slim AS runtime
 WORKDIR /repo
 ENV NODE_ENV=production
 
-RUN apt-get update -y && apt-get install -y openssl ca-certificates
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update -y && apt-get install -y openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=base /repo ./
 

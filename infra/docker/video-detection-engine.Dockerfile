@@ -1,18 +1,23 @@
-# Stage 1: Builder
+# syntax=docker/dockerfile:1
 FROM python:3.10-slim as builder
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install build dependencies
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Install dependencies (user mode to easily copy)
+# 1. Torch (Heavy)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir --user torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
-RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
-
-RUN pip install --no-cache-dir \
+# 2. Other requirements
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir --user \
     fastapi \
     uvicorn \
     python-multipart \
@@ -32,15 +37,21 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Runtime deps (ffmpeg for moviepy, etc)
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsm6 libxext6 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Copy installed packages from builder
+COPY --from=builder /root/.local /root/.local
 
-# Copy code from correct path
+# Update PATH to include user bin
+ENV PATH=/root/.local/bin:$PATH
+
+# Copy code
 COPY apps/video-detection-engine/video_detection_engine/ /app/
 
 ENV PYTHONPATH=/app

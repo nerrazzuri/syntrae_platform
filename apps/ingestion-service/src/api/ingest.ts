@@ -114,6 +114,15 @@ router.post('/events', async (req: Request, res: Response) => {
         }
     }
 
+    if (!brandId) {
+        res.status(400).json({
+            status: 'error',
+            code: 'BRAND_REQUIRED',
+            message: 'Cannot persist event without valid Brand context'
+        });
+        return;
+    }
+
     // 3. DB Write (ALWAYS Persist)
     const dedupKey = generateDedupKey(eventData.platform, eventData.video.video_id, eventData.comment.comment_id);
     let persistedEvent;
