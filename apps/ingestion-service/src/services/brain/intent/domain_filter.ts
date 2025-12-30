@@ -4,7 +4,17 @@ import { IntentClassifier } from './classifier';
 export class EngagementDomainFilter {
     static async evaluate(input: BrainInput): Promise<IntentDecision> {
         const text = input.event.content_text;
-        const classification = await IntentClassifier.classify(text);
+
+        const context = {
+            platform: input.event.platform,
+            comment_id: input.event.comment_id,
+            video_id: input.event.video_id,
+            source_event_id: input.event.source_event_id,
+            user_handle: input.event.author_name,
+            account_id: input.event.account_id
+        };
+
+        const classification = await IntentClassifier.classify(text, context);
 
         console.log(`[DomainFilter] Text: "${text}"`);
         console.log(`[DomainFilter] Classified: ${classification.intent} (${classification.strength})`);

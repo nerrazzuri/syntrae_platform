@@ -1,59 +1,37 @@
-# =========================
-# Build Stage
-# =========================
-FROM node:20-alpine AS build
+# syntax=docker/dockerfile:1
 
-WORKDIR /app
-RUN npm install -g pnpm
+FROM node:20-bookworm-slim AS base
+WORKDIR /repo
+RUN corepack enable
 
-# Copy workspace config
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+# 1) Copy manifests
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/operator-api/package.json apps/operator-api/package.json
+COPY packages/prisma-schema/package.json packages/prisma-schema/package.json
+COPY packages/intent-taxonomy/package.json packages/intent-taxonomy/package.json
+COPY packages/llm-contracts/package.json packages/llm-contracts/package.json
 
-# Copy package manifests (for cache)
-COPY packages/domain-models/package.json packages/domain-models/
-COPY packages/prisma-schema/package.json packages/prisma-schema/
-COPY packages/shared-config/package.json packages/shared-config/
-COPY packages/intent-taxonomy/package.json packages/intent-taxonomy/
-COPY packages/llm-contracts/package.json packages/llm-contracts/
-COPY apps/operator-api/package.json apps/operator-api/
-
-# Install deps
 RUN pnpm install --frozen-lockfile
 
-# Copy full source
-COPY packages packages
+# 2) Copy all source
 COPY apps/operator-api apps/operator-api
+COPY packages/prisma-schema packages/prisma-schema
+COPY packages/intent-taxonomy packages/intent-taxonomy
+COPY packages/llm-contracts packages/llm-contracts
 
-# Prisma generate
-RUN pnpm -r --filter ./packages/prisma-schema exec prisma generate
+# 3) Generate & Build
+RUN pnpm --filter @syntrae/prisma-schema run generate
+RUN pnpm --filter operator-api run build
 
-# Build operator-api
-WORKDIR /app/apps/operator-api
-RUN pnpm run build
-
-# =========================
-# Runtime Stage
-# =========================
-FROM node:20-alpine
-
-WORKDIR /app
-
-RUN apk add --no-cache openssl
-
+# 4) Runtime (Fat Image)
+# Copy everything from base to ensure symlinks work perfect
+FROM node:20-bookworm-slim AS runtime
+WORKDIR /repo
 ENV NODE_ENV=production
 
-# Copy root node_modules (where dependencies are installed in workspace)
-COPY --from=build /app/node_modules /app/node_modules
-# Copy app-specific node_modules (if any)
-COPY --from=build /app/apps/operator-api/node_modules /app/apps/operator-api/node_modules
-# Copy packages (symlinked deps might point here)
-COPY --from=build /app/packages /app/packages
-# Copy built app
-COPY --from=build /app/apps/operator-api/dist /app/apps/operator-api/dist
-COPY --from=build /app/apps/operator-api/package.json /app/apps/operator-api/package.json
+RUN apt-get update -y && apt-get install -y openssl ca-certificates
 
-WORKDIR /app/apps/operator-api
+COPY --from=base /repo ./
 
 EXPOSE 3001
-
-CMD ["node", "dist/index.js"]
+CMD ["node", "apps/operator-api/dist/index.js"]

@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'crypto';
 import { prisma } from '../db';
 import { requireAdmin } from '../auth/admin_middleware';
+import { BrandLookupService } from '../services/brand_lookup_service';
 
 const router = Router();
 // const prisma = new PrismaClient(); // Removed local instance
@@ -92,6 +93,27 @@ router.post('/events', async (req: Request, res: Response) => {
         failureReason = `Resolution Error: ${err.message}`;
     }
 
+    // 2.5 Resolve Brand (Strict Safety)
+    // Only proceed if we have a valid Account ID. If Orphaned, we can't resolve brand reliably yet.
+    // Logic: If Account Resolved -> Resolve Brand.
+    // If Brand fails -> Reject Request (Per rules).
+    let brandId: string | null = null;
+
+    if (accountId) {
+        try {
+            brandId = await BrandLookupService.resolveBrand(accountId, eventData.session.brand_id);
+        } catch (brandErr: any) {
+            console.warn(`[Ingest] Brand Resolution Failed: ${brandErr.message}`);
+            // REJECT the request as per strict safety rules
+            res.status(400).json({
+                status: 'error',
+                code: brandErr.message, // e.g. BRAND_NOT_FOUND
+                message: 'Brand resolution failed'
+            });
+            return;
+        }
+    }
+
     // 3. DB Write (ALWAYS Persist)
     const dedupKey = generateDedupKey(eventData.platform, eventData.video.video_id, eventData.comment.comment_id);
     let persistedEvent;
@@ -113,6 +135,7 @@ router.post('/events', async (req: Request, res: Response) => {
                 failure_reason: failureReason,
                 install_id: installId,
                 account_id: accountId,
+                brand_id: brandId,
                 target_id: `${eventData.platform}:${eventData.comment.author_name || 'unknown'}`
             }
         });
@@ -244,7 +267,9 @@ async function triggerAutoSuggest(event: any, accountId: string, installId: stri
             timestamp: payload.page?.timestamp || new Date().toISOString(),
             session_id: payload.session?.session_id || 'unknown_session',
             install_id: installId,
-            text: event.content_text
+            text: event.content_text,
+            comment_id: event.comment_id,
+            source_event_id: event.id
         };
 
         const req = VideoEventAdapter.toCapabilityRequest(videoEvent);

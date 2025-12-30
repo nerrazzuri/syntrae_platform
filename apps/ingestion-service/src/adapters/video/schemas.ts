@@ -16,6 +16,8 @@ export interface VideoEvent {
 
     // Content context
     text?: string; // Comment or Caption Text
+    comment_id?: string; // Phase 30: Lead Identity
+    source_event_id?: string; // Phase 30: Traceability
 
     // Session context
     session_id: string;

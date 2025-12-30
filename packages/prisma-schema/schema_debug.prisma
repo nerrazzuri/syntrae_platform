@@ -167,8 +167,8 @@ model EngagementEvent {
   suggestions  Suggestion[]
   leads        LeadOpportunity[]
 
-  brand_id     String
-  brand        Brand    @relation(fields: [brand_id], references: [id])
+  brand_id     String?
+  brand        Brand?   @relation(fields: [brand_id], references: [id])
 
   @@index([account_id])
   @@index([install_id])
@@ -338,8 +338,8 @@ model LeadOpportunity {
   account           Account           @relation(fields: [account_id], references: [id])
   drafts            OutreachDraft[]
 
-  brand_id          String
-  brand             Brand             @relation(fields: [brand_id], references: [id])
+  brand_id          String?
+  brand             Brand?            @relation(fields: [brand_id], references: [id])
 
   @@unique([platform, comment_id])
   @@index([brand_id])
@@ -360,8 +360,8 @@ model OutreachDraft {
 
   lead LeadOpportunity @relation(fields: [lead_id], references: [id])
 
-  brand_id   String
-  brand      Brand    @relation(fields: [brand_id], references: [id])
+  brand_id   String?
+  brand      Brand?   @relation(fields: [brand_id], references: [id])
 
   @@index([account_id, created_at])
   @@index([lead_id])

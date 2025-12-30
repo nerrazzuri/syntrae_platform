@@ -18,7 +18,7 @@ export class SignalInferenceClient {
         this.baseUrl = process.env.AI_CORE_BASE_URL || process.env.AI_CORE_URL || 'http://localhost:8000';
     }
 
-    async inferSignals(text: string, existingSignals: DetectedSignal[]): Promise<DetectedSignal[]> {
+    async inferSignals(text: string, existingSignals: DetectedSignal[], context?: any): Promise<DetectedSignal[]> {
         const url = `${this.baseUrl}/v1/internal/signal-inference`;
 
         try {
@@ -32,7 +32,8 @@ export class SignalInferenceClient {
                     'X-Internal-Secret': process.env.AI_CORE_INTERNAL_SECRET || ''
                 },
                 body: JSON.stringify({
-                    text
+                    text,
+                    context
                     // existing_signals: existingSignals // Causing 422? User curl used text only.
                 }),
                 signal: controller.signal

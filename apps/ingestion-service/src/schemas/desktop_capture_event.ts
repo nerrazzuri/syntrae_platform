@@ -12,6 +12,7 @@ export const DesktopCaptureEventSchema = z.object({
         session_id: z.string().uuid(),
         install_id: z.string(), // Replaces user_id in raw capture for auth binding
         account_hint: z.string().optional(),
+        brand_id: z.string().uuid().optional(),
     }),
 
     page: z.object({

@@ -69,6 +69,8 @@ services:
     depends_on:
       postgresql:
         condition: service_healthy
+    # volumes:
+    #   - ../../packages/prisma-schema:/app/packages/prisma-schema
     networks:
       - syntrae_net
 
@@ -108,7 +110,7 @@ services:
     container_name: ingestion-service
     restart: unless-stopped
     ports:
-      - "3005:3005"
+      - "3006:3005"
     volumes:
       # Mount data if needed, but relative path might be tricky. Using named volume or omitting for now unless critical.
       # Original: ./ingestion-service/data:/app/data. 
@@ -121,8 +123,6 @@ services:
       - DEBUG=*
       - PORT=3005
       - NODE_ENV=development
-      # Update connection string to use 'postgresql' service and 'chatbot_user' (superuser) to access 'ai_backend_db'
-      # Or we should separate users? For now simplicity: use same creds.
       - DATABASE_URL=postgresql://superuser:Syntrae%212025_dbRoot%23A9@postgresql:5432/syntrae_core?schema=core
       - AI_CORE_BASE_URL=http://ai-core:8000
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
@@ -146,6 +146,8 @@ services:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://superuser:Syntrae%212025_dbRoot%23A9@postgresql:5432/syntrae_core?schema=core
       - JWT_SECRET=dev_secret_operator_key_123
+      - AI_CORE_BASE_URL=http://ai-core:8000
+      - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
     depends_on:
       - postgresql
 

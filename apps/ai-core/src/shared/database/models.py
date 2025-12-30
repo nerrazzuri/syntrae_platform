@@ -14,11 +14,12 @@ from sqlalchemy import (
     LargeBinary,
     SmallInteger,
 )
-from sqlalchemy.types import TypeDecorator, CHAR
+from sqlalchemy.types import TypeDecorator, CHAR, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
+import enum
 from sqlalchemy.dialects import postgresql
 
 Base = declarative_base()
@@ -556,3 +557,141 @@ class ConnectorSyncRecord(Base):
     bytes = Column(Integer, default=0)
     success = Column(Boolean, default=False)
     errors = Column(JSON, default=dict)
+
+
+class BuyerStage(str, enum.Enum):
+    """Buyer stage enumeration."""
+
+    AWARENESS = "AWARENESS"
+    EVALUATING = "EVALUATING"
+    READY = "READY"
+
+
+class Brand(Base):
+    __tablename__ = "Brand"
+    __table_args__ = {"schema": "core"}
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    workspace_id = Column(String(36), nullable=False) # ForeignKey("core.Account.id") omitted as Account not defined here
+    name = Column(Text, nullable=False)
+    domain = Column(Text, nullable=False)
+    domain_context = Column(JSON, nullable=False)
+    status = Column(Text, default="ACTIVE", nullable=False)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    # account = relationship("Account", back_populates="brands")
+    leads = relationship("LeadOpportunity", back_populates="brand")
+    drafts = relationship("OutreachDraft", back_populates="brand")
+
+
+class RecommendedAction(str, enum.Enum):
+    """Recommended action enumeration."""
+
+    SILENT_CAPTURE = "SILENT_CAPTURE"
+    RECOMMEND_DM = "RECOMMEND_DM"
+    PRIORITY_DM = "PRIORITY_DM"
+
+
+class LeadOpportunity(Base):
+    """Lead opportunity model for qualified buyer interception."""
+
+    __tablename__ = "LeadOpportunity"  # Matches Prisma model name case-sensitive if quotes used in Prisma, but usually prisma maps to lower or snake.
+    # Prisma 'model LeadOpportunity' maps to table "LeadOpportunity" (quoted) or "LeadOpportunity"?
+    # Prisma default: uses model name. Postgres default: lowercase.
+    # Prisma schema defines `model LeadOpportunity`. If no @@map, it uses "LeadOpportunity".
+    # In Postgres, unquoted identifiers are lowercase. Prisma quotes them.
+    # To match Prisma, we often need to be careful.
+    # Let's check other models. `model User` -> `__tablename__ = "users"`.
+    # Wait, Prisma schema had:
+    # model User { ... @@schema("core") }
+    # Here models.py has `class User(Base): __tablename__ = "users"`.
+    # Prisma defaults model name to PascalCase but DB table often mapped?
+    # No, Prisma schema showed NO `@@map`.
+    # Standard Prisma: `model User` -> table `User` (if not mapped).
+    # BUT existing `models.py` has lowercase table names!
+    # `class Tenant` -> `__tablename__ = "tenants"`
+    # `class User` -> `__tablename__ = "users"`
+    # This implies the Prisma schema DOES map them or keysmatch constraint.
+    # Let me check schema.prisma again for `User` mapping?
+    # schema.prisma: `model User { ... }` No @@map.
+    # This suggests a discrepancy or I missed something.
+    # Wait, `schema.prisma` lines 18: `model Account`.
+    # `models.py` doesn't seem to have `Account`. It has `Tenant`, `User`.
+    # Ah! `syntrae_platform` seems to have split schemas or mixed conventions.
+    # `apps/ingestion-service` uses `Account` (Prisma). `ai-core` uses `Tenant` (SQLAlchemy).
+    # Are they the same table?
+    # `schema.prisma`: `model Account { ... installs InstallRegistry[] ... }`
+    # `models.py`: `class Tenant`...
+    # This looks like `ai-core` has its OWN tables?
+    # `models.py` line 58: `class Tenant(Base): __tablename__ = "tenants"`
+    # `schema.prisma`: `model Account`.
+    # If I create `LeadOpportunity` in Prisma, it will create table `LeadOpportunity`.
+    # Python needs to map to `LeadOpportunity`.
+    # Ideally, I should check if `ai-core` reads `EngagementEvent`.
+    # `models.py` does NOT have `EngagementEvent`!
+    # This means `ai-core` does NOT strictly map the Ingestion Service schema yet!
+    # It seems `ai-core` has its own RAG tables (`documents`, `chunks`), and `ingestion-service` has `EngagementEvent`.
+    # The Prompt said: "Ensure they mirror the Prisma schema changes."
+    # AND "ai-core explicitly owns writing LeadOpportunity".
+    # So `ai-core` needs to access `LeadOpportunity` table created by Prisma.
+    # Prisma created table `LeadOpportunity` (PascalCase if quoted, but likely `LeadOpportunity` in PG).
+    # I should use `__tablename__ = "LeadOpportunity"` to match Prisma's default.
+
+    __tablename__ = "LeadOpportunity"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    platform = Column(String(50), nullable=False)
+    video_id = Column(String(255), nullable=False)
+    comment_id = Column(String(255), nullable=False)
+    user_handle = Column(String(255))
+    user_profile_url = Column(String(500))
+    intent = Column(String(100), nullable=False)
+    buyer_stage = Column(
+        Enum(BuyerStage, name="BuyerStage", schema="core", create_type=False),
+        nullable=False
+    )
+    confidence = Column(postgresql.DOUBLE_PRECISION, nullable=False)
+    preferences = Column(JSON, nullable=True)
+    recommended_action = Column(
+        Enum(RecommendedAction, name="RecommendedAction", schema="core", create_type=False),
+        nullable=False
+    )
+    urgency_score = Column(postgresql.DOUBLE_PRECISION, default=0.0)
+    risk_level = Column(String(20), default="LOW")
+    source_event_id = Column(String(36), nullable=False)  # ID from EngagementEvent
+    account_id = Column(String(36), nullable=False)  # Tenant/Account ownership
+    created_at = Column(DateTime, default=func.now())
+
+    brand_id = Column(String(36), ForeignKey("core.Brand.id"), nullable=False)
+    brand = relationship("Brand", back_populates="leads")
+
+    # Constraints
+    # @@unique([platform, comment_id]) -> UniqueConstraint in SQLAlchemy
+    __table_args__ = (
+        Index("idx_leadopp_platform_comment", "platform", "comment_id", unique=True),
+        {"schema": "core"}, # Prisma uses @@schema("core")
+    )
+
+    drafts = relationship("OutreachDraft", back_populates="lead")
+
+class OutreachDraft(Base):
+    __tablename__ = "OutreachDraft"
+    __table_args__ = {"schema": "core"}
+
+    id = Column(String(36), primary_key=True)
+    lead_id = Column(String(36), ForeignKey("core.LeadOpportunity.id"), nullable=False)
+    account_id = Column(String(36), nullable=False)
+    platform = Column(String(50), nullable=False)
+    buyer_stage = Column(String(50), nullable=False)
+    tone = Column(String(50), nullable=False)
+    language = Column(String(50), nullable=False)
+    draft_text = Column(String, nullable=False)
+    generation_meta = Column(JSON, nullable=False)
+    created_at = Column(DateTime, default=func.now())
+
+    lead = relationship("LeadOpportunity", back_populates="drafts")
+
+    brand_id = Column(String(36), ForeignKey("core.Brand.id"), nullable=True)
+    brand = relationship("Brand", back_populates="drafts")

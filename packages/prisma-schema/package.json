@@ -1,8 +1,11 @@
 {
     "name": "@syntrae/prisma-schema",
     "version": "1.0.0",
-    "main": "index.ts",
-    "types": "index.ts",
+    "main": "index.js",
+    "types": "index.d.ts",
+    "scripts": {
+        "generate": "prisma generate"
+    },
     "dependencies": {
         "@prisma/client": "^5.7.0"
     },

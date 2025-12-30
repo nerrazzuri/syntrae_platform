@@ -183,3 +183,33 @@ class LLMClient:
         else:
             kept = parts[:4]
         return ". ".join(kept) + ("." if kept else "")
+
+    def chat_completion(
+        self, messages: List[Dict[str, str]], temperature: Optional[float] = None
+    ) -> str:
+        """Direct chat completion exposing raw messages to the model."""
+        client = self.client
+        # For now, draft generation uses global key, but we could extend to support tenant context later
+        if not client:
+             raise RuntimeError("OpenAI client not initialized")
+
+        if not circuit_breaker.allow("openai_chat", tenant_id=None):
+             raise RuntimeError("Circuit breaker open for openai_chat")
+
+        @retry_with_backoff("openai.chat")
+        def _do_chat() -> str:
+            completion = client.chat.completions.create(
+                model=self.model,
+                temperature=temperature or self.temperature,
+                messages=messages,
+            )
+            return (completion.choices[0].message.content or "").strip()
+
+        try:
+            text = _do_chat()
+            circuit_breaker.record_success("openai_chat", tenant_id=None)
+            # We don't track detailed cost for drafts yet in this method, but could add later
+            return text
+        except Exception as e:
+            circuit_breaker.record_failure("openai_chat", tenant_id=None)
+            raise e

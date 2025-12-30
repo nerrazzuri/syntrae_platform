@@ -49,6 +49,8 @@ export interface BrainInput {
         author_name: string | null;
         content_text: string;
         account_id?: string; // Phase 19.5
+        comment_id?: string; // Phase 30
+        source_event_id?: string; // Phase 30
     };
     tenant: TenantContext;
     history: HistoricalSignals;

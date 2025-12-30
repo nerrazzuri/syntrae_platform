@@ -19,8 +19,8 @@ export class IntentClassifier {
         return this.instance;
     }
 
-    public static async classify(text: string): Promise<IntentClassificationResult> {
-        return this.getInstance().classify(text);
+    public static async classify(text: string, context?: any): Promise<IntentClassificationResult> {
+        return this.getInstance().classify(text, context);
     }
 
     private loadSignals() {
@@ -72,7 +72,7 @@ export class IntentClassifier {
         return text.toLowerCase().trim();
     }
 
-    public async classify(text: string): Promise<IntentClassificationResult> {
+    public async classify(text: string, context?: any): Promise<IntentClassificationResult> {
         if (!this.isReady || !text) {
             return this.emptyResult();
         }
@@ -100,7 +100,7 @@ export class IntentClassifier {
         if (isCandidate && rangeValid && !hasPreference) {
             console.log('[Classifier] Triggering AI-Core Signal Inference...');
             const start = Date.now();
-            const inferred = await signalInferenceClient.inferSignals(text, detectedSignals);
+            const inferred = await signalInferenceClient.inferSignals(text, detectedSignals, context);
 
             if (inferred.length > 0) {
                 console.log(`[Classifier] Inference Received (${Date.now() - start}ms): ${inferred.map(s => s.signal).join(', ')}`);

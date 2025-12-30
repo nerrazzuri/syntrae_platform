@@ -1,0 +1,11 @@
+**/node_modules
+**/.git
+**/.gemini
+**/dist
+**/build
+**/coverage
+**/*.log
+**/.env
+videos
+tmp
+infra/compose/data

@@ -11,6 +11,7 @@ import { workspaceRouter } from './api/workspace';
 import { ownerRouter } from './api/owner';
 import { suggestionsRouter } from './api/suggestions';
 import { valueRouter } from './api/value';
+import { leadsRouter } from './api/leads';
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.use('/workspaces', workspaceRouter);
 app.use('/owner', ownerRouter);
 app.use('/suggestions', suggestionsRouter);
 app.use('/value', valueRouter);
+app.use('/leads', leadsRouter);
 
 app.listen(port, () => {
     console.log(`[OperatorAPI] Server running on port ${port}`);

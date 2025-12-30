@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any, List
 from shared.database.session import get_db
 from ai_core.services.internal_knowledge_service import InternalKnowledgeService
+from ai_core.services.draft_service import DraftGenerationService
+from ai_core.pipeline.llm.llm_client import LLMClient
 from shared.security.jwt import JWTService
 import os
 import logging
@@ -139,3 +141,52 @@ async def inference_signal(
         )
 
     return result.payload
+
+
+class GenerateDraftRequest(BaseModel):
+    lead_id: str
+    account_id: str
+    force: bool = False
+    owner_settings: Optional[Dict[str, Any]] = None
+
+
+@router.post("/drafts/generate")
+def generate_draft(
+    payload: GenerateDraftRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    # Enforce Internal Service Authentication
+    secret_header = request.headers.get("X-Internal-Secret")
+    env_secret = os.getenv("AI_CORE_INTERNAL_SECRET")
+    
+    if not env_secret:
+         raise HTTPException(status_code=500, detail="Internal configuration error")
+
+    if not secret_header or secret_header != env_secret:
+        raise HTTPException(status_code=401, detail="Invalid internal secret")
+
+    # Enforce Account Scope
+    account_header = request.headers.get("X-Account-Id")
+    if not account_header:
+         raise HTTPException(status_code=400, detail="Missing X-Account-Id header")
+    
+    if account_header != payload.account_id:
+        raise HTTPException(status_code=403, detail="Account ID mismatch between header and payload")
+
+    llm_client = LLMClient()
+    svc = DraftGenerationService(db, llm_client)
+    try:
+        return svc.generate_draft(
+            lead_id=payload.lead_id,
+            account_id=payload.account_id,
+            force=payload.force,
+            owner_settings=payload.owner_settings
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        # log error?
+        logger = logging.getLogger("ai_core.api.internal")
+        logger.exception("Draft generation failed")
+        raise HTTPException(status_code=500, detail=str(e))

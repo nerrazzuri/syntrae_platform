@@ -132,7 +132,28 @@ Analyze for cognitive signals.
                     )
 
             explanation = parsed.get("explanation", "No explanation provided")
-            # CAUTION: 'explanation' leaked upstream only for debugging.
+            
+            # 4. Lead Scoring & Persistence (Phase 30)
+            # If context is provided, we evaluate for Buyer Stage and persist LeadOpportunity
+            context = request.input.get("context")
+            if context and isinstance(context, dict):
+                try:
+                    # Merge existing signals (from TS classifier) if provided in input
+                    # request.input.get("existing_signals") is List[str] usually, but if updated to List[DetectedSignal]...
+                    # For now, rely on inferred signals + text.
+                    
+                    # Convert Pydantic signals to dicts
+                    signal_dicts = [s.model_dump() for s in signals_out]
+                    
+                    # Also consider existing signals if they are structured? 
+                    # The current contract says `existing_signals` is List[str] or signals.
+                    # We will rely on what we just inferred + raw text.
+                    
+                    from ai_core.services.lead_scoring_service import LeadScoringService
+                    scorer = LeadScoringService()
+                    scorer.evaluate_and_persist(text, signal_dicts, context)
+                except Exception as e:
+                    logger.error(f"Lead scoring failed: {e}")
 
             result = SignalInferencePayload(
                 inferred_signals=signals_out, model=self.model, explanation=explanation

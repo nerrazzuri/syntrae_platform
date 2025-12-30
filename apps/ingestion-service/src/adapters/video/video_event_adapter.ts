@@ -29,7 +29,9 @@ export class VideoEventAdapter {
         const rawEvent = {
             video_id: event.video_id,
             creator_name: event.creator_name || null,
-            platform: event.platform
+            platform: event.platform,
+            comment_id: event.comment_id || null,
+            source_event_id: event.source_event_id || null
         } satisfies JsonObject;
 
         return {

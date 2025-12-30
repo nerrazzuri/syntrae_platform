@@ -71,18 +71,9 @@ def _try_connect(test_engine, attempts: int = 10, delay_seconds: float = 1.0) ->
 engine = _create_engine_for_url(DATABASE_URL)
 if not DATABASE_URL.startswith("sqlite"):
     if not _try_connect(engine):
-        env = os.getenv("ENV", "dev").lower()
-        if env in ("dev", "local", "test"):
-            logger.warning(
-                f"Primary DB unreachable at {DATABASE_URL}. Falling back to SQLite (./test.db) for development."
-            )
-            DATABASE_URL = "sqlite:///./test.db"
-            engine = _create_engine_for_url(DATABASE_URL)
-            _try_connect(engine, attempts=1)
-        else:
-            raise RuntimeError(
-                f"Database unreachable at {DATABASE_URL} in {env} environment. Failing fast."
-            )
+        raise RuntimeError(
+            f"Database unreachable at {DATABASE_URL}. Failing fast."
+        )
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
