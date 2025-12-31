@@ -1,62 +1,52 @@
 # syntax=docker/dockerfile:1
-FROM python:3.10-slim as builder
-
-WORKDIR /app
-
-# Install build dependencies
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install dependencies (user mode to easily copy)
-# 1. Torch (Heavy)
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir --user torch torchvision --index-url https://download.pytorch.org/whl/cpu
-
-# 2. Other requirements
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir --user \
-    fastapi \
-    uvicorn \
-    python-multipart \
-    opencv-python-headless \
-    moviepy \
-    scikit-learn \
-    joblib \
-    sentence-transformers \
-    easyocr \
-    pillow \
-    numpy \
-    pandas \
-    SpeechRecognition
-
-# Stage 2: Runner
+# ---- Base -------------------------------------------------
 FROM python:3.10-slim
 
 WORKDIR /app
 
-# Runtime deps (ffmpeg for moviepy, etc)
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
+# ---- System deps ------------------------------------------
+# Added ffmpeg significantly as it is required for video processing
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
     ffmpeg \
     libsm6 libxext6 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy installed packages from builder
-COPY --from=builder /root/.local /root/.local
+# ---- Torch FIRST (isolated layer: TIME BOMB DEFUSED) ------
+# This layer changes RARELY. Segregating it means app code changes 
+# NEVER trigger a torch re-download.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install torch torchvision \
+    --index-url https://download.pytorch.org/whl/cpu
 
-# Update PATH to include user bin
-ENV PATH=/root/.local/bin:$PATH
+# ---- Other deps (Context: requirements.txt) ---------------
+# We copy ONLY requirements first.
+# Note: requirements.txt is located deep in the source tree
+COPY apps/video-detection-engine/video_detection_engine/requirements.txt .
 
-# Copy code
-COPY apps/video-detection-engine/video_detection_engine/ /app/
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements.txt
 
-ENV PYTHONPATH=/app
+# ---- App code (changes often) -----------------------------
+COPY apps/video-detection-engine/ /app/apps/video-detection-engine/
+
+# ---- Runtime ----------------------------------------------
+# Ensure pythonpath includes app root
+ENV PYTHONPATH=/app/apps/video-detection-engine
 ENV STORAGE_ROOT=/data/storage
 
 EXPOSE 8000
+
+# Working directory adjustment?
+# If main.py is in apps/video-detection-engine/video_detection_engine/api/main.py
+# The previous command was: CMD ["uvicorn", "api.main:app", ...]
+# And WORKDIR was /app.
+# If we copy `apps/video-detection-engine/` to `/app/apps/video-detection-engine/`
+# We should probably set WORKDIR to `/app/apps/video-detection-engine/video_detection_engine`?
+# Let's check the deep structure: apps/video-detection-engine/video_detection_engine/api/main.py
+# So if WORKDIR is `/app/apps/video-detection-engine/video_detection_engine`, then `uvicorn api.main:app` works.
+
+WORKDIR /app/apps/video-detection-engine/video_detection_engine
 
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

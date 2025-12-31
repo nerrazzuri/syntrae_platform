@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Client } from '../lib/api';
-import { LayoutDashboard, MessageSquare, Settings, LogOut, Layers } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, Settings, LogOut, Layers, Briefcase, CreditCard } from 'lucide-react';
 
 export function Layout() {
     const [user, setUser] = useState<any>(null);
@@ -39,10 +39,16 @@ export function Layout() {
     };
 
     const handleSwitch = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-        // Switching not fully implemented in backend session yet (requires API to update session)
-        // For now just local state update or no-op
         const newId = e.target.value;
-        setActiveWorkspace(newId);
+        try {
+            await Client.post('/workspaces/switch', { workspace_id: newId });
+            setActiveWorkspace(newId);
+            // Reload page to refresh context (e.g. Brands list, Billing info)
+            window.location.reload();
+        } catch (err) {
+            console.error('Failed to switch workspace', err);
+            alert('Failed to switch workspace');
+        }
     };
 
     const handleLogout = async () => {
@@ -93,6 +99,14 @@ export function Layout() {
                     <Link to="/suggestions" className={navClass('/suggestions')}>
                         <MessageSquare className="w-5 h-5 mr-3" />
                         Suggestions
+                    </Link>
+                    <Link to="/brands" className={navClass('/brands')}>
+                        <Briefcase className="w-5 h-5 mr-3" />
+                        Brands
+                    </Link>
+                    <Link to="/billing" className={navClass('/billing')}>
+                        <CreditCard className="w-5 h-5 mr-3" />
+                        Billing
                     </Link>
                     <Link to="/settings" className={navClass('/settings')}>
                         <Settings className="w-5 h-5 mr-3" />

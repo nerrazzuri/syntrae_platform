@@ -50,5 +50,14 @@ export class Client {
         });
     }
 
+    static patch(endpoint: string, body: any) {
+        return this.request(endpoint, {
+            method: 'PATCH',
+            body: JSON.stringify(body)
+        });
+    }
+
     // No setToken/getToken needed anymore
 }
+
+export const api = Client;

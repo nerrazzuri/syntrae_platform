@@ -1,29 +1,40 @@
+# syntax=docker/dockerfile:1
+# ---- Build stage ------------------------------------------
 FROM node:20-alpine AS build
 
-WORKDIR /app
+WORKDIR /repo
+
+# Enable pnpm
 RUN npm install -g pnpm
 
-# Copy workspace config
+# 1. Manifests (Monorepo Root context)
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-
-# Copy app config (UI likely doesn't need all packages yet, but for consistency)
+# Copy UI specific manifest
 COPY apps/operator-ui/package.json apps/operator-ui/
 
-# Install deps with cache
+# 2. Install Deps (Cached)
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 
-# Copy source
+# 3. Source (Scoped Copy - FIX FOR INVALIDATION)
 COPY apps/operator-ui apps/operator-ui
+# (Ideally copy shared packages if needed, keeping it simple/safe for now)
 
-# Build
-WORKDIR /app/apps/operator-ui
+# 4. Build
+WORKDIR /repo/apps/operator-ui
 RUN pnpm run build
 
-# Runtime
+# ---- Runtime stage ----------------------------------------
 FROM nginx:alpine
 
-COPY --from=build /app/apps/operator-ui/dist /usr/share/nginx/html
+# Remove default config
+RUN rm /etc/nginx/conf.d/default.conf
+
+# Copy build output
+COPY --from=build /repo/apps/operator-ui/dist /usr/share/nginx/html
+
+# Copy custom Nginx config
+COPY apps/operator-ui/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

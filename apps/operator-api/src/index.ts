@@ -13,6 +13,8 @@ import { ownerRouter } from './api/owner';
 import { suggestionsRouter } from './api/suggestions';
 import { valueRouter } from './api/value';
 import { leadsRouter } from './api/leads';
+import { billingRouter } from './api/billing';
+import { brandRouter } from './api/brands';
 
 dotenv.config();
 
@@ -55,6 +57,8 @@ app.use('/owner', ownerRouter);
 app.use('/suggestions', suggestionsRouter);
 app.use('/value', valueRouter);
 app.use('/leads', leadsRouter);
+app.use('/billing', billingRouter);
+app.use('/brands', brandRouter);
 
 app.listen(port, () => {
     console.log(`[OperatorAPI] Server running on port ${port}`);

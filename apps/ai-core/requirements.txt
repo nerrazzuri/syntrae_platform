@@ -63,3 +63,4 @@ pdfplumber==0.11.0
 Pillow==10.0.0
 pytesseract==0.3.10
 hf_transfer==0.1.5
+sentence-transformers==2.2.2
