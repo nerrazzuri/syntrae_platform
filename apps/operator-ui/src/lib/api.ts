@@ -3,7 +3,7 @@
 
 // In production, we talk to separate subdomain. In dev, we use Vite proxy.
 const IS_PROD = import.meta.env.PROD;
-export const API_BASE = IS_PROD ? 'https://api.syntrae.ai' : '/api';
+export const API_BASE = IS_PROD ? 'https://api.syntraeai.com' : '/api';
 
 export class Client {
 

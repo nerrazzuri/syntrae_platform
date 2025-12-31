@@ -14,7 +14,7 @@ const COOKIE_OPTIONS: any = {
     httpOnly: true,
     secure: IS_PROD, // Secure in Prod
     sameSite: IS_PROD ? 'lax' : 'lax',
-    domain: process.env.COOKIE_DOMAIN, // e.g., '.syntrae.ai'
+    domain: process.env.COOKIE_DOMAIN, // e.g., '.syntraeai.com'
     path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
 };

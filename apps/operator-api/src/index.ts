@@ -32,8 +32,8 @@ if (process.env.TRUST_PROXY === 'true') {
 // CORS Configuration
 app.use(cors({
     origin: [
-        'https://app.syntrae.ai',
-        'https://syntrae.ai',
+        'https://app.syntraeai.com',
+        'https://syntraeai.com',
         'http://localhost:5173', // Dev
         'http://localhost:3000'
     ],
