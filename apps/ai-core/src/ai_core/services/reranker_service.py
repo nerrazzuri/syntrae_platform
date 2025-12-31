@@ -193,9 +193,12 @@ class AdvancedReranker:
         self.cross_encoder = None
         self.cross_encoder_available = False
         try:
+            # NOTE: sentence-transformers is intentionally excluded in Phase 35/36 to keep image size small.
+            # We rely on OpenAI for embeddings and BM25 for ranking.
+            # Re-enable this import in Phase 40 when Local Embeddings are introduced as a separate service.
             from sentence_transformers import CrossEncoder as _CrossEncoder
         except Exception as e:
-            logger.error(f"sentence-transformers import failed: {e}")
+            logger.info(f"sentence-transformers not installed (Intentional for Light Mode): {e}")
             models_to_try = []  # can't proceed without library
 
         for model_name in models_to_try:

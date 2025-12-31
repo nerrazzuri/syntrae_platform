@@ -1,5 +1,4 @@
 
-
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
@@ -7,9 +6,10 @@ import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { Suggestions } from './pages/Suggestions';
 import { Settings } from './pages/Settings';
-
 import { BillingPage } from './pages/Billing';
 import { BrandsPage } from './pages/Brands';
+import { BrandsAnalytics } from './pages/analytics/BrandsAnalytics';
+import { UsageAnalytics } from './pages/analytics/UsageAnalytics';
 
 function App() {
     return (
@@ -23,6 +23,10 @@ function App() {
                     <Route path="brands" element={<BrandsPage />} />
                     <Route path="billing" element={<BillingPage />} />
                     <Route path="settings" element={<Settings />} />
+
+                    {/* Analytics */}
+                    <Route path="analytics/brands" element={<BrandsAnalytics />} />
+                    <Route path="analytics/usage" element={<UsageAnalytics />} />
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

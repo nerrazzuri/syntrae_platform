@@ -1,3 +1,4 @@
+
 /// <reference types="vite/client" />
 
 // In production, we talk to separate subdomain. In dev, we use Vite proxy.
@@ -56,8 +57,20 @@ export class Client {
             body: JSON.stringify(body)
         });
     }
-
-    // No setToken/getToken needed anymore
 }
 
-export const api = Client;
+export class Api extends Client {
+    static analytics = {
+        getOverview: (params?: { from?: string, to?: string }) => {
+            const query = new URLSearchParams(params).toString();
+            return Client.get(`/analytics/overview?${query}`);
+        },
+        getBrands: (params?: { from?: string, to?: string }) => {
+            const query = new URLSearchParams(params).toString();
+            return Client.get(`/analytics/brands?${query}`);
+        },
+        getUsage: () => Client.get('/analytics/usage')
+    };
+}
+
+export const api = Api;

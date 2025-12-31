@@ -15,6 +15,7 @@ import { valueRouter } from './api/value';
 import { leadsRouter } from './api/leads';
 import { billingRouter } from './api/billing';
 import { brandRouter } from './api/brands';
+import { analyticsRouter } from './api/analytics';
 
 dotenv.config();
 
@@ -59,6 +60,7 @@ app.use('/value', valueRouter);
 app.use('/leads', leadsRouter);
 app.use('/billing', billingRouter);
 app.use('/brands', brandRouter);
+app.use('/analytics', analyticsRouter);
 
 app.listen(port, () => {
     console.log(`[OperatorAPI] Server running on port ${port}`);
