@@ -18,15 +18,23 @@ export const requireSession = async (req: Request, res: Response, next: NextFunc
         return next();
     }
 
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
+    // 1. Try Cookie first (Preferred for Web UI)
+    let token = req.cookies?.['syntrae_session'];
+
+    // 2. Fallback to Bearer Header (API Clients)
+    if (!token) {
+        const authHeader = req.headers.authorization;
+        if (authHeader?.startsWith('Bearer ')) {
+            token = authHeader.split(' ')[1];
+        }
+    }
+
+    if (!token) {
         res.status(401).json({
-            error: 'Unauthorized: No Token',
+            error: 'Unauthorized: No Session (Cookie or Token)',
         });
         return;
     }
-
-    const token = authHeader.split(' ')[1];
     const session = await SessionStore.getSession(token);
 
     if (!session) {
