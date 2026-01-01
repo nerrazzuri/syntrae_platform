@@ -12,3 +12,4 @@ venv
 *.log
 infra/compose/certbot/conf/
 infra/compose/certbot/www/
+.pnpm-store/
