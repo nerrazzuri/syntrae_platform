@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 
 // Enums
@@ -117,7 +117,7 @@ export const MarketProfiles: React.FC = () => {
     const handleActivate = async (id: string) => {
         if (!confirm("Activate this profile? Any other active profile will be deactivated.")) return;
         try {
-            await api.post(`/market-profiles/${id}/activate`);
+            await api.post(`/market-profiles/${id}/activate`, {});
             loadProfiles();
         } catch (err: any) {
             alert(err.error || "Failed to activate");
