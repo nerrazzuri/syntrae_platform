@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { requireSession } from '../middleware/session_auth';
 import { BrandService } from '../services/brand.service';
+import { LeadService } from '../services/lead_service';
 
 const router = Router();
 
@@ -62,6 +63,55 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     } catch (err: any) {
         console.warn('[Brands] Status Update Failed:', err.message);
         res.status(400).json({ error: err.message });
+    }
+});
+
+// GET /brands/:brandId/leads (Phase 37.4)
+router.get('/:brandId/leads', async (req: Request, res: Response) => {
+    try {
+        const { brandId } = req.params;
+        const workspaceId = req.session?.active_workspace_id!;
+
+        // Validation: Ensure Brand belongs to Workspace? 
+        // LeadService.listLeads filters by accountId (Workspace) AND Brand.
+        // So cross-access is prevented by accountId check.
+
+        // Filters
+        const filters: any = {
+            brand_id: brandId,
+            status: req.query.status,
+            risk_level: req.query.risk_level,
+            buyer_stage: req.query.buyer_stage,
+        };
+        if (req.query.min_score) filters.min_confidence = parseFloat(req.query.min_score as string);
+
+        const result = await LeadService.listLeads(workspaceId, filters, 100, 0);
+        res.json(result.items); // Return list directly as per plan implication
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /brands/:brandId/leads/:leadId/drafts (Phase 37.4)
+import { prisma } from '../index'; // Create explicit dependency here if needed or move to Service
+router.get('/:brandId/leads/:leadId/drafts', async (req: Request, res: Response) => {
+    try {
+        const { brandId, leadId } = req.params;
+        const workspaceId = req.session?.active_workspace_id!;
+
+        // Verify access implicitly via query
+        const drafts = await prisma.outreachDraft.findMany({
+            where: {
+                lead_id: leadId,
+                brand_id: brandId,
+                account_id: workspaceId
+            },
+            orderBy: { created_at: 'desc' }
+        });
+
+        res.json(drafts);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
     }
 });
 

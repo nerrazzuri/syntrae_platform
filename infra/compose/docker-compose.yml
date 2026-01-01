@@ -28,6 +28,8 @@ services:
       - ../docker/postgres-init:/docker-entrypoint-initdb.d
     networks:
       - syntrae_net
+    ports:
+      - "5432:5432"
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U superuser -d syntrae_core" ]
       interval: 10s
@@ -86,7 +88,7 @@ services:
     environment:
       # Adjusted to use 'postgresql' service and create user/db in init
       # Note: ai-core uses 'chatbot_user' which is the POSTGRES_USER.
-      - DATABASE_URL=postgresql://superuser:Syntrae%212025_dbRoot%23A9@postgresql:5432/syntrae_core?options=-c%20search_path%3Dcore
+      - DATABASE_URL=${DATABASE_URL}?options=-c%20search_path%3Dcore
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_URL=http://qdrant:6333
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -128,7 +130,7 @@ services:
       - DEBUG=*
       - PORT=3005
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://superuser:Syntrae%212025_dbRoot%23A9@postgresql:5432/syntrae_core?schema=core
+      - DATABASE_URL=${DATABASE_URL}?schema=core
       - AI_CORE_BASE_URL=http://ai-core:8000
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -150,12 +152,13 @@ services:
     environment:
       - PORT=3001
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://superuser:Syntrae%212025_dbRoot%23A9@postgresql:5432/syntrae_core?schema=core
+      - DATABASE_URL=${DATABASE_URL}?schema=core
       - JWT_SECRET=dev_secret_operator_key_123
       - AI_CORE_BASE_URL=http://ai-core:8000
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
       # NGINX is now the edge
       - TRUST_PROXY=true
+      - COOKIE_DOMAIN=.syntraeai.com
     depends_on:
       - postgresql
 

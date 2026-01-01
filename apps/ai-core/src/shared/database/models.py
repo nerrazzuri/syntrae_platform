@@ -688,10 +688,47 @@ class OutreachDraft(Base):
     tone = Column(String(50), nullable=False)
     language = Column(String(50), nullable=False)
     draft_text = Column(String, nullable=False)
+    edited_text = Column(String, nullable=True) # Phase 37.4
     generation_meta = Column(JSON, nullable=False)
+    
+    # Phase 37.4 Lifecycle
+    status = Column(String(50), default="DRAFT", nullable=False)
+    generated_by = Column(String(50), default="AI_CORE")
+    confidence = Column(postgresql.DOUBLE_PRECISION, nullable=True)
+    
+    normalization_version = Column(String(50), nullable=True)
+    intent_score = Column(postgresql.DOUBLE_PRECISION, nullable=True)
+    
+    approved_by_user_id = Column(String(36), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    sent_at = Column(DateTime, nullable=True)
+
     created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     lead = relationship("LeadOpportunity", back_populates="drafts")
 
-    brand_id = Column(String(36), ForeignKey("core.Brand.id"), nullable=True)
+    brand_id = Column(String(36), ForeignKey("core.Brand.id"), nullable=False)
     brand = relationship("Brand", back_populates="drafts")
+
+class ManualSendEvent(Base):
+    __tablename__ = "ManualSendEvent"
+    __table_args__ = (
+        {"schema": "core"}
+    )
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    draft_id = Column(String(36), nullable=False) # Loose coupling or FK? Schema says index.
+    lead_id = Column(String(36), nullable=False)
+    brand_id = Column(String(36), nullable=False)
+    
+    sent_text = Column(String, nullable=False)
+    sent_by_user_id = Column(String(36), nullable=False)
+    sent_at = Column(DateTime, default=func.now())
+    
+    platform = Column(String(50), nullable=False)
+    send_mode = Column(String(50), nullable=False)
+    confirmation_ack = Column(Boolean, default=False)
+    
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime, default=func.now())

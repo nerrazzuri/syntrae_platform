@@ -61,6 +61,7 @@ def _try_connect(test_engine, attempts: int = 10, delay_seconds: float = 1.0) ->
                 conn.execute(text("SELECT 1"))
                 return True
         except Exception as e:
+            print(f"Connection attempt {i} failed: {e}") # Debugging
             if i == attempts:
                 break
             time.sleep(delay_seconds)

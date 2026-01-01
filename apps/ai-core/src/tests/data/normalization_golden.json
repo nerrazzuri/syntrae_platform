@@ -1,0 +1,62 @@
+[
+    {
+        "id": "SAFE_EN_1",
+        "raw_text": "u r ok?",
+        "expected_normalized": "you are ok?",
+        "expected_method": "DICT_SAFE",
+        "should_use_llm": false,
+        "intent_preserved": true
+    },
+    {
+        "id": "SAFE_EN_2",
+        "raw_text": "pls dm price",
+        "expected_normalized": "please direct message price",
+        "expected_method": "DICT_SAFE",
+        "should_use_llm": false,
+        "intent_preserved": true
+    },
+    {
+        "id": "PHRASE_MS_1",
+        "raw_text": "berapa harga ni",
+        "expected_normalized": "how much is the price this",
+        "expected_method": "PHRASE_EXACT",
+        "should_use_llm": false,
+        "intent_preserved": true
+    },
+    {
+        "id": "SAFE_MS_1",
+        "raw_text": "sy nak beli",
+        "expected_normalized": "i want beli",
+        "expected_method": "DICT_SAFE",
+        "should_use_llm": false,
+        "intent_preserved": true
+    },
+    {
+        "id": "AMBIGUITY_1",
+        "raw_text": "x tau",
+        "expected_normalized": "not know",
+        "expected_warnings": [
+            "AMBIGUOUS_NEGATION"
+        ],
+        "should_use_llm": true,
+        "intent_preserved": true
+    },
+    {
+        "id": "PARTICLE_1",
+        "raw_text": "ok lah",
+        "expected_normalized": "ok",
+        "expected_warnings": [
+            "PARTICLE_REMOVED:lah"
+        ],
+        "should_use_llm": false,
+        "intent_preserved": true
+    },
+    {
+        "id": "MIXED_1",
+        "raw_text": "this is tak boleh",
+        "expected_normalized": "this is not can",
+        "expected_method": "DICT_SAFE",
+        "should_use_llm": true,
+        "intent_preserved": true
+    }
+]

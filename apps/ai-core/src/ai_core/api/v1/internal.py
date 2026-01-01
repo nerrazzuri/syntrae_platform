@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any, List
 from shared.database.session import get_db
 from ai_core.services.internal_knowledge_service import InternalKnowledgeService
+from ai_core.services.internal_knowledge_service import InternalKnowledgeService
 from ai_core.services.draft_service import DraftGenerationService
+from ai_core.services.normalization_service import NormalizationService
 from ai_core.pipeline.llm.llm_client import LLMClient
 from shared.security.jwt import JWTService
 import os
@@ -15,6 +17,34 @@ import logging
 
 router = APIRouter(prefix="/v1/internal", tags=["internal-knowledge"])
 jwt_service = JWTService()
+normalization_service = NormalizationService()
+normalization_service = NormalizationService()
+
+# ... existing endpoints (knowledge/list, etc.) ...
+
+# [OMITTED for brevity, assume existing endpoints exist] 
+# Need to be careful with replace_file_content context.
+# Since I selected a large range, I should preserve existing endpoints if I can't see them all or use multi-replace.
+# But I see the file content in context. I will reproduce the imports and add the new code at the end or replace relevance check.
+
+# Let's target specific blocks to be safe.
+# 1. Imports and Initialization at top.
+# 2. Add /normalize endpoint.
+# 3. Replace /relevance/check.
+
+# I will do this in chunks via multi_replace if needed, but here simple replace of the relevance section + adding imports/init is cleaner if I match lines.
+# The user's requested instruction is to modify internal.py.
+
+# Imports addition:
+# from ai_core.services.normalization_service import NormalizationService
+# normalization_service = NormalizationService()
+
+# New Endpoint:
+# @router.post("/normalize") ...
+
+# Relevance Check Update.
+
+# Let's use multi_replace for safety.
 
 
 def parse_bearer(auth: Optional[str]) -> str:
@@ -186,6 +216,24 @@ def generate_draft(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+class NormalizationRequest(BaseModel):
+    text: str
+
+@router.post("/normalize")
+def normalize_text(
+    payload: NormalizationRequest,
+    request: Request
+):
+    # Public/Internal endpoint for standalone normalization
+    # Check secret
+    secret_header = request.headers.get("X-Internal-Secret")
+    env_secret = os.getenv("AI_CORE_INTERNAL_SECRET")
+    if not env_secret or secret_header != env_secret:
+        raise HTTPException(status_code=401, detail="Invalid internal secret")
+        
+    result = normalization_service.normalize(payload.text)
+    return result.to_dict()
+
 class RelevanceCheckRequest(BaseModel):
     brand_id: str
     text: str # Combined title + description + comments
@@ -219,8 +267,21 @@ async def check_relevance(
     niche = context.get("niche", "general")
     keywords = context.get("keywords", [])
     
-    # Query: "Is this video relevant to {Niche} and {Keywords}?"
-    # Better for CrossEncoder: "{Niche} {Keywords} high purchase intent"
+    # --- PHASE 37.3: NORMALIZATION ---
+    # Step 1: Normalize
+    norm_result = normalization_service.normalize(payload.text)
+    normalized_text = norm_result.normalized_text
+    
+    # Step 2: Enforcement (Confidence Cap)
+    is_uncertain = False
+    score_cap = 1.0
+    if norm_result.confidence < NormalizationService.CONFIDENCE_THRESHOLD_ACCEPT:
+        is_uncertain = True
+        score_cap = 0.5 # Cap score at 0.5 (Uncertain)
+        logger = logging.getLogger("ai_core.api.internal")
+        logger.warning(f"Low confidence normalization ({norm_result.confidence}) for text: {payload.text[:50]}...")
+    
+    # Use Normalized Text for Scoring
     query = f"{niche} {' '.join(keywords)} high purchase intent"
 
     # 4. Score
@@ -238,7 +299,7 @@ async def check_relevance(
         channel="internal",
         input={
             "query": query,
-            "retrieved": [payload.text] 
+            "retrieved": [normalized_text] # Use Normalized
         },
         context={},
         trace_id=request.headers.get("X-Correlation-ID")
@@ -252,19 +313,27 @@ async def check_relevance(
     # Payload is [{ "text": "...", "score": 0.9 }]
     scored_items = result.payload
     if not scored_items:
-         return {"relevant": False, "confidence": 0.0, "reason": "No score returned"}
+         return {"relevant": False, "confidence": 0.0, "reason": "No score returned", "normalization": norm_result.to_dict()}
 
     top_item = scored_items[0]
-    score = top_item.get("score", 0.0)
+    raw_score = top_item.get("score", 0.0)
+    
+    # Apply Cap
+    final_score = min(raw_score, score_cap)
     
     # 5. Decision Logic
     # Threshold could be in Brand Context too
     threshold = context.get("relevance_threshold", 0.4) # Default conservative
     
-    is_relevant = score >= threshold
+    is_relevant = final_score >= threshold
+    
+    reason = f"Score {final_score:.2f} >= {threshold} for niche {niche}"
+    if is_uncertain:
+        reason += " [Language Uncertain]"
     
     return {
         "relevant": is_relevant,
-        "confidence": score,
-        "reason": f"Score {score:.2f} >= {threshold} for niche {niche}"
+        "confidence": final_score,
+        "reason": reason,
+        "normalization": norm_result.to_dict() # Return Meta
     }

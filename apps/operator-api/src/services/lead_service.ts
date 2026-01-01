@@ -5,6 +5,7 @@ export interface LeadFilters {
     recommended_action?: 'SILENT_CAPTURE' | 'RECOMMEND_DM' | 'PRIORITY_DM';
     min_confidence?: number;
     platform?: string;
+    brand_id?: string; // Phase 37.4
     created_after?: string;
     created_before?: string;
 }
@@ -20,6 +21,7 @@ export class LeadService {
             account_id: accountId, // Strict Scoping
         };
 
+        if (filters.brand_id) where.brand_id = filters.brand_id;
         if (filters.buyer_stage) where.buyer_stage = filters.buyer_stage;
         if (filters.recommended_action) where.recommended_action = filters.recommended_action;
         if (filters.platform) where.platform = filters.platform;
@@ -85,6 +87,7 @@ export class LeadService {
             account_id: accountId,
         };
 
+        if (filters.brand_id) where.brand_id = filters.brand_id;
         if (filters.buyer_stage) where.buyer_stage = filters.buyer_stage;
         if (filters.recommended_action) where.recommended_action = filters.recommended_action;
         if (filters.platform) where.platform = filters.platform;
@@ -160,6 +163,7 @@ export class LeadService {
         // 3. Persist
         return (prisma as any).outreachDraft.create({
             data: {
+                brand_id: lead.brand_id,
                 lead_id: leadId,
                 account_id: accountId,
                 platform: lead.platform,

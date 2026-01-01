@@ -10,6 +10,7 @@ import { BillingPage } from './pages/Billing';
 import { BrandsPage } from './pages/Brands';
 import { BrandsAnalytics } from './pages/analytics/BrandsAnalytics';
 import { UsageAnalytics } from './pages/analytics/UsageAnalytics';
+import { AutomationPolicySettings } from './pages/settings/AutomationPolicy';
 
 function App() {
     return (
@@ -21,6 +22,7 @@ function App() {
                     <Route index element={<Dashboard />} />
                     <Route path="suggestions" element={<Suggestions />} />
                     <Route path="brands" element={<BrandsPage />} />
+                    <Route path="brands/:brandId/policy" element={<AutomationPolicySettings />} />
                     <Route path="billing" element={<BillingPage />} />
                     <Route path="settings" element={<Settings />} />
 
