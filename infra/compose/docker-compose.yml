@@ -223,3 +223,24 @@ services:
     restart: unless-stopped
     networks:
       - syntrae_net
+
+  automation-worker:
+    # Reuses the same build context/image
+    build:
+      context: ../..
+      dockerfile: infra/docker/video-detection-engine.Dockerfile
+    container_name: automation-worker
+    # Override CMD to run the Global Poller
+    command: [ "python", "poll_automation.py", "--mode", "global", "--install-id", "docker-worker-1" ]
+    environment:
+      - LOG_LEVEL=INFO
+      # Needs to reach operator-api for polling
+      - OPERATOR_API_URL=http://operator-api:3001
+      # IMPORTANT: If IntegrationClient defaults to something else, we might need env vars
+      # IntegrationClient uses OPERATOR_API_BASE in client.py? Let's check.
+      # It hardcodes "http://operator-api:3001" usually in dev, or uses env.
+    restart: unless-stopped
+    depends_on:
+      - operator-api
+    networks:
+      - syntrae_net

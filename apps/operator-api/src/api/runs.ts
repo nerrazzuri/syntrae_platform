@@ -49,6 +49,20 @@ router.get('/brands/:brandId/runs/pending', requireAgentAccess, async (req: any,
     }
 });
 
+// GLOBAL Pending Runs (For System Workers)
+router.get('/runs/pending', async (req: any, res: any) => {
+    // Should be secured by Admin/System Secret
+    try {
+        const run = await prisma.automationRun.findFirst({
+            where: { status: 'PENDING' },
+            orderBy: { started_at: 'asc' }
+        });
+        res.json(run || null);
+    } catch (e) {
+        res.status(500).json({});
+    }
+});
+
 // requireAgentAccess Middleware
 const requireAgentAccess = async (req: any, res: any, next: any) => {
     // 1. Try Session Auth (User context) - Users probably don't create runs manually but maybe for testing.
