@@ -473,6 +473,7 @@ model AutomationPolicy {
 }
 
 enum RunStatus {
+  PENDING
   RUNNING
   COMPLETED
   ABORTED
