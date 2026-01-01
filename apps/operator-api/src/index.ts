@@ -49,7 +49,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(morgan('dev'));
 
-export const prisma = new PrismaClient();
+// export const prisma = new PrismaClient(); // Moved to db.ts to avoid circular deps
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', service: 'operator-api' });

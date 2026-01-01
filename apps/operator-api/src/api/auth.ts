@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { AuthService } from '../services/auth.service';
 import { BootstrapService } from '../services/bootstrap.service';
 import { requireAuth } from '../middleware/auth';
-import { prisma } from '../index';
+import { prisma } from '../db';
 
 export const authRouter = Router();
 

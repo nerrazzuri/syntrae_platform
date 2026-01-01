@@ -93,7 +93,7 @@ router.get('/:brandId/leads', async (req: Request, res: Response) => {
 });
 
 // GET /brands/:brandId/leads/:leadId/drafts (Phase 37.4)
-import { prisma } from '../index'; // Create explicit dependency here if needed or move to Service
+import { prisma } from '../db';
 router.get('/:brandId/leads/:leadId/drafts', async (req: Request, res: Response) => {
     try {
         const { brandId, leadId } = req.params;

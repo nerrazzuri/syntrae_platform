@@ -1,6 +1,6 @@
 
 import { Router } from 'express';
-import { prisma } from '../index';
+import { prisma } from '../db';
 import { requireSession, requireWorkspace } from '../middleware/session_auth';
 import { FeedbackService, FeedbackAction } from '../services/feedback.service';
 
