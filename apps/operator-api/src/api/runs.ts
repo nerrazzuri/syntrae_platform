@@ -79,21 +79,6 @@ router.get('/runs/pending', async (req: any, res: any) => {
     }
 });
 
-// requireAgentAccess Middleware
-const requireAgentAccess = async (req: any, res: any, next: any) => {
-    // 1. Try Session Auth (User context) - Users probably don't create runs manually but maybe for testing.
-    if (req.user) return next();
-
-    // 2. Connector/Agent Auth
-    const installId = req.headers['x-install-id'];
-    const brandId = req.params.brandId;
-
-    if (installId && brandId) {
-        return next();
-    }
-    return res.status(401).json({ error: "Unauthorized Agent" });
-};
-
 router.post('/brands/:brandId/automation-runs', requireAgentAccess, async (req, res) => {
     const { brandId } = req.params;
     const {
