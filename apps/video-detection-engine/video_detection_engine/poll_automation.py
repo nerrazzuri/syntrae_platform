@@ -15,35 +15,40 @@ async def poll_loop(platform, brand_id, install_id):
 async def global_poll_loop(install_id):
     # Valid "Unbound" client for initial fetch
     client = IntegrationClient(brand_id="system", install_id=install_id)
-    logger.info(f"Global Worker {install_id} starting...")
+    operator_url = client.operator_url # Access the property
+    logger.info(f"Global Worker {install_id} starting against {operator_url}...")
+
+    import httpx
 
     while True:
         try:
             # 1. Check Global Pending
-            url = f"{client.base_url}/runs/pending"
+            url = f"{operator_url}/api/runs/pending"
             headers = {"x-install-id": install_id}
             
-            resp = client.client.get(url, headers=headers)
-            
-            if resp.status_code == 200 and resp.text.strip() and resp.text != "null":
-                run_data = resp.json()
-                run_id = run_data.get("id")
-                brand_id = run_data.get("brand_id")
-                platform = run_data.get("platform")
+            async with httpx.AsyncClient() as http:
+                resp = await http.get(url, headers=headers)
                 
-                logger.info(f"🚀 Claiming Job {run_id} for Brand {brand_id}...")
-                
-                # Update Status to RUNNING
-                # We need a client bound to this brand (legacy design) or just use raw URL
-                client.client.put(f"{client.base_url}/brands/{brand_id}/automation-runs/{run_id}", 
-                    json={"status": "RUNNING"}, headers=headers)
-                
-                # Execute
-                await run_automation(platform, "chromium", True, None, brand_id, install_id)
-                
-                # Complete
-                client.client.put(f"{client.base_url}/brands/{brand_id}/automation-runs/{run_id}", 
-                    json={"status": "COMPLETED"}, headers=headers)
+                if resp.status_code == 200 and resp.text.strip() and resp.text != "null":
+                    run_data = resp.json()
+                    run_id = run_data.get("id")
+                    brand_id = run_data.get("brand_id")
+                    platform = run_data.get("platform")
+                    
+                    logger.info(f"🚀 Claiming Job {run_id} for Brand {brand_id}...")
+                    
+                    # Update Status to RUNNING
+                    await http.put(f"{operator_url}/api/brands/{brand_id}/automation-runs/{run_id}", 
+                        json={"status": "RUNNING"}, headers=headers)
+                    
+                    # Execute
+                    await run_automation(platform, "chromium", True, None, brand_id, install_id)
+                    
+                    # Complete
+                    await http.put(f"{operator_url}/api/brands/{brand_id}/automation-runs/{run_id}", 
+                        json={"status": "COMPLETED"}, headers=headers)
+                    
+                    logger.info("Job Done.")
                 
                 logger.info("Job Done.")
             
