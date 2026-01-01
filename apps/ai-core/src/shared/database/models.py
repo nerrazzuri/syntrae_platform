@@ -667,6 +667,12 @@ class LeadOpportunity(Base):
     brand_id = Column(String(36), ForeignKey("core.Brand.id"), nullable=False)
     brand = relationship("Brand", back_populates="leads")
 
+    # Phase 37.5: Market Profile Snapshot
+    market_profile_id = Column(String(36), nullable=True)
+    market_profile_version = Column(Integer, nullable=True)
+    market_match_score = Column(postgresql.DOUBLE_PRECISION, nullable=True)
+    market_match_reasons = Column(JSON, nullable=True)
+
     # Constraints
     # @@unique([platform, comment_id]) -> UniqueConstraint in SQLAlchemy
     __table_args__ = (
@@ -732,3 +738,94 @@ class ManualSendEvent(Base):
     
     notes = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
+
+
+# =====================================
+# Phase 37.5: Market Profile & Discovery
+# =====================================
+
+class MarketCategory(str, enum.Enum):
+    SKINCARE = "SKINCARE"
+    BEAUTY = "BEAUTY"
+    FITNESS = "FITNESS"
+    SAAS = "SAAS"
+    EDUCATION = "EDUCATION"
+    LOCAL_SERVICE = "LOCAL_SERVICE"
+    ECOM_GENERAL = "ECOM_GENERAL"
+
+
+class MarketDecision(str, enum.Enum):
+    ACCEPT = "ACCEPT"
+    REJECT = "REJECT"
+    SKIP = "SKIP"
+
+
+class MarketSkipReason(str, enum.Enum):
+    LOW_SCORE = "LOW_SCORE"
+    AMBIGUOUS = "AMBIGUOUS"
+    LANGUAGE_MISMATCH = "LANGUAGE_MISMATCH"
+    INSUFFICIENT_SIGNALS = "INSUFFICIENT_SIGNALS"
+
+
+class DiscoveryIntent(str, enum.Enum):
+    CONSERVATIVE = "CONSERVATIVE"
+    BALANCED = "BALANCED"
+    AGGRESSIVE = "AGGRESSIVE"
+
+
+class MarketProfileStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    READY = "READY"
+    ACTIVE = "ACTIVE"
+
+
+class DiscoveryMode(str, enum.Enum):
+    MANUAL_URL = "MANUAL_URL"
+    FEED_SCROLL = "FEED_SCROLL"
+    SEARCH_QUERY = "SEARCH_QUERY"
+
+
+class MarketProfile(Base):
+    __tablename__ = "MarketProfile"
+    __table_args__ = (
+        Index("idx_marketprofile_brand_active", "brand_id", "is_active"),
+        {"schema": "core"}
+    )
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    brand_id = Column(String(36), ForeignKey("core.Brand.id"), nullable=False)
+    name = Column(String, nullable=False)
+    version = Column(Integer, default=1)
+    status = Column(Enum(MarketProfileStatus, name="MarketProfileStatus", schema="core"), default=MarketProfileStatus.DRAFT)
+    
+    primary_category = Column(Enum(MarketCategory, name="MarketCategory", schema="core"), nullable=False)
+    target_audience = Column(String, nullable=False)
+    
+    # Store arrays as JSON since filtering is done in App Logic, not extensive DB filtering
+    # Alternatively use ARRAY(String) if PG specific, but JSON is safer for SQLAlchemy generic
+    languages = Column(postgresql.ARRAY(String), default=[])
+    
+    keywords_positive = Column(postgresql.ARRAY(String), default=[])
+    keywords_negative = Column(postgresql.ARRAY(String), default=[])
+    hashtags_positive = Column(postgresql.ARRAY(String), default=[])
+    hashtags_negative = Column(postgresql.ARRAY(String), default=[])
+    excluded_topics = Column(postgresql.ARRAY(String), default=[])
+    
+    acceptance_threshold = Column(postgresql.DOUBLE_PRECISION, default=0.6)
+    weight_keyword = Column(postgresql.DOUBLE_PRECISION, default=0.3)
+    weight_hashtag = Column(postgresql.DOUBLE_PRECISION, default=0.2)
+    
+    quality_score = Column(postgresql.DOUBLE_PRECISION, default=0.0)
+    validation_warnings = Column(postgresql.ARRAY(String), default=[])
+    
+    discovery_intent = Column(Enum(DiscoveryIntent, name="DiscoveryIntent", schema="core"), default=DiscoveryIntent.BALANCED)
+    is_active = Column(Boolean, default=False)
+    
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    brand = relationship("Brand", back_populates="market_profiles")
+
+
+# Update Brand relationship
+Brand.market_profiles = relationship("MarketProfile", back_populates="brand")

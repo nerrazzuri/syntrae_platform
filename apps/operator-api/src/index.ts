@@ -19,6 +19,7 @@ import { policyRouter } from './api/policy';
 import { analyticsRouter } from './api/analytics';
 import { runsRouter } from './api/runs';
 import { draftsRouter } from './api/drafts';
+import marketProfileRouter from './api/market_profile';
 
 dotenv.config();
 
@@ -67,7 +68,13 @@ app.use('/brands', brandRouter);
 app.use('/policies', policyRouter);
 app.use('/analytics', analyticsRouter);
 app.use('/runs', runsRouter);
-app.use('/drafts', draftsRouter); // Was /api, changed to /drafts
+app.use('/drafts', draftsRouter);
+app.use('/', marketProfileRouter); // Routes are mounted at root level like others (but careful with paths) 
+// Actually wait, routes in `market_profile.ts` are `/brands/:id/...` and `/market-profiles/:id`.
+// So we should mount it at `/` to let the router handle the full paths, OR mount at `/api` if we were using it.
+// Given current pattern: `brandRouter` is at `/brands`.
+// `market_profile.ts` has specific paths.
+// Let's import it first. 
 
 app.listen(port, () => {
     console.log(`[OperatorAPI] Server running on port ${port}`);

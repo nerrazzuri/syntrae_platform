@@ -116,6 +116,12 @@ export function BrandsPage() {
                             >
                                 Automation Policy
                             </Link>
+                            <Link
+                                to={`/brands/${brand.id}/market-profiles`}
+                                className="text-sm font-medium text-purple-600 hover:text-purple-800"
+                            >
+                                Market Profiles
+                            </Link>
                         </div>
                     </div>
                 ))}

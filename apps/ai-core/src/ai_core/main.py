@@ -39,6 +39,7 @@ from ai_core.api.v1.admin.tenant_manager import router as tenant_manager_router
 from ai_core.api.v1.feedback import router as feedback_router
 from ai_core.api.v1.agent.approvals import router as approvals_router
 from ai_core.api.v1.agent.chat import router as agent_chat_router
+from ai_core.api.v1.market import router as market_router
 from shared.database.session import create_tables, SessionLocal
 from shared.database.models import Tenant
 import uuid
@@ -1014,6 +1015,7 @@ app.include_router(tenants_admin_router)
 app.include_router(plans_admin_router)
 app.include_router(connectors_admin_router)
 app.include_router(tenant_manager_router)
+app.include_router(market_router)
 
 @app.get("/health")
 def health_check():

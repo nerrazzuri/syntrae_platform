@@ -54,6 +54,7 @@ model Brand {
   leads           LeadOpportunity[]
   drafts          OutreachDraft[]
   policies        AutomationPolicy[]
+  market_profiles MarketProfile[]
 
   @@index([workspace_id])
   @@schema("core")
@@ -342,6 +343,12 @@ model LeadOpportunity {
   brand_id          String
   brand             Brand             @relation(fields: [brand_id], references: [id])
 
+  // Phase 37.5: Market Profile Snapshot
+  market_profile_id      String?
+  market_profile_version Int?
+  market_match_score     Float?
+  market_match_reasons   Json? // String[] of reasons
+
   @@unique([platform, comment_id])
   @@index([brand_id])
   @@schema("core")
@@ -479,6 +486,8 @@ model AutomationRun {
   brand_id        String
   install_id      String
   platform        String
+  discovery_mode  DiscoveryMode   @default(MANUAL_URL)
+  discovery_intent DiscoveryIntent @default(BALANCED)
   
   status          RunStatus @default(RUNNING)
   started_at      DateTime  @default(now())
@@ -493,5 +502,101 @@ model AutomationRun {
   
   @@index([brand_id])
   @@index([install_id])
+  @@schema("core")
+}
+
+// =====================================
+// PHASE 37.5: Market Profile & Discovery
+// =====================================
+
+enum MarketCategory {
+  SKINCARE
+  BEAUTY
+  FITNESS
+  SAAS
+  EDUCATION
+  LOCAL_SERVICE
+  ECOM_GENERAL
+
+  @@schema("core")
+}
+
+enum MarketDecision {
+  ACCEPT
+  REJECT
+  SKIP
+
+  @@schema("core")
+}
+
+enum MarketSkipReason {
+  LOW_SCORE
+  AMBIGUOUS
+  LANGUAGE_MISMATCH
+  INSUFFICIENT_SIGNALS
+
+  @@schema("core")
+}
+
+enum DiscoveryIntent {
+  CONSERVATIVE
+  BALANCED
+  AGGRESSIVE
+
+  @@schema("core")
+}
+
+enum MarketProfileStatus {
+  DRAFT
+  READY
+  ACTIVE
+
+  @@schema("core")
+}
+
+enum DiscoveryMode {
+  MANUAL_URL
+  FEED_SCROLL
+  SEARCH_QUERY
+
+  @@schema("core")
+}
+
+model MarketProfile {
+  id                String            @id @default(uuid())
+  brand_id          String
+  name              String
+  version           Int               @default(1)
+  status            MarketProfileStatus @default(DRAFT)
+  
+  primary_category  MarketCategory
+  target_audience   String
+  languages         String[]
+  
+  // Keywords & Hashtags
+  keywords_positive String[]
+  keywords_negative String[]
+  hashtags_positive String[]
+  hashtags_negative String[]
+  excluded_topics   String[]
+  
+  // Scoring Config
+  acceptance_threshold Float          @default(0.6)
+  weight_keyword       Float          @default(0.3)
+  weight_hashtag       Float          @default(0.2)
+  
+  // Quality & Safety
+  quality_score        Float          @default(0.0)
+  validation_warnings  String[]
+  
+  discovery_intent     DiscoveryIntent @default(BALANCED)
+  is_active            Boolean         @default(false)
+  
+  created_at           DateTime        @default(now())
+  updated_at           DateTime        @updatedAt
+
+  brand                Brand           @relation(fields: [brand_id], references: [id])
+
+  @@index([brand_id, is_active])
   @@schema("core")
 }

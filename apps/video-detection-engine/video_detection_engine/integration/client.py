@@ -189,3 +189,55 @@ class IntegrationClient:
                     logger.info(f"Event emitted: {resp.json().get('event_id')}")
         except Exception as e:
             logger.error(f"Event emission exception: {e}")
+
+    async def get_market_profiles(self) -> Dict[str, Any]:
+        """
+        Fetches Market Profiles for the brand.
+        """
+        url = f"{self.operator_url}/api/brands/{self.brand_id}/market-profiles"
+        headers = {
+            "x-install-id": self.install_id,
+            "x-internal-secret": self.internal_secret,
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(url, headers=headers, timeout=5.0)
+                if resp.status_code == 200:
+                    return resp.json()
+                else:
+                    logger.error(f"Failed to fetch profiles {resp.status_code}: {resp.text}")
+                    return []
+        except Exception as e:
+            logger.error(f"Profile fetch exception: {e}")
+            return []
+
+    async def score_content(self, text: str, hashtags: list, platform: str) -> Dict[str, Any]:
+        """
+        Calls AI Core Market Match Service.
+        """
+        url = f"{self.ai_core_url}/v1/market/score"
+        payload = {
+            "brand_id": self.brand_id,
+            "text": text,
+            "hashtags": hashtags
+        }
+        
+        headers = {
+            "X-Internal-Secret": self.internal_secret,
+            "X-Correlation-ID": f"disco-{self.install_id}",
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(url, json=payload, headers=headers, timeout=5.0)
+                if resp.status_code == 200:
+                    return resp.json()
+                else:
+                    logger.error(f"Market score failed {resp.status_code}: {resp.text}")
+                    return {"score": 0.0, "is_match": False, "reasons": ["API_ERROR"], "threshold": 0.6}
+        except Exception as e:
+            logger.error(f"Market score exception: {e}")
+            return {"score": 0.0, "is_match": False, "reasons": ["EXCEPTION"], "threshold": 0.6}
