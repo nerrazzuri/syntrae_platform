@@ -28,6 +28,7 @@ router.post('/brands/:brandId/runs/queue', async (req: any, res: any) => {
     // Basic User Session Auth (Session Middleware should be here)
     // For now assuming internal/open
     const { brandId } = req.params;
+    console.log(`[API] Queueing run for brand ${brandId}`);
     const { platform = 'tiktok' } = req.body;
 
     try {

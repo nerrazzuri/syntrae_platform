@@ -64,10 +64,11 @@ app.use('/suggestions', suggestionsRouter);
 app.use('/value', valueRouter);
 app.use('/leads', leadsRouter);
 app.use('/billing', billingRouter);
+app.use('/', runsRouter);
 app.use('/brands', brandRouter);
 app.use('/policies', policyRouter);
 app.use('/analytics', analyticsRouter);
-app.use('/', runsRouter);
+
 app.use('/drafts', draftsRouter);
 app.use('/', marketProfileRouter); // Routes are mounted at root level like others (but careful with paths) 
 // Actually wait, routes in `market_profile.ts` are `/brands/:id/...` and `/market-profiles/:id`.
