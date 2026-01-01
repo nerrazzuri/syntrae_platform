@@ -33,7 +33,7 @@ class IntegrationClient:
         """
         # Note: Access control assumes Install-ID validation or Internal Network trust.
         # Implemented in Operator API to allow x-install-id header.
-        url = f"{self.operator_url}/api/brands/{brand_id}/automation-policy"
+        url = f"{self.operator_url}/brands/{brand_id}/automation-policy"
         headers = {
             "x-install-id": self.install_id,
             "x-internal-secret": self.internal_secret, # Pass this too just in case
@@ -60,7 +60,7 @@ class IntegrationClient:
         Creates an AutomationRun record in Operator API.
         Returns the run_id if successful.
         """
-        url = f"{self.operator_url}/api/brands/{self.brand_id}/automation-runs"
+        url = f"{self.operator_url}/brands/{self.brand_id}/automation-runs"
         headers = {
             "x-install-id": self.install_id,
             "x-internal-secret": self.internal_secret,
@@ -194,7 +194,7 @@ class IntegrationClient:
         """
         Fetches Market Profiles for the brand.
         """
-        url = f"{self.operator_url}/api/brands/{self.brand_id}/market-profiles"
+        url = f"{self.operator_url}/brands/{self.brand_id}/market-profiles"
         headers = {
             "x-install-id": self.install_id,
             "x-internal-secret": self.internal_secret,
