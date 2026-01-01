@@ -110,6 +110,17 @@ export function BrandsPage() {
                             >
                                 {brand.status === 'ACTIVE' ? 'Pause' : 'Resume'}
                             </button>
+                            <button
+                                onClick={async () => {
+                                    if (confirm('Queue a Discovery Run? Make sure your Agent is running!')) {
+                                        await api.post(`/brands/${brand.id}/runs/queue`, { platform: 'tiktok' });
+                                        alert('Run Queued! Watch your agent console.');
+                                    }
+                                }}
+                                className="text-sm font-medium text-green-600 hover:text-green-800 underline"
+                            >
+                                Run Discovery
+                            </button>
                             <Link
                                 to={`/brands/${brand.id}/policy`}
                                 className="text-sm font-medium text-blue-600 hover:text-blue-800"

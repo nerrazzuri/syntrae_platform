@@ -88,61 +88,39 @@ async def run_automation(platform: str, browser_type: str, headless: bool, url: 
             if not enforcer.check_comment_limit_gate(video_comments_processed):
                 break
                 
-            # 7. RELEVANCE LOOP
+            # 7. MARKET MATCH / RELEVANCE LOOP
             text_to_score = comment.get("content_text", "")
+            hashtags = comment.get("hashtags", []) # Adapter needs to provide this
             
-            logger.info(f"Checking relevance for: {text_to_score[:50]}...")
-            
-            # Use Enforcer threshold? Client does remote check, but we could filter locally if we had local scoring.
-            # Here we just pacify the API call.
+            logger.info(f"Checking market fit for: {text_to_score[:50]}...")
             await enforcer.pace_action("relevance_check")
             
-            decision = await client.check_relevance(
+            # Use new Market Match Service
+            decision = await client.score_content(
                 text=text_to_score,
-                platform=platform,
-                metadata={}
+                hashtags=hashtags,
+                platform=platform
             )
             
-            # Check against Policy Threshold explicitly (double check)
-            # Automation Engine enforces the threshold returned by API decision usually,
-            # but we can override if policy in DB changed? 
-            # Actually, `check_relevance` in Client likely sends "relevant: true" if API thinks so.
-            # But the API endpoint we wrote uses Brand Context, which might be stale vs Policy?
-            # Ideally, relevance check respects the Score Threshold in the Request to AI Core?
-            # We implemented `ScoreCapability` but decision logic was inside `ai-core`.
-            # So `decision.get('relevant')` is authoritative matching Brand Context settings.
-            
-            if decision.get("relevant"):
-                logger.info(f"✅ RELEVANT ({decision.get('confidence'):.2f}): {decision.get('reason')}")
+            if decision.get("is_match"):
+                score = decision.get("score", 0.0)
+                logger.info(f"✅ MATCH ({score:.2f}): {decision.get('reasons')}")
                 
                 # 8. EMIT EVENT
-                # Enrich payload with normalization metadata
                 enriched_payload = comment.copy()
-                norm_data = decision.get("normalization", {})
-                norm_meta_dict = norm_data.get("normalization_meta", {})
-                
-                if norm_data:
-                    enriched_payload.update({
-                        "normalized_text": norm_data.get("normalized_text"),
-                        "normalization_confidence": norm_meta_dict.get("confidence"),
-                        "normalization_method": norm_meta_dict.get("method"),
-                        "normalization_version": norm_meta_dict.get("version"),
-                        "normalization_language": norm_meta_dict.get("language_guess"),
-                        "normalization_rules": norm_meta_dict.get("rules_fired"),
-                        "normalization_warnings": norm_meta_dict.get("warnings")
-                    })
+                enriched_payload.update({
+                    "market_score": score,
+                    "market_reasons": decision.get("reasons"),
+                    "matched_keywords": decision.get("matched_keywords"),
+                    "matched_hashtags": decision.get("matched_hashtags")
+                })
                 
                 await client.emit_event("DESKTOP_CAPTURE", enriched_payload)
                 enforcer.track_comment()
                 video_comments_processed += 1
             else:
-                logger.info(f"❌ IGNORED ({decision.get('confidence', 0):.2f}): {decision.get('reason')}")
-                
-                # Policy: Capture Seen Events?
-                if policy_data.get("allow_capture_seen_events", True):
-                     # Emit "SEEN/REJECTED" event if needed. 
-                     # For now logging is enough until Phase 37.3 analytics.
-                     pass
+                score = decision.get("score", 0.0)
+                logger.info(f"❌ IGNORED ({score:.2f}): {decision.get('reasons')}")
             
     except Exception as e:
         logger.error(f"Automation failed: {e}")
