@@ -98,11 +98,27 @@ export const MarketProfiles: React.FC = () => {
         setSaving(true);
         setError(null);
 
+        // Clean arrays before saving
+        const cleanProfile = { ...editing };
+        const arrayFields: (keyof MarketProfile)[] = [
+            'keywords_positive', 'keywords_negative',
+            'hashtags_positive', 'hashtags_negative',
+            'excluded_topics', 'languages'
+        ];
+
+        arrayFields.forEach(field => {
+            const val = cleanProfile[field];
+            if (Array.isArray(val)) {
+                // @ts-ignore
+                cleanProfile[field] = val.map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+            }
+        });
+
         try {
             if (isNew) {
-                await api.post(`/brands/${brandId}/market-profiles`, editing);
+                await api.post(`/brands/${brandId}/market-profiles`, cleanProfile);
             } else {
-                await api.patch(`/market-profiles/${editing.id}`, editing);
+                await api.patch(`/market-profiles/${editing.id}`, cleanProfile);
             }
             setEditing(null);
             loadProfiles();
@@ -127,8 +143,8 @@ export const MarketProfiles: React.FC = () => {
     // Helper for Array Inputs (comma separated for MVP)
     const handleArrayInput = (field: keyof MarketProfile, value: string) => {
         if (!editing) return;
-        // Split by comma, trim, filter empty
-        const arr = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
+        // Allow raw input (don't trim/filter yet to preserve trailing commas/spaces while typing)
+        const arr = value.split(',');
         setEditing({ ...editing, [field]: arr });
     };
 
