@@ -1,6 +1,6 @@
 
 import { PrismaClient } from '@syntrae/prisma-schema';
-import { v4 as uuid } from 'uuid';
+
 
 const prisma = new PrismaClient();
 
