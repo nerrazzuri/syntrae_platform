@@ -23,7 +23,8 @@ async def global_poll_loop(install_id):
     while True:
         try:
             # 1. Check Global Pending
-            url = f"{operator_url}/api/runs/pending"
+            # Internal call: No /api prefix (Express app is root)
+            url = f"{operator_url}/runs/pending"
             headers = {"x-install-id": install_id}
             
             async with httpx.AsyncClient() as http:
@@ -38,14 +39,14 @@ async def global_poll_loop(install_id):
                     logger.info(f"🚀 Claiming Job {run_id} for Brand {brand_id}...")
                     
                     # Update Status to RUNNING
-                    await http.put(f"{operator_url}/api/brands/{brand_id}/automation-runs/{run_id}", 
+                    await http.put(f"{operator_url}/brands/{brand_id}/automation-runs/{run_id}", 
                         json={"status": "RUNNING"}, headers=headers)
                     
                     # Execute
                     await run_automation(platform, "chromium", True, None, brand_id, install_id)
                     
                     # Complete
-                    await http.put(f"{operator_url}/api/brands/{brand_id}/automation-runs/{run_id}", 
+                    await http.put(f"{operator_url}/brands/{brand_id}/automation-runs/{run_id}", 
                         json={"status": "COMPLETED"}, headers=headers)
                     
                     logger.info("Job Done.")
