@@ -55,7 +55,8 @@ app.get('/health', (req, res) => {
 });
 
 // Register Routes
-app.use('/api', authRouter);
+// Register Routes
+app.use('/auth', authRouter); // Was /api, changed to /auth to match Frontend /auth/me
 app.use('/workspaces', workspaceRouter);
 app.use('/owner', ownerRouter);
 app.use('/suggestions', suggestionsRouter);
@@ -63,29 +64,10 @@ app.use('/value', valueRouter);
 app.use('/leads', leadsRouter);
 app.use('/billing', billingRouter);
 app.use('/brands', brandRouter);
-app.use('/billing', billingRouter);
-app.use('/brands', brandRouter);
-app.use('/policies', policyRouter); // Specific mount point
+app.use('/policies', policyRouter);
 app.use('/analytics', analyticsRouter);
-app.use('/runs', runsRouter); // Specific mount point if needed, or keep generic /api? Original plan was generic, but specific is cleaner. Keeping generic for now to minimize breaking changes if client expects it.
-// Actually, consistency: most are mounted on root /something.
-// Let's assume index.ts convention.
-// Original code had: app.use('/api', policyRouter); which means /api/policies if router has /policies prefix, or /api if router is root.
-// Checking imports... imports are just routers.
-// Let's stick to the existing pattern for now (everything under app, some specific).
-// Wait, previous file content showed:
-// app.use('/api', policyRouter);
-// app.use('/api', analyticsRouter);
-// app.use('/api', runsRouter);
-// app.use('/api', draftsRouter);
-//
-// The goal is to ensure they are reachable.
-// draftsRouter in drafts.ts is defined as root '/drafts/:id...'.
-// So mounting at '/' makes them '/drafts/:id'.
-// Mounting at '/api' makes them '/api/drafts/:id'.
-// verification used /api/drafts.
-// So:
-app.use('/api', draftsRouter);
+app.use('/runs', runsRouter);
+app.use('/drafts', draftsRouter); // Was /api, changed to /drafts
 
 app.listen(port, () => {
     console.log(`[OperatorAPI] Server running on port ${port}`);

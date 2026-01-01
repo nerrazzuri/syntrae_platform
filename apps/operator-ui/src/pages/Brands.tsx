@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 
 export function BrandsPage() {
@@ -102,18 +103,26 @@ export function BrandsPage() {
                             </div>
                             <p className="text-gray-500 text-sm">{brand.domain}</p>
                         </div>
-                        <button
-                            onClick={() => toggleStatus(brand.id, brand.status)}
-                            className="text-sm underline text-gray-600 hover:text-black"
-                        >
-                            {brand.status === 'ACTIVE' ? 'Pause' : 'Resume'}
-                        </button>
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={() => toggleStatus(brand.id, brand.status)}
+                                className="text-sm underline text-gray-600 hover:text-black"
+                            >
+                                {brand.status === 'ACTIVE' ? 'Pause' : 'Resume'}
+                            </button>
+                            <Link
+                                to={`/brands/${brand.id}/policy`}
+                                className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                            >
+                                Automation Policy
+                            </Link>
+                        </div>
                     </div>
                 ))}
                 {!loading && brands.length === 0 && (
                     <div className="p-8 text-center text-gray-500">No brands found.</div>
                 )}
             </div>
-        </div>
+        </div >
     );
 }
