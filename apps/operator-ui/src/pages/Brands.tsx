@@ -118,9 +118,9 @@ export function BrandsPage() {
                             </Link>
                             <Link
                                 to={`/brands/${brand.id}/market-profiles`}
-                                className="text-sm font-medium text-purple-600 hover:text-purple-800"
+                                className="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 font-bold uppercase tracking-wide"
                             >
-                                Market Profiles
+                                Market Strategy
                             </Link>
                         </div>
                     </div>
