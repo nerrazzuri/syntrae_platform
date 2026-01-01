@@ -10,3 +10,5 @@ __pycache__
 .pytest_cache
 venv
 *.log
+infra/compose/certbot/conf/
+infra/compose/certbot/www/
