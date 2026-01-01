@@ -8,6 +8,22 @@ const router = Router();
 // For speed/DRY, we should export it or move to middleware.
 // But duplication is safer for now to avoid breaking existing file imports blindly.
 // Queue a Run (User Trigger)
+// requireAgentAccess Middleware
+const requireAgentAccess = async (req: any, res: any, next: any) => {
+    // 1. Try Session Auth (User context) - Users probably don't create runs manually but maybe for testing.
+    if (req.user) return next();
+
+    // 2. Connector/Agent Auth
+    const installId = req.headers['x-install-id'];
+    const brandId = req.params.brandId;
+
+    if (installId && brandId) {
+        return next();
+    }
+    return res.status(401).json({ error: "Unauthorized Agent" });
+};
+
+// Queue a Run (User Trigger)
 router.post('/brands/:brandId/runs/queue', async (req: any, res: any) => {
     // Basic User Session Auth (Session Middleware should be here)
     // For now assuming internal/open
