@@ -1,16 +1,16 @@
 # syntax=docker/dockerfile:1
 # ---- Base -------------------------------------------------
-FROM python:3.10-slim
+# Use official Playwright image (includes Python + Browsers + OS Deps)
+FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
 
 WORKDIR /app
 
 # ---- System deps ------------------------------------------
-# Added ffmpeg significantly as it is required for video processing
+# ffmpeg is still required for video processing
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     ffmpeg \
-    libsm6 libxext6 \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- Torch FIRST (isolated layer: TIME BOMB DEFUSED) ------

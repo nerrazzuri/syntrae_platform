@@ -185,8 +185,86 @@ def generate_draft(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        # log error?
-        logger = logging.getLogger("ai_core.api.internal")
-        logger.exception("Draft generation failed")
-        raise HTTPException(status_code=500, detail=str(e))
+
+class RelevanceCheckRequest(BaseModel):
+    brand_id: str
+    text: str # Combined title + description + comments
+    platform: str
+    metadata: Optional[Dict[str, Any]] = {}
+
+@router.post("/relevance/check")
+async def check_relevance(
+    payload: RelevanceCheckRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    # 1. Auth & Context
+    secret_header = request.headers.get("X-Internal-Secret")
+    env_secret = os.getenv("AI_CORE_INTERNAL_SECRET")
+    if not env_secret or secret_header != env_secret:
+        raise HTTPException(status_code=401, detail="Invalid internal secret")
+
+    # 2. Fetch Brand Context
+    from shared.database.models import Brand
+    brand = db.query(Brand).filter(Brand.id == payload.brand_id).first()
+    
+    if not brand:
+         # Fallback to permissive or strict? 
+         # Strict: If brand unknown, we can't judge relevance.
+         raise HTTPException(status_code=404, detail=f"Brand {payload.brand_id} not found")
+
+    # 3. Construct Query from Brand Context
+    # Context expected: { "niche": "Skin Care", "keywords": ["acne", "routine"] }
+    context = brand.domain_context or {}
+    niche = context.get("niche", "general")
+    keywords = context.get("keywords", [])
+    
+    # Query: "Is this video relevant to {Niche} and {Keywords}?"
+    # Better for CrossEncoder: "{Niche} {Keywords} high purchase intent"
+    query = f"{niche} {' '.join(keywords)} high purchase intent"
+
+    # 4. Score
+    cap = request.app.state.capabilities.get("score")
+    if not cap:
+        raise HTTPException(status_code=500, detail="Score capability not ready")
+
+    # We use ScoreCapability to rerank a single item against the query
+    from ai_core.contracts.capability_request import CapabilityRequest
+    
+    cap_req = CapabilityRequest(
+        tenant_id="system", # Internal
+        user_id="automation_agent",
+        roles=["internal"],
+        channel="internal",
+        input={
+            "query": query,
+            "retrieved": [payload.text] 
+        },
+        context={},
+        trace_id=request.headers.get("X-Correlation-ID")
+    )
+
+    result = await cap.execute(cap_req)
+    
+    if result.kind == "error":
+        raise HTTPException(status_code=500, detail="Scoring failed")
+
+    # Payload is [{ "text": "...", "score": 0.9 }]
+    scored_items = result.payload
+    if not scored_items:
+         return {"relevant": False, "confidence": 0.0, "reason": "No score returned"}
+
+    top_item = scored_items[0]
+    score = top_item.get("score", 0.0)
+    
+    # 5. Decision Logic
+    # Threshold could be in Brand Context too
+    threshold = context.get("relevance_threshold", 0.4) # Default conservative
+    
+    is_relevant = score >= threshold
+    
+    return {
+        "relevant": is_relevant,
+        "confidence": score,
+        "reason": f"Score {score:.2f} >= {threshold} for niche {niche}"
+    }
