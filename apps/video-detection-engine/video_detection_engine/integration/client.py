@@ -19,7 +19,7 @@ class IntegrationClient:
         
         self.ai_core_url = os.getenv("AI_CORE_URL", "http://localhost:8000")
         self.ingestion_url = os.getenv("INGESTION_URL", "http://localhost:3000")
-        self.operator_url = os.getenv("OPERATOR_API_URL", "http://localhost:3001") # Operator API internal
+        self.operator_url = os.getenv("OPERATOR_API_URL", "http://operator-api:3001")
         self.internal_secret = os.getenv("AI_CORE_INTERNAL_SECRET", "dev-secret")
         # Ingestion requires X-Install-Secret? Or just X-Install-Id if we trust the runner?
         # The ingestion logic checks install_secret if present. 
