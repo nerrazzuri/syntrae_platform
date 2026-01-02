@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import { prisma } from '../index';
+import { prisma } from '../db';
 import { Session, User } from '@syntrae/prisma-schema';
 
 const SALT_ROUNDS = 10;
