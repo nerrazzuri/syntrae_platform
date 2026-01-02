@@ -33,7 +33,10 @@ const getPolicyAccess = async (req: any, res: any, next: any) => {
     }
 
     console.warn(`[Policy] Unauthorized Access Attempt. User: ${req.user?.id}, Headers:`, JSON.stringify(req.headers));
-    res.status(401).json({ error: "Unauthorized" });
+
+    // Do NOT return requireAuth(req, res, next) here if failed, as it will look for session and fail.
+    // Instead return 401 directly if neither matched.
+    res.status(401).json({ error: "Unauthorized: No Session or Agent ID" });
 };
 
 router.get('/brands/:brandId/automation-policy', getPolicyAccess, async (req, res) => {
