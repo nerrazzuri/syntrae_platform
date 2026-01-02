@@ -1,4 +1,4 @@
-import { prisma } from '../index';
+import { prisma, Prisma } from '../db';
 import { AuthService } from './auth.service';
 import { User, Account, Session, Brand } from '@syntrae/prisma-schema';
 
@@ -25,7 +25,7 @@ export class BootstrapService {
         const passwordHash = await AuthService.hashPassword(passwordPlain);
 
         // 2. Transactional Creation
-        return await prisma.$transaction(async (tx) => {
+        return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             // A. Create User
             const user = await tx.user.create({
                 data: {

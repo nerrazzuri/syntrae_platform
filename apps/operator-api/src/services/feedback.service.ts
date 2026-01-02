@@ -1,5 +1,5 @@
 
-import { prisma } from '../index';
+import { prisma } from '../db';
 
 export enum FeedbackAction {
     DRAFT_APPROVED = 'DRAFT_APPROVED',

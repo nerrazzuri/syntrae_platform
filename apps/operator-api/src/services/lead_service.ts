@@ -1,4 +1,4 @@
-import { prisma } from '../index';
+import { prisma } from '../db';
 
 export interface LeadFilters {
     buyer_stage?: 'AWARENESS' | 'EVALUATING' | 'READY';
