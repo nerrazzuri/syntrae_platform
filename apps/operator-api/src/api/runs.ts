@@ -28,11 +28,11 @@ router.post('/brands/:brandId/runs/queue', async (req: any, res: any) => {
     // Basic User Session Auth (Session Middleware should be here)
     // For now assuming internal/open
     const { brandId } = req.params;
+    const { platform = 'tiktok' } = req.body;
     console.log(`[API] Queueing run for brand ${brandId}`, {
         platform,
         body: req.body
     });
-    const { platform = 'tiktok' } = req.body;
 
     try {
         const run = await prisma.automationRun.create({
