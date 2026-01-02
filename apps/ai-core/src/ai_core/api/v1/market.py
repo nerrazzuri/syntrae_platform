@@ -1,4 +1,4 @@
-```python
+
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
