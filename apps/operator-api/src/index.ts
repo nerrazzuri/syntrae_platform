@@ -65,8 +65,8 @@ app.use('/value', valueRouter);
 app.use('/leads', leadsRouter);
 app.use('/billing', billingRouter);
 app.use('/', runsRouter);
-app.use('/brands', brandRouter);
-app.use('/', policyRouter);
+app.use('/', policyRouter); // Specific /brands/:id/automation-policy routes
+app.use('/brands', brandRouter); // Generic /brands routes
 app.use('/analytics', analyticsRouter);
 
 app.use('/drafts', draftsRouter);
