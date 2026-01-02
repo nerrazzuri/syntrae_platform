@@ -59,7 +59,7 @@ services:
       context: ../..
       dockerfile: infra/docker/db-migrate.Dockerfile
     environment:
-      - DATABASE_URL=postgresql://superuser:Syntrae%212025_dbRoot%23A9@postgresql:5432/syntrae_core?schema=core
+      - DATABASE_URL=${DATABASE_URL}?schema=core
     depends_on:
       postgresql:
         condition: service_healthy
