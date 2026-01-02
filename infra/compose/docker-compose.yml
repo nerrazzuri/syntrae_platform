@@ -4,13 +4,6 @@ networks:
   syntrae_net:
     driver: bridge
 
-volumes:
-  postgres_data:
-  redis_data:
-  qdrant_storage:
-  video_storage:
-
-
 services:
   # =========================
   # INFRASTRUCTURE
@@ -24,7 +17,7 @@ services:
       POSTGRES_USER: superuser
       POSTGRES_PASSWORD: Syntrae!2025_dbRoot#A9
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - /mnt/data/docker/postgres:/var/lib/postgresql/data
       - ../docker/postgres-init:/docker-entrypoint-initdb.d
     networks:
       - syntrae_net
@@ -41,7 +34,7 @@ services:
     restart: unless-stopped
     command: [ "redis-server", "--appendonly", "yes" ]
     volumes:
-      - redis_data:/data
+      - /mnt/data/docker/redis:/data
     networks:
       - syntrae_net
     healthcheck:
@@ -54,7 +47,7 @@ services:
     image: qdrant/qdrant:v1.5.0
     restart: unless-stopped
     volumes:
-      - qdrant_storage:/qdrant/storage
+      - /mnt/data/docker/qdrant:/qdrant/storage
     networks:
       - syntrae_net
 
@@ -217,7 +210,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - video_storage:/data/storage
+      - /mnt/data/docker/video:/data/storage
     environment:
       - LOG_LEVEL=INFO
     restart: unless-stopped
