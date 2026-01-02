@@ -66,7 +66,7 @@ app.use('/leads', leadsRouter);
 app.use('/billing', billingRouter);
 app.use('/', runsRouter);
 app.use('/brands', brandRouter);
-app.use('/policies', policyRouter);
+app.use('/', policyRouter);
 app.use('/analytics', analyticsRouter);
 
 app.use('/drafts', draftsRouter);
