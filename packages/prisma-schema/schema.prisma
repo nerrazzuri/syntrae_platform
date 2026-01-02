@@ -494,12 +494,12 @@ model AutomationRun {
   started_at      DateTime  @default(now())
   ended_at        DateTime?
   
-  policy_id       String
+  policy_id       String?
   policy_snapshot Json
   stats           Json     @default("{}")
   abort_reason    String?
   
-  policy          AutomationPolicy @relation(fields: [policy_id], references: [id])
+  policy          AutomationPolicy? @relation(fields: [policy_id], references: [id])
   
   @@index([brand_id])
   @@index([install_id])

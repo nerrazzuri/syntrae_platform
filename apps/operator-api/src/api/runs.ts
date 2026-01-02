@@ -42,7 +42,7 @@ router.post('/brands/:brandId/runs/queue', async (req: any, res: any) => {
                 platform: platform,
                 status: 'PENDING',
                 started_at: new Date(), // Queued Time
-                policy_id: 'manual-trigger',
+                // policy_id is now optional
                 policy_snapshot: {},
             }
         });
