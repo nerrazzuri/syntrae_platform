@@ -75,8 +75,9 @@ router.get('/runs/pending', async (req: any, res: any) => {
             orderBy: { started_at: 'asc' }
         });
         res.json(run || null);
-    } catch (e) {
-        res.status(500).json({});
+    } catch (e: any) {
+        console.error("[Runs] Pending Fetch Error:", e);
+        res.status(500).json({ error: e.message || "Unknown error" });
     }
 });
 
