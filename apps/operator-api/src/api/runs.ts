@@ -28,7 +28,10 @@ router.post('/brands/:brandId/runs/queue', async (req: any, res: any) => {
     // Basic User Session Auth (Session Middleware should be here)
     // For now assuming internal/open
     const { brandId } = req.params;
-    console.log(`[API] Queueing run for brand ${brandId}`);
+    console.log(`[API] Queueing run for brand ${brandId}`, {
+        platform,
+        body: req.body
+    });
     const { platform = 'tiktok' } = req.body;
 
     try {
@@ -43,9 +46,10 @@ router.post('/brands/:brandId/runs/queue', async (req: any, res: any) => {
                 policy_snapshot: {},
             }
         });
+        console.log(`[API] Run queued successfully: ${run.id}`);
         res.json(run);
     } catch (e: any) {
-        console.error(e);
+        console.error(`[API] Failed to queue run for brand ${brandId}:`, e);
         res.status(500).json({ error: e.message });
     }
 });
