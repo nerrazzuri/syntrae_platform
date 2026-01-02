@@ -32,6 +32,7 @@ const getPolicyAccess = async (req: any, res: any, next: any) => {
         return next();
     }
 
+    console.warn(`[Policy] Unauthorized Access Attempt. User: ${req.user?.id}, Headers:`, JSON.stringify(req.headers));
     res.status(401).json({ error: "Unauthorized" });
 };
 
