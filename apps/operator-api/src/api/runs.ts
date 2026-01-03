@@ -138,41 +138,82 @@ router.put('/brands/:brandId/automation-runs/:runId', requireAgentAccess, async 
     }
 });
 
-// Persist Discovered Video (Audit Trail)
+// Persist Discovered Video (Audit Trail) — WF-3.1 hardened
 router.post('/runs/:runId/discovery', requireInternalSecret, async (req: any, res: any) => {
     const { runId } = req.params;
-    const {
-        brand_id,
-        platform,
-        video_id,
-        video_url,
-        market_score,
-        reasons,
-        decision,
-        market_profile_id,
-        market_profile_version
-    } = req.body;
+
+    const run = await prisma.automationRun.findUnique({
+        where: { id: runId },
+    });
+
+    if (!run) {
+        return res.status(404).json({ error: "AutomationRun not found" });
+    }
+
+    const { decision } = req.body;
 
     try {
+        // -----------------------------
+        // SYSTEM FAILURE PATH (WF-3.1)
+        // -----------------------------
+        if (decision === "ERROR") {
+            const discovered = await prisma.discoveredVideo.create({
+                data: {
+                    automation_run_id: runId,
+                    brand_id: run.brand_id,
+                    platform: run.platform ?? "SYSTEM",
+                    video_id: "SYSTEM",
+                    video_url: "SYSTEM",
+                    decision: "ERROR",
+                    decision_reasons: req.body.reasons || [],
+                    evaluation_performed: false,
+                    error_class: req.body.error_class,
+                    http_status: req.body.http_status,
+                    // market_score intentionally omitted; DB default (0.0) is ignored when evaluation_performed=false
+                    // market_profile_id / market_profile_version intentionally omitted (no fake provenance)
+                }
+            });
+
+            return res.status(200).json(discovered);
+        }
+
+        // --------------------------------
+        // BUSINESS DECISION PATH
+        // --------------------------------
+        const {
+            brand_id,
+            platform,
+            video_id,
+            video_url,
+            market_score,
+            reasons,
+            market_profile_id,
+            market_profile_version
+        } = req.body;
+
         const discovered = await prisma.discoveredVideo.create({
             data: {
                 automation_run_id: runId,
-                brand_id: brand_id,
+                brand_id,
                 platform,
                 video_id,
                 video_url,
                 market_score,
                 decision_reasons: reasons || [],
-                decision: decision,
+                decision,
                 market_profile_id,
-                market_profile_version
+                market_profile_version,
+                evaluation_performed: true,
             }
         });
-        res.json(discovered);
+
+        return res.json(discovered);
+
     } catch (error: any) {
         console.error("Discovery persistence failed:", error);
-        res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: error.message });
     }
 });
+
 
 export const runsRouter = router;
