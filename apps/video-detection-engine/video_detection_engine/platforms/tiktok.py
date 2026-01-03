@@ -16,7 +16,8 @@ class TikTokAdapter:
     """
     
     # Selectors (Desktop Web)
-    COMMENT_CONTAINER = 'div[data-e2e="comment-list"]'
+    # Selectors (Desktop Web)
+    COMMENT_CONTAINER = 'div[data-e2e="comment-list"], div[data-e2e="comment-container"]'
     COMMENT_ITEM = 'div[data-e2e="comment-level-1"]'
     COMMENT_TEXT = 'p[data-e2e="comment-level-1-content"]'
     COMMENT_USER = 'a[href*="/@"]' # User link usually contains /@
@@ -36,7 +37,12 @@ class TikTokAdapter:
         # 1. Verify Container (Redundant check if Validator used, but good safety)
         try:
             container = self.page.locator(self.COMMENT_CONTAINER)
-            await container.wait_for(state="visible", timeout=15000)
+            await container.first.wait_for(state="visible", timeout=15000)
+            
+            # FORCE SCROLL to trigger lazy comments (Hydration)
+            await self.page.mouse.wheel(0, 1200)
+            await asyncio.sleep(1.5)
+            
         except Exception:
             # If explicit URL navigation was requested, this is fatal. 
             # If not, caller might have validated, but we still need it for extraction.

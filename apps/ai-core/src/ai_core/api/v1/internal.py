@@ -56,6 +56,14 @@ def parse_bearer(auth: Optional[str]) -> str:
     return parts[1]
 
 
+def extract_internal_secret(request: Request) -> Optional[str]:
+    headers = {k.lower(): v for k, v in request.headers.items()}
+    return (
+        headers.get("x-internal-secret")
+        or headers.get("x_internal_secret")
+    )
+
+
 @router.get("/knowledge/list")
 def list_knowledge(
     authorization: Optional[str] = Header(None), db: Session = Depends(get_db)
@@ -110,7 +118,7 @@ async def inference_signal(
 ):
     # 1. Enforce Internal Service Authentication
     # Requirement: X-Internal-Secret header must equal AI_CORE_INTERNAL_SECRET env var
-    secret_header = request.headers.get("X-Internal-Secret")
+    secret_header = extract_internal_secret(request)
     env_secret = os.getenv("AI_CORE_INTERNAL_SECRET")
 
     if not env_secret:
@@ -187,7 +195,7 @@ def generate_draft(
     db: Session = Depends(get_db),
 ):
     # Enforce Internal Service Authentication
-    secret_header = request.headers.get("X-Internal-Secret")
+    secret_header = extract_internal_secret(request)
     env_secret = os.getenv("AI_CORE_INTERNAL_SECRET")
     
     if not env_secret:
@@ -226,7 +234,7 @@ def normalize_text(
 ):
     # Public/Internal endpoint for standalone normalization
     # Check secret
-    secret_header = request.headers.get("X-Internal-Secret")
+    secret_header = extract_internal_secret(request)
     env_secret = os.getenv("AI_CORE_INTERNAL_SECRET")
     if not env_secret or secret_header != env_secret:
         raise HTTPException(status_code=401, detail="Invalid internal secret")
@@ -247,7 +255,7 @@ async def check_relevance(
     db: Session = Depends(get_db),
 ):
     # 1. Auth & Context
-    secret_header = request.headers.get("X-Internal-Secret")
+    secret_header = extract_internal_secret(request)
     env_secret = os.getenv("AI_CORE_INTERNAL_SECRET")
     if not env_secret or secret_header != env_secret:
         raise HTTPException(status_code=401, detail="Invalid internal secret")

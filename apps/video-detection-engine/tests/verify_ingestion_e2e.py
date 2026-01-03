@@ -76,6 +76,53 @@ def test_automation_contract():
         
         if resp.status_code == 202:
             print("SUCCESS: Event Accepted (Contract Valid).")
+            
+            # Phase 2: Verify DB Side Effects (E2E)
+            # We assume running on Host where docker is available.
+            print("Verifying Database Side Effects...")
+            import subprocess
+            import time
+            
+            time.sleep(5) # Wait for async processing (RabbitMQ -> Ingestion -> AI Core -> Operator)
+            
+            check_sql = f"""
+            SELECT count(*) FROM "Lead" WHERE "source" = 'AUTOMATION' AND "created_at" > NOW() - INTERVAL '1 minute';
+            """
+            
+            try:
+                # Docker Compose Service Name for DB: compose-postgresql-1 or postgres
+                # Try finding container name dynamically or use standard
+                cmd = [
+                    "docker", "compose", "exec", "-t", "postgres", 
+                    "psql", "-U", "postgres", "-d", "syntrae_db", "-t", "-c", check_sql
+                ]
+                
+                # Using 'postgres' service name from compose might need --index 1, or just container name. 
+                # Safe bet: try `docker compose exec postgres`
+                
+                # Check for Draft too
+                draft_sql = f"""
+                SELECT count(*) FROM "OutreachDraft" WHERE "status" = 'DRAFT' AND "created_at" > NOW() - INTERVAL '1 minute';
+                """
+                
+                print("Checking Lead creation...")
+                lead_out = subprocess.check_output(cmd, cwd="../../infra/compose").decode().strip()
+                if int(lead_out) > 0:
+                    print("SUCCESS: Lead created in DB.")
+                else:
+                     print("FAIL: Lead NOT found in DB.")
+                
+                print("Checking Draft creation...")
+                cmd[-1] = draft_sql
+                draft_out = subprocess.check_output(cmd, cwd="../../infra/compose").decode().strip()
+                if int(draft_out) > 0:
+                    print("SUCCESS: Draft created in DB.")
+                else:
+                    print("FAIL: Draft NOT found in DB.")
+
+            except Exception as e:
+                print(f"DB Verification Skipped/Failed (Docker issue?): {e}")
+
         elif resp.status_code == 400:
              data = resp.json()
              if data.get("code") == "INVALID_PAYLOAD":
