@@ -78,4 +78,55 @@ router.post('/automation-run', async (req: Request, res: Response) => {
     }
 });
 
+// GET /internal/automation-run/:runId
+// WF-3: Fetch run snapshot for market scoring
+router.get('/automation-run/:runId', async (req: Request, res: Response) => {
+    const { runId } = req.params;
+
+    try {
+        const run = await prisma.automationRun.findUnique({
+            where: { id: runId },
+            select: {
+                id: true,
+                brand_id: true,
+                install_id: true,
+                platform: true,
+                discovery_mode: true,
+                status: true,
+                policy_snapshot: true,
+                market_profile_snapshot: true,
+                started_at: true
+            }
+        });
+
+        // WF-3 Error Semantics (Locked)
+        if (!run) {
+            return res.status(404).json({ error: "Run not found", runId });
+        }
+
+        if (!run.market_profile_snapshot) {
+            // WF-1 contract violation: run exists but missing snapshot
+            return res.status(409).json({
+                error: "WF-1 contract violation: market_profile_snapshot missing",
+                runId
+            });
+        }
+
+        // Validate snapshot is parseable JSON
+        try {
+            JSON.parse(JSON.stringify(run.market_profile_snapshot));
+        } catch {
+            return res.status(422).json({
+                error: "Data corruption: market_profile_snapshot malformed",
+                runId
+            });
+        }
+
+        return res.json(run);
+    } catch (e: any) {
+        console.error(`Failed to fetch run ${runId}:`, e);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+});
+
 export const internalRouter = router;

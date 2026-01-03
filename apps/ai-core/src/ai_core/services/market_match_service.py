@@ -123,3 +123,112 @@ class MarketMatchService:
                 "profile_id": profile.id,
                 "threshold": threshold
             }
+
+    def evaluate_relevance_against_snapshot(self, snapshot: Dict[str, Any], text: str, hashtags: List[str]) -> Dict[str, Any]:
+        """
+        WF-3: Evaluate content against an immutable market profile snapshot.
+        
+        Args:
+            snapshot: Market profile snapshot (dict from JSON)
+            text: Content text to score
+            hashtags: List of hashtags
+            
+        Returns:
+            { score: float, reasons: [{type,detail,weight}], matched_terms: [], negative_hits: [] }
+        """
+        reasons = []
+        text_lower = text.lower()
+        
+        # 1. Negative Blocking (Safety)
+        keywords_negative = snapshot.get("keywords_negative", [])
+        hashtags_negative = snapshot.get("hashtags_negative", [])
+        excluded_topics = snapshot.get("excluded_topics", [])
+        
+        for neg_kw in keywords_negative:
+            if neg_kw.lower() in text_lower:
+                return {
+                    "score": 0.0,
+                    "reasons": [{"type": "BLOCKED", "detail": f"Negative Keyword '{neg_kw}'", "weight": None}],
+                    "matched_terms": [],
+                    "negative_hits": [neg_kw]
+                }
+        
+        content_tags_lower = [t.lower().replace('#', '') for t in hashtags]
+        for neg_tag in hashtags_negative:
+            clean_neg = neg_tag.lower().replace('#', '')
+            if clean_neg in content_tags_lower:
+                return {
+                    "score": 0.0,
+                    "reasons": [{"type": "BLOCKED", "detail": f"Negative Hashtag '#{clean_neg}'", "weight": None}],
+                    "matched_terms": [],
+                    "negative_hits": [neg_tag]
+                }
+        
+        for topic in excluded_topics:
+            if topic.lower() in text_lower:
+                return {
+                    "score": 0.0,
+                    "reasons": [{"type": "BLOCKED", "detail": f"Excluded Topic '{topic}'", "weight": None}],
+                    "matched_terms": [],
+                    "negative_hits": [topic]
+                }
+        
+        # 2. Positive Scoring
+        score = 0.0
+        matched_terms = []
+        
+        keywords_positive = snapshot.get("keywords_positive", [])
+        hashtags_positive = snapshot.get("hashtags_positive", [])
+        weight_keyword = snapshot.get("weight_keyword", 0.5)
+        weight_hashtag = snapshot.get("weight_hashtag", 0.3)
+        
+        matched_keywords = [kw for kw in keywords_positive if kw.lower() in text_lower]
+        unique_matches = len(set(matched_keywords))
+        
+        k_score = min(unique_matches / 3.0, 1.0) * weight_keyword
+        if unique_matches > 0:
+            reasons.append({"type": "KEYWORD_MATCH", "detail": f"matched {unique_matches} keywords", "weight": k_score})
+            matched_terms.extend(matched_keywords)
+            score += k_score
+        
+        matched_hashtags = [t for t in hashtags_positive if t.lower().replace('#','') in content_tags_lower]
+        unique_tags = len(set(matched_hashtags))
+        
+        h_score = min(unique_tags / 2.0, 1.0) * weight_hashtag
+        if unique_tags > 0:
+            reasons.append({"type": "HASHTAG_MATCH", "detail": f"matched {unique_tags} hashtags", "weight": h_score})
+            matched_terms.extend(matched_hashtags)
+            score += h_score
+        
+        return {
+            "score": min(round(score, 2), 1.0),
+            "reasons": reasons,
+            "matched_terms": list(set(matched_terms)),
+            "negative_hits": []
+        }
+
+    def get_latest_active_profile(self, brand_id: str) -> Dict[str, Any]:
+        """
+        LEGACY: Fetch latest active profile for brand_id mode (deprecated).
+        Returns profile as dict to match snapshot format.
+        """
+        with SessionLocal() as db:
+            profile = self.get_active_profile(brand_id, db)
+            if not profile:
+                raise Exception("NO_ACTIVE_PROFILE")
+            
+            # Convert to dict matching snapshot structure
+            return {
+                "id": profile.id,
+                "brand_id": profile.brand_id,
+                "version": profile.version,
+                "name": profile.name,
+                "keywords_positive": profile.keywords_positive or [],
+                "keywords_negative": profile.keywords_negative or [],
+                "hashtags_positive": profile.hashtags_positive or [],
+                "hashtags_negative": profile.hashtags_negative or [],
+                "excluded_topics": profile.excluded_topics or [],
+                "weight_keyword": profile.weight_keyword,
+                "weight_hashtag": profile.weight_hashtag,
+                "acceptance_threshold": profile.acceptance_threshold
+            }

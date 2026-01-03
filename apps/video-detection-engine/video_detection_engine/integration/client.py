@@ -307,15 +307,17 @@ class IntegrationClient:
             logger.error(f"Profile fetch exception: {e}")
             return []
 
-    async def score_content(self, text: str, hashtags: list, platform: str) -> Dict[str, Any]:
+    async def score_content(self, automation_run_id: str, text: str, hashtags: list, video_id: str = None, video_url: str = None) -> Dict[str, Any]:
         """
-        Calls AI Core Market Match Service.
+        WF-3: Calls AI Core Market Match Service with automation_run_id.
         """
         url = f"{self.ai_core_url}/v1/market/score"
         payload = {
-            "brand_id": self.brand_id,
+            "automation_run_id": automation_run_id,
             "text": text,
-            "hashtags": hashtags
+            "hashtags": hashtags,
+            "video_id": video_id,
+            "video_url": video_url
         }
         
         headers = {
@@ -331,7 +333,10 @@ class IntegrationClient:
                     return resp.json()
                 else:
                     logger.error(f"Market score failed {resp.status_code}: {resp.text}")
-                    return {"score": 0.0, "is_match": False, "reasons": ["API_ERROR"], "threshold": 0.6}
-        except Exception as e:
+                    # WF-3: Fail-fast on auth/server errors
+                    if resp.status_code in (401, 403):
+                        raise Exception(f"WF-3 FATAL: Auth failure in market scoring {resp.status_code}")
+                    return {"decision": "SKIP", "score": 0.0, "reasons": [{"type": "API_ERROR", "detail": f"Status {resp.status_code}"}], "debug": {}}
+        except httpx.HTTPError as e:
             logger.error(f"Market score exception: {e}")
-            return {"score": 0.0, "is_match": False, "reasons": ["EXCEPTION"], "threshold": 0.6}
+            raise Exception(f"WF-3 FATAL: Network failure in market scoring")

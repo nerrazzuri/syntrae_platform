@@ -61,51 +61,70 @@ class DiscoveryEngine:
                 # 3. Score & Decide
                 decision_payload = await self._score_candidate(cand, market_profile)
                 
-                # 4. Persist Decision (Audit)
-                # Ensure fields match schema requirements
+                # 4. Persist Decision (Audit) with evaluated_against_snapshot flag
                 await self.client.record_discovery(self.run_id, decision_payload)
                 
                 decision = decision_payload["decision"]
                 
-                if decision == VideoDiscoveryDecision.ACCEPT:
-                    logger.info(f"Accepted Candidate: {cand.video_id}")
-                    # 5. Process (Nav -> Validate -> Extract -> Emit)
+                # WF-3: Obey ACCEPT/REJECT/SKIP decision
+                if decision == "ACCEPT":
+                    logger.info(f"ACCEPT: {cand.video_id} (score={decision_payload.get('market_score', 0)})")
+                    # Process (Nav -> Validate -> Extract -> Emit)
                     await self._process_accepted_video(cand)
-                    
                     # Track usage
                     self.enforcer.track_video()
+                    
+                elif decision == "REJECT":
+                    # WF-3: REJECT increments reject stats
+                    logger.info(f"REJECT: {cand.video_id} (score={decision_payload.get('market_score', 0)})")
+                    self.enforcer.track_reject()  # Track rejection
+                    
+                elif decision == "SKIP":
+                    # WF-3: SKIP is neutral - does NOT count as rejection
+                    logger.info(f"SKIP: {cand.video_id} (score={decision_payload.get('market_score', 0)}) - neutral")
+                    # No stats tracking for SKIP
+                    
                 else:
-                    logger.info(f"Skipped Candidate: {cand.video_id} ({decision})")
+                    logger.warning(f"Unknown decision '{decision}' for {cand.video_id}")
 
     async def _score_candidate(self, cand: VideoCandidate, profile: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Evaluates a candidate against AI Core Market Scoring.
+        WF-3: Evaluates a candidate against AI Core Market Scoring using automation_run_id.
+        Returns standardized decision payload with evaluated_against_snapshot flag.
         """
         # Construct text representation for scoring (Caption + Hashtags)
         text_content = f"{cand.caption or ''} {' '.join(cand.hashtags)}"
         
-        # Call AI Core
-        # Note: We are transforming Video Candidate -> Text Content for scoring
-        result = await self.client.score_content(text_content, cand.hashtags, cand.platform)
+        try:
+            # WF-3: Call AI Core with automation_run_id
+            result = await self.client.score_content(
+                automation_run_id=self.run_id,
+                text=text_content, 
+                hashtags=cand.hashtags,
+                video_id=cand.video_id,
+                video_url=cand.video_url
+            )
+        except Exception as e:
+            # WF-3 Fail-Fast: Auth/network errors abort run
+            logger.error(f"WF-3 FATAL: Market scoring failed: {e}")
+            raise
         
+        # WF-3: Extract decision directly from response
+        decision = result.get("decision", "SKIP")
         score = result.get("score", 0.0)
-        is_match = result.get("is_match", False)
         reasons = result.get("reasons", [])
         
-        decision = VideoDiscoveryDecision.ACCEPT if is_match else VideoDiscoveryDecision.REJECT
-        
-        # Override REJECT to SKIP if reasons imply technical skip or generic low score?
-        # For now, strict mapping.
-        
+        # WF-3: Return decision payload with snapshot flag
         return {
              "video_id": cand.video_id,
              "video_url": cand.video_url,
              "platform": cand.platform,
              "market_score": score,
              "decision": decision,
-             "reasons": reasons,
+             "reasons": [r.get("detail", str(r)) if isinstance(r, dict) else str(r) for r in reasons],
              "market_profile_id": profile.get("id"),
-             "market_profile_version": profile.get("version")
+             "market_profile_version": profile.get("version"),
+             "evaluated_against_snapshot": True  # WF-3: Traceability flag
         }
 
     async def _process_accepted_video(self, cand: VideoCandidate):
