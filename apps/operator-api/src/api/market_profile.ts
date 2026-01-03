@@ -9,15 +9,16 @@ const requireAgentOrSession = async (req: any, res: any, next: any) => {
     // 1. Session Auth
     if (req.session && req.session.user) return next();
 
-    // 2. Connector/Agent Auth
-    const installId = req.headers['x-install-id'];
-    const internalSecret = req.headers['x-internal-secret'];
+    // 2. Connector/Agent Auth (Internal Secret)
+    // Supports case-insensitive header check
+    const internalSecret = req.headers['x-internal-secret'] || req.headers['x_internal_secret'];
+    const expectedSecret = process.env.AI_CORE_INTERNAL_SECRET;
 
-    // Internal Secret check (Basic Env Match)
-    if (installId && internalSecret) {
+    if (internalSecret && expectedSecret && internalSecret === expectedSecret) {
         return next();
     }
-    return res.status(401).json({ error: "Unauthorized" });
+
+    return res.status(401).json({ error: "Unauthorized: Invalid or missing internal secret" });
 };
 
 // List Profiles for a Brand

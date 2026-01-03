@@ -7,13 +7,17 @@ import os
 from ai_core.services.market_match_service import MarketMatchService
 
 async def verify_internal_secret(request: Request):
-    secret = request.headers.get("X-Internal-Secret")
-    # Also check snake_case or lowercase if forwarded by proxies, but standard is X-Internal-Secret
+    # Case-insensitive header lookup
+    headers = {k.lower(): v for k, v in request.headers.items()}
+    secret = headers.get("x-internal-secret") or headers.get("x_internal_secret") or headers.get("x-internal_secret")
+    
     expected = os.getenv("AI_CORE_INTERNAL_SECRET")
+    
     if not expected:
-         # Log warning?
-         pass
-    if not expected or secret != expected:
+         # If no secret configured, fail closed or log warning. Fail closed for security.
+         raise HTTPException(status_code=500, detail="Server misconfiguration: AI_CORE_INTERNAL_SECRET not set")
+         
+    if not secret or secret != expected:
         raise HTTPException(status_code=401, detail="Invalid internal secret")
 
 router = APIRouter(prefix="/v1/market", tags=["market"])

@@ -76,21 +76,17 @@ class VideoPageValidator:
                      pass 
 
             # 3. DOM Check (Strict)
-            # Wait briefly for hydration? Or assume caller waited?
-            # We assume caller navigated and waited for load.
+            # FORCE SCROLL to trigger lazy comments
+            await page.mouse.wheel(0, 1200)
+            await page.wait_for_timeout(1500)
             
-            # Check Comment Container specifically
-            comment_list = page.locator("div[data-e2e='comment-list']")
-            if await comment_list.count() == 0:
-                # Try finding alternate generic container if selector changed?
-                # No, E2E blocking requirement says: MUST find this.
-                # Use a backup selector if strictly needed, but better to fail safe.
-                
-                # Check if limited comments?
-                # Sometimes it is `div[class*='DivCommentList']`
-                
-                # Let's count specific elements if container list is elusive
-                # But Requirement says: "Comment container missing -> Hard Fail"
+            # Check Comment Container specifically (Tolerant Wait)
+            try:
+                await page.wait_for_selector(
+                    "div[data-e2e='comment-list'], div[data-e2e='comment-container']",
+                    timeout=8000
+                )
+            except Exception:
                 return False, "COMMENT_CONTAINER_MISSING"
 
             # Check Video Player
