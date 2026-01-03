@@ -228,9 +228,9 @@ services:
       - LOG_LEVEL=INFO
       # Needs to reach operator-api for polling
       - OPERATOR_API_URL=http://operator-api:3001
-      # IMPORTANT: If IntegrationClient defaults to something else, we might need env vars
-      # IntegrationClient uses OPERATOR_API_BASE in client.py? Let's check.
-      # It hardcodes "http://operator-api:3001" usually in dev, or uses env.
+      # Internal Service Links
+      - AI_CORE_URL=http://ai-core:8000
+      - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
     restart: unless-stopped
     depends_on:
       - operator-api
