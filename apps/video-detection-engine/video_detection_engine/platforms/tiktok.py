@@ -57,10 +57,14 @@ class TikTokAdapter:
         # Mock extraction for POC if selectors fail (Anti-flake)
         # In real implementation, we would use robust XPaths
         
+        # Allow overriding mock content via ENV for testing relevance
+        import os
+        mock_content = os.getenv("MOCK_TIKTOK_COMMENTS", "Sample captured comment")
+        
         extracted.append({
             "platform": "tiktok",
             "video_id": "unknown", # Parse from URL
-            "content_text": "Sample captured comment",
+            "content_text": mock_content,
             "author": "user123",
             "metadata": {"raw_position": 0}
         })

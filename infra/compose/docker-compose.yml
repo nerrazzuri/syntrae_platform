@@ -231,6 +231,8 @@ services:
       # Internal Service Links
       - AI_CORE_URL=http://ai-core:8000
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
+      # Testing Overrides
+      - MOCK_TIKTOK_COMMENTS=${MOCK_TIKTOK_COMMENTS:-Sample captured comment}
     restart: unless-stopped
     depends_on:
       - operator-api
