@@ -212,6 +212,7 @@ services:
       - /mnt/data/docker/video:/data/storage
     environment:
       - LOG_LEVEL=INFO
+      - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
     restart: unless-stopped
     networks:
       - syntrae_net
