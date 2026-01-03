@@ -213,6 +213,7 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
+      - AI_CORE_BASE_URL=http://ai-core:8000
     restart: unless-stopped
     networks:
       - syntrae_net
