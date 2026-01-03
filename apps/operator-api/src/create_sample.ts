@@ -28,7 +28,8 @@ async function main() {
             name: "Sample Brand (TS)",
             domain: "tiktok.com",
             status: "ACTIVE",
-            account_id: accountId
+            domain_context: {},
+            account: { connect: { id: accountId } }
         }
     });
 
@@ -40,7 +41,7 @@ async function main() {
         update: { is_active: true },
         create: {
             id: 'profile-ts-sample-001',
-            brand_id: brand.id,
+            brand: { connect: { id: brand.id } },
             name: "Summer Skincare Focus",
             status: "READY",
             primary_category: "SKINCARE",
