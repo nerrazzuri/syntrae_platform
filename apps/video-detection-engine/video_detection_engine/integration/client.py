@@ -17,7 +17,11 @@ class IntegrationClient:
         self.brand_id = brand_id
         self.install_id = install_id
         
-        self.ai_core_url = os.getenv("AI_CORE_URL", "http://localhost:8000")
+        self.ai_core_url = os.getenv("AI_CORE_BASE_URL")
+        if not self.ai_core_url:
+            raise RuntimeError("AI_CORE_BASE_URL is not set")
+
+        self.ai_core_url = self.ai_core_url.rstrip("/")
         self.ingestion_url = os.getenv("INGESTION_URL", "http://localhost:3000")
         self.operator_url = os.getenv("OPERATOR_API_URL", "http://operator-api:3001")
         self.internal_secret = os.getenv("AI_CORE_INTERNAL_SECRET", "dev-secret")
