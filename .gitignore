@@ -13,3 +13,32 @@ venv
 infra/compose/certbot/conf/
 infra/compose/certbot/www/
 .pnpm-store/
+
+# ============================
+# Local Dev Environment
+# ============================
+
+# Local environment overrides
+.env.local
+infra/compose/docker-compose.local.yml
+
+# Local TLS certificates
+infra/nginx/local/
+infra/nginx/local/*.pem
+infra/nginx/local/*.key
+infra/nginx/conf.d/app.localhost.conf
+
+# mkcert artifacts
+*.pem
+*.key
+*.crt
+
+# Local automation artifacts
+automation_runs_local/
+playwright/.cache/
+browser_profiles/
+
+# OS / tooling noise
+.DS_Store
+.idea/
+.vscode/

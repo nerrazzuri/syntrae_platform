@@ -60,11 +60,7 @@ export class PolicyService {
                 max_leads_per_day: 30,
                 cooldown_ms_between_actions: 2500,
                 random_jitter_ms: 1500,
-                quiet_hours: {
-                    timezone: "Asia/Kuala_Lumpur",
-                    start: "01:00",
-                    end: "07:00"
-                },
+                quiet_hours: {}, // Disabled by default
                 notes: "Auto-created default policy"
             },
         });

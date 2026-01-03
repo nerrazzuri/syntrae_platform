@@ -16,6 +16,10 @@ COPY apps/operator-ui/package.json apps/operator-ui/
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 
+# Support Injection of API URL
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
 # 3. Source (Scoped Copy - FIX FOR INVALIDATION)
 COPY apps/operator-ui apps/operator-ui
 # (Ideally copy shared packages if needed, keeping it simple/safe for now)
