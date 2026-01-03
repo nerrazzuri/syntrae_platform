@@ -20,6 +20,7 @@ import { analyticsRouter } from './api/analytics';
 import { runsRouter } from './api/runs';
 import { draftsRouter } from './api/drafts';
 import marketProfileRouter from './api/market_profile';
+import { internalRouter } from './api/internal';
 
 dotenv.config();
 
@@ -67,12 +68,11 @@ app.use('/billing', billingRouter);
 app.use('/', runsRouter);
 app.use('/', policyRouter); // Specific /brands/:id/automation-policy routes
 app.use('/', marketProfileRouter); // Routes are mounted at root level - MUST be before /brands to avoid session conflict
-app.use('/brands', brandRouter); // Generic /brands routes 
-// Actually wait, routes in `market_profile.ts` are `/brands/:id/...` and `/market-profiles/:id`.
-// So we should mount it at `/` to let the router handle the full paths, OR mount at `/api` if we were using it.
-// Given current pattern: `brandRouter` is at `/brands`.
-// `market_profile.ts` has specific paths.
-// Let's import it first. 
+app.use('/internal', internalRouter); // WF-1: Internal Auth Routes (Strict)
+app.use('/brands', brandRouter); // Generic /brands routes
+app.use('/analytics', analyticsRouter);
+
+app.use('/drafts', draftsRouter);
 
 app.listen(port, () => {
     console.log(`[OperatorAPI] Server running on port ${port}`);

@@ -88,6 +88,71 @@ class IntegrationClient:
             logger.error(f"Create run exception: {e}")
             return None
 
+    # ==========================
+    # WF-1 Internal Methods (Strict Internal Secret)
+    # ==========================
+    async def get_policy_internal(self) -> Dict[str, Any]:
+        """
+        WF-1: Fetches policy using internal non-session endpoint.
+        """
+        url = f"{self.operator_url}/internal/automation-policy/latest?brand_id={self.brand_id}"
+        headers = { "x-internal-secret": self.internal_secret, "Content-Type": "application/json" }
+        return await self._internal_get(url, headers, "Policy")
+
+    async def get_market_profile_internal(self) -> Dict[str, Any]:
+        """
+        WF-1: Fetches market profile using internal non-session endpoint.
+        """
+        url = f"{self.operator_url}/internal/market-profile/latest?brand_id={self.brand_id}"
+        headers = { "x-internal-secret": self.internal_secret, "Content-Type": "application/json" }
+        return await self._internal_get(url, headers, "MarketProfile")
+
+    async def create_run_internal(self, policy_snapshot: Dict, market_profile_snapshot: Dict, platform: str) -> Optional[str]:
+        """
+        WF-1: Atomic Run Creation.
+        """
+        url = f"{self.operator_url}/internal/automation-run"
+        headers = { "x-internal-secret": self.internal_secret, "Content-Type": "application/json" }
+        
+        payload = {
+            "brand_id": self.brand_id,
+            "install_id": self.install_id,
+            "platform": platform,
+            "discovery_mode": "MANUAL_URL", # Default for now
+            "policy_snapshot": policy_snapshot,
+            "market_profile_snapshot": market_profile_snapshot
+        }
+
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(url, json=payload, headers=headers, timeout=5.0)
+                if resp.status_code == 201:
+                    run_id = resp.json().get("id")
+                    logger.info(f"WF-1: Created Internal AutomationRun: {run_id}")
+                    return run_id
+                else:
+                    logger.error(f"WF-1: Run Start Failed {resp.status_code}: {resp.text}")
+                    return None
+        except Exception as e:
+            logger.error(f"WF-1: Run Start Exception: {e}")
+            return None
+
+    async def _internal_get(self, url: str, headers: Dict, resource_name: str) -> Optional[Dict]:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(url, headers=headers, timeout=5.0)
+                if resp.status_code == 200:
+                    return resp.json()
+                elif resp.status_code == 404:
+                    logger.warning(f"WF-1: {resource_name} not found.")
+                    return None
+                else:
+                    logger.error(f"WF-1: Failed to fetch {resource_name} {resp.status_code}: {resp.text}")
+                    return None
+        except Exception as e:
+            logger.error(f"WF-1: {resource_name} fetch exception: {e}")
+            return None
+
     async def check_relevance(self, text: str, platform: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
         Queries AI Core to determine if the content is relevant to the Brand.

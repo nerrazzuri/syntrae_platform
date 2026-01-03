@@ -497,6 +497,7 @@ model AutomationRun {
   
   policy_id       String?
   policy_snapshot Json
+  market_profile_snapshot Json?  // WF-1: Added for reproducible automation
   stats           Json     @default("{}")
   abort_reason    String?
   

@@ -29,10 +29,11 @@ async def run_automation(platform: str, browser_type: str, headless: bool, url: 
     client = IntegrationClient(brand_id=brand_id, install_id=install_id)
     logger.info(f"Initialized Automation for Brand {brand_id} (Agent: {install_id})")
 
-    # 2. Fetch Policy
-    policy_data = await client.get_policy(brand_id)
-    if policy_data is None: 
-        logger.error("Could not fetch policy. Aborting for safety.")
+    # 2. Fetch Policy (WF-1: Internal Auth)
+    logger.info("WF-1: Fetching Automation Policy (Internal)...")
+    policy_data = await client.get_policy_internal()
+    if not policy_data:
+        logger.error("WF-1 FATAL: Could not fetch policy via internal endpoint. Aborting.")
         return
 
     enforcer = PolicyEnforcer(policy_data)
@@ -41,14 +42,25 @@ async def run_automation(platform: str, browser_type: str, headless: bool, url: 
     if not enforcer.check_run_gate():
         return
         
-    # 4. Create Run Record (Snapshot Persistence)
-    run_id = await client.create_run(
-        policy_id=policy_data.get("id"),
+    # 4. Fetch Market Profile (WF-1: Internal Auth - Required for Snapshot)
+    logger.info("WF-1: Fetching Market Profile (Internal)...")
+    market_profile_data = await client.get_market_profile_internal()
+    if not market_profile_data:
+        logger.error("WF-1 FATAL: Could not fetch market profile via internal endpoint. Aborting.")
+        return
+
+    # 5. Atomic Run Creation (Snapshot Persistence)
+    logger.info("WF-1: Creating Atomic Run...")
+    run_id = await client.create_run_internal(
         policy_snapshot=policy_data,
+        market_profile_snapshot=market_profile_data,
         platform=platform
     )
     if not run_id:
-        logger.warning("Could not create run record. Proceeding (or should we abort for strict audit?). Proceeding for now.")
+        logger.error("WF-1 FATAL: Could not create automation run. Aborting.")
+        return
+    
+    logger.info(f"WF-1: Run {run_id} Started Successfully.")
 
     controller = BrowserController(browser_type=browser_type, headless=headless, storage_state_path=storage_state_path)
     
@@ -57,9 +69,8 @@ async def run_automation(platform: str, browser_type: str, headless: bool, url: 
         await controller.launch()
         await controller.new_context()
         
-        # 6. Load Market Profile (Required for Search)
-        profiles = await client.get_market_profiles()
-        active_profile = profiles[0] if profiles else {} 
+        # 6. Use the Profile WE JUST FETCHED (Consistent Snapshot)
+        active_profile = market_profile_data 
         # Note: Empty profile means defaults or generic behavior if handled by Builder
         
         from video_detection_engine.core.discovery_engine import DiscoveryEngine
