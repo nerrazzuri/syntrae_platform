@@ -136,4 +136,41 @@ router.put('/brands/:brandId/automation-runs/:runId', requireAgentAccess, async 
     }
 });
 
+// Persist Discovered Video (Audit Trail)
+router.post('/runs/:runId/discovery', async (req: any, res: any) => {
+    const { runId } = req.params;
+    const {
+        brand_id,
+        platform,
+        video_id,
+        video_url,
+        market_score,
+        reasons,
+        decision,
+        market_profile_id,
+        market_profile_version
+    } = req.body;
+
+    try {
+        const discovered = await prisma.discoveredVideo.create({
+            data: {
+                automation_run_id: runId,
+                brand_id: brand_id,
+                platform,
+                video_id,
+                video_url,
+                market_score,
+                decision_reasons: reasons || [],
+                decision: decision,
+                market_profile_id,
+                market_profile_version
+            }
+        });
+        res.json(discovered);
+    } catch (error: any) {
+        console.error("Discovery persistence failed:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 export const runsRouter = router;

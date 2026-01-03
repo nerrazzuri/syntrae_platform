@@ -21,7 +21,7 @@ logger = logging.getLogger("AutomationCLI")
 
 from behavior.enforcer import PolicyEnforcer
 
-async def run_automation(platform: str, browser_type: str, headless: bool, url: str, brand_id: str, install_id: str):
+async def run_automation(platform: str, browser_type: str, headless: bool, url: str, brand_id: str, install_id: str, storage_state_path: str = None):
     """
     Main automation loop with Relevance & Integration wiring + POLICY ENFORCEMENT.
     """
@@ -50,107 +50,120 @@ async def run_automation(platform: str, browser_type: str, headless: bool, url: 
     if not run_id:
         logger.warning("Could not create run record. Proceeding (or should we abort for strict audit?). Proceeding for now.")
 
-    controller = BrowserController(browser_type=browser_type, headless=headless)
+    controller = BrowserController(browser_type=browser_type, headless=headless, storage_state_path=storage_state_path)
     
     try:
         # 5. Launch Browser
         await controller.launch()
         await controller.new_context()
         
-        # 6. Select Adapter
-        if platform.lower() == "tiktok":
-            adapter = TikTokAdapter(controller.page)
-        else:
-            raise ValueError(f"Unsupported platform: {platform}")
+        # 6. Load Market Profile (Required for Search)
+        profiles = await client.get_market_profiles()
+        active_profile = profiles[0] if profiles else {} 
+        # Note: Empty profile means defaults or generic behavior if handled by Builder
+        
+        from video_detection_engine.core.discovery_engine import DiscoveryEngine
+        engine = DiscoveryEngine(controller, client, run_id, enforcer)
+
+        if url:
+            # Single Video Mode (Manual Override)
+            logger.info(f"Running in URL Mode: {url}")
+            # Synthesize candidate
+            from video_detection_engine.models import VideoCandidate
+            from video_detection_engine.utils.validators import VideoURLNormalizer
             
-        # 6. Execute Extraction
-        target_url = url or "https://www.tiktok.com/"
-        
-        # Pacing: Navigating
-        await enforcer.pace_action("navigation")
-        
-        # Loop simulation (Single Item for POC)
-        # Note: In real scenarios, this is a loop over videos.
-        # We simulate checking video limit here.
-        if not enforcer.check_video_limit_gate():
-            return
-            
-        comments = await adapter.extract_comments(target_url)
-        enforcer.track_video()
-        
-        # Pacing: Post-Extraction
-        await enforcer.pace_action("extraction")
-        
-        video_comments_processed = 0
-        
-        for comment in comments:
-            # Policy Gate: Comments per Video
-            if not enforcer.check_comment_limit_gate(video_comments_processed):
-                break
-                
-            # 7. MARKET MATCH / RELEVANCE LOOP
-            text_to_score = comment.get("content_text", "")
-            hashtags = comment.get("hashtags", []) # Adapter needs to provide this
-            
-            logger.info(f"Checking market fit for: {text_to_score[:50]}...")
-            await enforcer.pace_action("relevance_check")
-            
-            # Use new Market Match Service
-            decision = await client.score_content(
-                text=text_to_score,
-                hashtags=hashtags,
+            clean_url = VideoURLNormalizer.normalize(url) or url
+            cand = VideoCandidate(
+                video_url=clean_url, 
+                video_id=VideoURLNormalizer.extract_id(clean_url) or "manual",
                 platform=platform
             )
             
-            if decision.get("is_match"):
-                score = decision.get("score", 0.0)
-                logger.info(f"✅ MATCH ({score:.2f}): {decision.get('reasons')}")
-                
-                # 8. EMIT EVENT
-                enriched_payload = comment.copy()
-                enriched_payload.update({
-                    "market_score": score,
-                    "market_reasons": decision.get("reasons"),
-                    "matched_keywords": decision.get("matched_keywords"),
-                    "matched_hashtags": decision.get("matched_hashtags")
-                })
-                
-                await client.emit_event("DESKTOP_CAPTURE", enriched_payload)
-                enforcer.track_comment()
-                video_comments_processed += 1
-            else:
-                score = decision.get("score", 0.0)
-                logger.info(f"❌ IGNORED ({score:.2f}): {decision.get('reasons')}")
+            # Direct processing bypasses search/score (or we can score it?)
+            # Let's score it for consistency.
+            decision = await engine._score_candidate(cand, active_profile)
+            await client.record_discovery(run_id, decision)
+            
+            if decision["decision"] == "ACCEPT" or True: # Force process for manual URL?
+                await engine._process_accepted_video(cand)
+        else:
+            # Search Mode (Discovery)
+            if not active_profile:
+                logger.error("No Market Profile found. Cannot perform Search Discovery.")
+                return
+
+            await engine.execute(active_profile)
             
     except Exception as e:
         logger.error(f"Automation failed: {e}")
     finally:
         await controller.close()
 
+async def run_manual_login(platform: str, browser_type: str, output: str):
+    """
+    Launches a HEADFUL browser for manual login and saves the session state.
+    """
+    logger.info(f"Starting Manual Login for {platform}...")
+    logger.info("Browser will launch. Please log in manually.")
+    logger.info("When finished, return here and press ENTER to save session state.")
+
+    controller = BrowserController(browser_type=browser_type, headless=False) # Force Headful
+    
+    try:
+        await controller.launch()
+        await controller.new_context()
+        
+        url = "https://www.tiktok.com/login" if platform == "tiktok" else "https://www.tiktok.com/"
+        await controller.navigate(url)
+        
+        # Block until user confirms
+        await asyncio.get_event_loop().run_in_executor(None, input, "Press ENTER after you have successfully logged in...")
+        
+        await controller.save_storage_state(output)
+        
+    except Exception as e:
+        logger.error(f"Login failed: {e}")
+    finally:
+        await controller.close()
+
 def main():
     parser = argparse.ArgumentParser(description="External Browser Automation Engine")
-    parser.add_argument("--platform", type=str, required=True, help="Target platform (tiktok, youtube, etc)")
-    parser.add_argument("--browser", type=str, default="chromium", help="Browser engine (chromium, firefox, webkit)")
-    parser.add_argument("--headless", action="store_true", help="Run in headless mode")
-    parser.add_argument("--url", type=str, help="Specific URL to process")
-    
-    # New Arguments for Integration
-    parser.add_argument("--brand-id", type=str, required=True, help="Target Brand ID for context")
-    parser.add_argument("--install-id", type=str, required=True, help="Automation Agent Identity (Install ID)")
-    
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # Subcommand: run (The automation)
+    run_parser = subparsers.add_parser("run", help="Execute automation run")
+    run_parser.add_argument("--platform", type=str, required=True, help="Target platform (tiktok, youtube, etc)")
+    run_parser.add_argument("--browser", type=str, default="chromium", help="Browser engine")
+    run_parser.add_argument("--headless", action="store_true", help="Run in headless mode")
+    run_parser.add_argument("--url", type=str, help="Specific URL to process")
+    run_parser.add_argument("--brand-id", type=str, required=True, help="Target Brand ID for context")
+    run_parser.add_argument("--install-id", type=str, required=True, help="Automation Agent Identity (Install ID)")
+    run_parser.add_argument("--storage-state", type=str, help="Path to storage state JSON", default="storage_state.json")
+
+    # Subcommand: login (Manual Session Capture)
+    login_parser = subparsers.add_parser("login", help="Manual login to capture session state")
+    login_parser.add_argument("--platform", type=str, default="tiktok", help="Platform to log in to")
+    login_parser.add_argument("--browser", type=str, default="chromium", help="Browser engine")
+    login_parser.add_argument("--output", type=str, default="storage_state.json", help="Output path for session state")
+
     args = parser.parse_args()
     
-    # Load env vars for secrets? Or assume they are set in environment.
-    # Docker entrypoint should handle env vars.
-    
-    asyncio.run(run_automation(
-        args.platform, 
-        args.browser, 
-        args.headless, 
-        args.url,
-        args.brand_id,
-        args.install_id
-    ))
+    if args.command == "run":
+        # Pass storage_state_path to run_automation (Need to update signature)
+        # Assuming run_automation loads it via controller
+        
+        # Quick-fix: We need to pass storage_state to run_automation
+        asyncio.run(run_automation(
+            args.platform, 
+            args.browser, 
+            args.headless, 
+            args.url,
+            args.brand_id,
+            args.install_id,
+            args.storage_state
+        ))
+    elif args.command == "login":
+        asyncio.run(run_manual_login(args.platform, args.browser, args.output))
 
 if __name__ == "__main__":
     main()

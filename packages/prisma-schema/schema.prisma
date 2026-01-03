@@ -55,6 +55,7 @@ model Brand {
   drafts          OutreachDraft[]
   policies        AutomationPolicy[]
   market_profiles MarketProfile[]
+  discovered_videos DiscoveredVideo[]
 
   @@index([workspace_id])
   @@schema("core")
@@ -500,6 +501,7 @@ model AutomationRun {
   abort_reason    String?
   
   policy          AutomationPolicy? @relation(fields: [policy_id], references: [id])
+  discovered_videos DiscoveredVideo[]
   
   @@index([brand_id])
   @@index([install_id])
@@ -599,5 +601,36 @@ model MarketProfile {
   brand                Brand           @relation(fields: [brand_id], references: [id])
 
   @@index([brand_id, is_active])
+  @@schema("core")
+}
+
+enum VideoDiscoveryDecision {
+  ACCEPT
+  REJECT
+  SKIP
+
+  @@schema("core")
+}
+
+model DiscoveredVideo {
+  id                    String                 @id @default(uuid())
+  automation_run_id     String
+  brand_id              String
+  platform              String
+  video_id              String
+  video_url             String
+  market_profile_id     String?
+  market_profile_version Int?
+  market_score          Float                  @default(0.0)
+  decision              VideoDiscoveryDecision
+  decision_reasons      String[]
+  discovered_at         DateTime               @default(now())
+
+  // Relations
+  run                   AutomationRun          @relation(fields: [automation_run_id], references: [id])
+  brand                 Brand                  @relation(fields: [brand_id], references: [id])
+
+  @@index([automation_run_id])
+  @@index([brand_id, discovered_at])
   @@schema("core")
 }

@@ -1,72 +1,112 @@
-
 import logging
 import asyncio
 from typing import List, Dict, Any
-from playwright.async_api import Page
-from behavior.scroll import ScrollEngine
+from playwright.async_api import Page, Locator
 
 logger = logging.getLogger(__name__)
+
+class CommentExtractionError(Exception):
+    """Raised when comment extraction fails to meet criteria."""
+    pass
 
 class TikTokAdapter:
     """
     Adapter for extracting comments from TikTok.
+    Enforces Strict DOM Extraction (No Mocks).
     """
+    
+    # Selectors (Desktop Web)
+    COMMENT_CONTAINER = 'div[data-e2e="comment-list"]'
+    COMMENT_ITEM = 'div[data-e2e="comment-level-1"]'
+    COMMENT_TEXT = 'p[data-e2e="comment-level-1-content"]'
+    COMMENT_USER = 'a[href*="/@"]' # User link usually contains /@
     
     def __init__(self, page: Page):
         self.page = page
-        self.scroller = ScrollEngine(page)
 
-    async def extract_comments(self, video_url: str, max_comments: int = 20) -> List[Dict[str, Any]]:
+    async def extract_comments(self, video_url: str = None, max_comments: int = 20) -> List[Dict[str, Any]]:
         """
-        Navigates to a video and extracts comments.
+        Extracts comments from the current page (or navigates if url provided).
+        MUST raise CommentExtractionError if 0 valid comments found.
         """
-        logger.info(f"Extracting comments from {video_url}")
+        if video_url:
+            logger.info(f"Navigating to video: {video_url}")
+            await self.page.goto(video_url, wait_until="domcontentloaded", timeout=45000)
         
-        # 1. Navigate
+        # 1. Verify Container (Redundant check if Validator used, but good safety)
         try:
-            await self.page.goto(video_url, wait_until="domcontentloaded", timeout=30000)
-        except Exception as e:
-            logger.error(f"Failed to load video: {e}")
-            return []
-
-        # 2. Wait for comment section (TikTok usually shows it on the right or needs a click)
-        # Mobile view vs Desktop view is different. Assuming Desktop for now.
-        # Selectors are fragile - this is a POC.
-        
-        # Checking for common selectors (Note: these change often)
-        # We'll look for generic list containers if specific IDs fail.
-        
-        # Wait a bit for dynamic load
-        await asyncio.sleep(5)
-        
-        # 3. Scroll to load comments
-        # TikTok desktop loads comments automatically or via scroll in the comment container.
-        # For this POC, we'll try to extract what's visible.
-        
-        extracted = []
-        
-        # Rough selector strategies
-        comment_candidates = await self.page.locator("div[class*='CommentContent']").all() # Generic guess
-        
-        if not comment_candidates:
-            # Try finding by looking for text patterns? 
-            # For now, let's just log page title to prove navigation worked.
+            container = self.page.locator(self.COMMENT_CONTAINER)
+            await container.wait_for(state="visible", timeout=15000)
+        except Exception:
+            # If explicit URL navigation was requested, this is fatal. 
+            # If not, caller might have validated, but we still need it for extraction.
             title = await self.page.title()
-            logger.info(f"Page Title: {title}")
+            raise CommentExtractionError(f"Comment container not found. Page: {title}")
+
+        # 2. Scroll & Expand
+        # Iterate scrolling the comment list until we have enough
+        extrapolated_comments = []
+        retries = 3
+        
+        while len(extrapolated_comments) < max_comments and retries > 0:
+            # Locate current items
+            items = container.locator(self.COMMENT_ITEM)
+            count = await items.count()
             
-        # Mock extraction for POC if selectors fail (Anti-flake)
-        # In real implementation, we would use robust XPaths
-        
-        # Allow overriding mock content via ENV for testing relevance
-        import os
-        mock_content = os.getenv("MOCK_TIKTOK_COMMENTS", "Sample captured comment")
-        
-        extracted.append({
-            "platform": "tiktok",
-            "video_id": "unknown", # Parse from URL
-            "content_text": mock_content,
-            "author": "user123",
-            "metadata": {"raw_position": 0}
-        })
-        
-        return extracted
+            if count > len(extrapolated_comments):
+                # We found new ones, reset retries
+                retries = 3
+                
+                # Parse new items
+                for i in range(len(extrapolated_comments), count):
+                    if len(extrapolated_comments) >= max_comments:
+                        break
+                        
+                    item = items.nth(i)
+                    try:
+                        text_el = item.locator(self.COMMENT_TEXT)
+                        if await text_el.count() == 0:
+                            continue
+                            
+                        text = await text_el.inner_text()
+                        
+                        # Author
+                        author = "unknown"
+                        # User handle is usually in the first link
+                        user_el = item.locator('a[href*="/@"]').first
+                        if await user_el.count() > 0:
+                            href = await user_el.get_attribute("href")
+                            if href and "/@" in href:
+                                author = href.split("/@")[1].split("?")[0]
+                        
+                        # Timestamp/Likes - Optional for MVP, but good to have
+                        
+                        comment_data = {
+                            "platform": "tiktok",
+                            "video_url": self.page.url, 
+                            "content_text": text,
+                            "author": author,
+                            "referral_comment_id": f"scraped_{i}" # No stable ID in DOM easily without ID attribute
+                        }
+                        
+                        extrapolated_comments.append(comment_data)
+                        
+                    except Exception as e:
+                        logger.warning(f"Failed to parse comment {i}: {e}")
+                        continue
+            else:
+                retries -= 1
+                
+            # Scroll down
+            await self.page.keyboard.press("End")
+            await asyncio.sleep(2) # Wait for network
+            
+            # Additional safety: Js scroll
+            # await self.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+
+        # 3. Final Validation (Contracts)
+        if len(extrapolated_comments) == 0:
+            raise CommentExtractionError("0 comments extracted from DOM.")
+            
+        logger.info(f"Successfully extracted {len(extrapolated_comments)} comments.")
+        return extrapolated_comments

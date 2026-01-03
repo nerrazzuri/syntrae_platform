@@ -1,5 +1,6 @@
 
 import asyncio
+import os
 import logging
 from typing import Optional, Dict, Any, List
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, Playwright
@@ -12,9 +13,10 @@ class BrowserController:
     Enforces the Automation Intent Contract: Observer & Extractor only.
     """
 
-    def __init__(self, browser_type: str = "chromium", headless: bool = True):
+    def __init__(self, browser_type: str = "chromium", headless: bool = True, storage_state_path: Optional[str] = None):
         self.browser_type_name = browser_type
         self.headless = headless
+        self.storage_state_path = storage_state_path
         self._playwright: Optional[Playwright] = None
         self._browser: Optional[Browser] = None
         self._context: Optional[BrowserContext] = None
@@ -38,12 +40,18 @@ class BrowserController:
             raise RuntimeError("Browser not launched. Call launch() first.")
         
         logger.info("Creating new browser context...")
-        self._context = await self._browser.new_context(
-            user_agent=user_agent,
-            locale=locale,
-            viewport={"width": 1280, "height": 720}, # Standard desktop
-            device_scale_factor=1
-        )
+        context_args = {
+            "user_agent": user_agent,
+            "locale": locale,
+            "viewport": {"width": 1280, "height": 720}, # Standard desktop
+            "device_scale_factor": 1
+        }
+
+        if self.storage_state_path and os.path.exists(self.storage_state_path):
+            logger.info(f"Loading session from {self.storage_state_path}")
+            context_args["storage_state"] = self.storage_state_path
+
+        self._context = await self._browser.new_context(**context_args)
         self._page = await self._context.new_page()
         
         # Anti-detect: Remove 'webdriver' property
@@ -65,6 +73,16 @@ class BrowserController:
         except Exception as e:
             logger.error(f"Navigation failed: {e}")
             raise
+
+    async def save_storage_state(self, path: Optional[str] = None):
+        """Persists the current browser context state (cookies, storage) to disk."""
+        target = path or self.storage_state_path
+        if not target:
+            raise ValueError("No storage path specified.")
+        
+        if self._context:
+            await self._context.storage_state(path=target)
+            logger.info(f"Session saved to {target}")
 
     async def close(self):
         """Clean shutdown."""

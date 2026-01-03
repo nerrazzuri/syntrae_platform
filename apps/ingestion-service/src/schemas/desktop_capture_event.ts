@@ -40,15 +40,17 @@ export const DesktopCaptureEventSchema = z.object({
     }),
 
     context: z.object({
+        source: z.enum(['EXTENSION', 'AUTOMATION']).optional().default('EXTENSION'),
+        automation_run_id: z.string().optional(),
         visible: z.boolean(),
         position: z.enum(['viewport', 'expanded']),
-        user_action: z.enum(['scroll', 'hover', 'click', 'manual_trigger']),
+        user_action: z.enum(['scroll', 'hover', 'click', 'manual_trigger', 'automation_capture']),
     }),
 
     client_meta: z.object({
         extension_version: z.string(),
         browser: z.string(),
-        os: z.enum(['windows', 'mac']),
+        os: z.enum(['windows', 'mac', 'linux']),
     }),
 });
 

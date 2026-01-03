@@ -49,6 +49,24 @@ router.post('/events', async (req: Request, res: Response) => {
     }
     const eventData = parseResult.data;
 
+    // --- STRICT AUTOMATION VALIDATION (PHASE 38) ---
+    if (eventData.context.source === 'AUTOMATION') {
+        const errors = [];
+        if (!eventData.context.automation_run_id) errors.push("Missing automation_run_id");
+        if (!eventData.video.video_id || eventData.video.video_id === 'unknown') errors.push("Invalid video_id");
+        if (!eventData.comment.text || eventData.comment.text.trim().length === 0) errors.push("Empty comment text");
+
+        if (errors.length > 0) {
+            res.status(400).json({
+                status: "error",
+                code: "INVALID_AUTOMATION_EVENT",
+                message: "Strict automation validation failed",
+                details: errors
+            });
+            return;
+        }
+    }
+
     // 2. Resolve Install & Account (Non-Blocking)
     let accountId: string | null = null;
     let initialStatus = 'RECEIVED';

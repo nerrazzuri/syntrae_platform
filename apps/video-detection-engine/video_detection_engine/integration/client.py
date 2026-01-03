@@ -121,56 +121,84 @@ class IntegrationClient:
             logger.error(f"Relevance check exception: {e}")
             return {"relevant": False, "confidence": 0.0, "reason": "Exception"}
 
-    async def emit_event(self, event_type: str, data: Dict[str, Any]):
+    async def record_discovery(self, run_id: str, discovery_data: Dict[str, Any]):
         """
-        Emits a standardized event to the Ingestion Service.
+        Persists DiscoveredVideo record.
+        """
+        url = f"{self.operator_url}/runs/{run_id}/discovery"
+        headers = {
+            "x-install-id": self.install_id,
+            "x-internal-secret": self.internal_secret,
+            "Content-Type": "application/json"
+        }
+        
+        payload = discovery_data.copy()
+        payload["brand_id"] = self.brand_id
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(url, json=payload, headers=headers, timeout=5.0)
+                if resp.status_code != 200:
+                    logger.error(f"Failed to record discovery {resp.status_code}: {resp.text}")
+        except Exception as e:
+            logger.error(f"Record discovery exception: {e}")
+
+    async def emit_batch(self, events: List[Dict[str, Any]], run_id: str):
+        """
+        Emits a batch of events to Ingestion Service.
+        """
+        for event_data in events:
+            await self.emit_event(event_data, run_id)
+
+    async def emit_event(self, data: Dict[str, Any], run_id: str):
+        """
+        Emits a single standardized event.
+        Enforces Automation Context fields.
         """
         url = f"{self.ingestion_url}/events"
         
-        # Map flat data to Schema structure (ingest.ts expect specific structure)
-        # DesktopCaptureEventSchema structure:
-        # { event_type: 'DESKTOP_CAPTURE', platform: ..., session: ..., page: ..., video: ..., comment: ... }
-        
-        # We need to construct this full payload from the partial data we have.
-        # Ideally, 'data' passed here should already be formatted or we format it.
-        # Let's assume 'data' is the raw extraction and we wrap it.
+        # Prepare Payload strictly conforming to DesktopCaptureEventSchema
+        from datetime import datetime
         
         payload = {
             "event_type": "DESKTOP_CAPTURE",
-            "platform": data.get("platform", "unknown"),
+            "platform": data.get("platform", "tiktok"),
             "session": {
-                "session_id": "00000000-0000-0000-0000-000000000000", # Session ID is less relevant for automation
+                "session_id": "00000000-0000-0000-0000-000000000000",
                 "install_id": self.install_id,
                 "brand_id": self.brand_id
             },
             "page": {
-                "url": data.get("url", "unknown"),
+                "url": data.get("video_url", "unknown"),
                 "page_type": "VIDEO",
-                "timestamp": "2024-01-01T00:00:00.000Z" # TODO: Real time
+                "timestamp": datetime.now().isoformat()
             },
             "video": {
                 "video_id": data.get("video_id", "unknown"),
-                "video_url": data.get("url", ""),
-                "title": data.get("title", ""),
-                "author_id": data.get("author", "unknown"),
+                "video_url": data.get("video_url", ""),
+                "title": data.get("caption", ""), # Assuming caption passed as title hint
+                "author_id": "unknown",
                 "author_name": data.get("author", "unknown")
             },
             "comment": {
-                "comment_id": data.get("comment_id", "unknown"),
-                "author_id": data.get("comment_author_id", "unknown"),
+                "comment_id": data.get("referral_comment_id", "unknown"), # From Adapter
+                "author_id": "unknown",
+                "author_name": data.get("author", "unknown"),
                 "text": data.get("content_text", ""),
-                "reply_count": 0,
-                "like_count": 0
+                "reply_count": data.get("reply_count", 0),
+                "like_count": data.get("like_count", 0)
             },
             "context": {
+                "source": "AUTOMATION",
+                "automation_run_id": run_id,
                 "visible": True,
                 "position": "viewport",
-                "user_action": "manual_trigger" # Automation is manual trigger effectively
+                "user_action": "automation_capture"
             },
             "client_meta": {
-                "extension_version": "0.0.0-automation",
+                "extension_version": "0.0.1-automation",
                 "browser": "playwright",
-                "os": "windows"
+                "os": "linux" # Docker
             }
         }
 
@@ -187,6 +215,7 @@ class IntegrationClient:
                     logger.error(f"Event emission failed {resp.status_code}: {resp.text}")
                 else:
                     logger.info(f"Event emitted: {resp.json().get('event_id')}")
+                    
         except Exception as e:
             logger.error(f"Event emission exception: {e}")
 
