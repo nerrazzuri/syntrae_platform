@@ -1,6 +1,8 @@
 
 import { Router } from 'express';
 import { prisma } from '../db';
+import { requireInternalSecret } from "../middleware/internal_auth";
+
 
 const router = Router();
 
@@ -137,7 +139,7 @@ router.put('/brands/:brandId/automation-runs/:runId', requireAgentAccess, async 
 });
 
 // Persist Discovered Video (Audit Trail)
-router.post('/runs/:runId/discovery', async (req: any, res: any) => {
+router.post('/runs/:runId/discovery', requireInternalSecret, async (req: any, res: any) => {
     const { runId } = req.params;
     const {
         brand_id,
