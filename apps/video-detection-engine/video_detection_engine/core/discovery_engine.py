@@ -24,6 +24,9 @@ class DiscoveryEngine:
         self.client = client
         self.run_id = run_id
         self.enforcer = enforcer
+        # WF-3.1: Track systemic failures for run integrity
+        self.error_count = 0
+        self.error_threshold = 5  # Abort run if 5+ ERRORs encountered
 
     async def execute(self, market_profile: Dict[str, Any]):
         """
@@ -61,27 +64,53 @@ class DiscoveryEngine:
                 # 3. Score & Decide
                 decision_payload = await self._score_candidate(cand, market_profile)
                 
-                # 4. Persist Decision (Audit) with evaluated_against_snapshot flag
-                await self.client.record_discovery(self.run_id, decision_payload)
+                # WF-3.1: Check for ERROR decision and track for run integrity
+                if decision_payload["decision"] == "ERROR":
+                    self.error_count += 1
+                    logger.error(f"ERROR decision for {cand.video_id}: {decision_payload.get('error_class')} (total errors: {self.error_count})")
+                    
+                    # Persist ERROR decision
+                    await self.client.record_discovery(self.run_id, decision_payload)
+                    
+                    # Check if systemic failure threshold exceeded
+                    if self.error_count >= self.error_threshold:
+                        logger.error(f"WF-3.1: ERROR threshold exceeded ({self.error_count}). Marking run FAILED.")
+                        await self._mark_run_failed(f"Systemic failure: {self.error_count} ERROR decisions")
+                        raise Exception(f"WF-3.1: Run aborted due to repeated ERROR decisions")
+                    
+                    continue  # Skip to next candidate
                 
+                # Extract decision for conditional logic
                 decision = decision_payload["decision"]
                 
-                # WF-3: Obey ACCEPT/REJECT/SKIP decision
+                # WF-3.1: Obey ACCEPT/REJECT/SKIP decision
                 if decision == "ACCEPT":
                     logger.info(f"ACCEPT: {cand.video_id} (score={decision_payload.get('market_score', 0)})")
+                    
+                    # WF-3.1: Persistence-required-for-ACCEPT
+                    try:
+                        await self.client.record_discovery(self.run_id, decision_payload)
+                    except Exception as e:
+                        logger.error(f"WF-3.1 FATAL: Failed to persist ACCEPT decision for {cand.video_id}: {e}")
+                        # Cannot proceed without audit trail
+                        await self._mark_run_failed(f"Persistence failure for ACCEPT decision: {str(e)}")
+                        raise Exception(f"WF-3.1: Cannot proceed with ACCEPT - persistence failed")
+                    
                     # Process (Nav -> Validate -> Extract -> Emit)
                     await self._process_accepted_video(cand)
                     # Track usage
                     self.enforcer.track_video()
                     
                 elif decision == "REJECT":
-                    # WF-3: REJECT increments reject stats
+                    # WF-3.1: REJECT increments reject stats
                     logger.info(f"REJECT: {cand.video_id} (score={decision_payload.get('market_score', 0)})")
+                    await self.client.record_discovery(self.run_id, decision_payload)
                     self.enforcer.track_reject()  # Track rejection
                     
                 elif decision == "SKIP":
-                    # WF-3: SKIP is neutral - does NOT count as rejection
+                    # WF-3.1: SKIP is neutral - does NOT count as rejection
                     logger.info(f"SKIP: {cand.video_id} (score={decision_payload.get('market_score', 0)}) - neutral")
+                    await self.client.record_discovery(self.run_id, decision_payload)
                     # No stats tracking for SKIP
                     
                 else:
@@ -89,14 +118,14 @@ class DiscoveryEngine:
 
     async def _score_candidate(self, cand: VideoCandidate, profile: Dict[str, Any]) -> Dict[str, Any]:
         """
-        WF-3: Evaluates a candidate against AI Core Market Scoring using automation_run_id.
-        Returns standardized decision payload with evaluated_against_snapshot flag.
+        WF-3.1: Evaluates a candidate against AI Core Market Scoring using automation_run_id.
+        Returns standardized decision payload with provenance correctness.
         """
         # Construct text representation for scoring (Caption + Hashtags)
         text_content = f"{cand.caption or ''} {' '.join(cand.hashtags)}"
         
         try:
-            # WF-3: Call AI Core with automation_run_id
+            # WF-3.1: Call AI Core with automation_run_id
             result = await self.client.score_content(
                 automation_run_id=self.run_id,
                 text=text_content, 
@@ -105,27 +134,44 @@ class DiscoveryEngine:
                 video_url=cand.video_url
             )
         except Exception as e:
-            # WF-3 Fail-Fast: Auth/network errors abort run
-            logger.error(f"WF-3 FATAL: Market scoring failed: {e}")
+            # WF-3.1 Fail-Fast: Auth/network errors abort run
+            logger.error(f"WF-3.1 FATAL: Market scoring failed: {e}")
+            await self._mark_run_failed(f"Fatal scoring error: {str(e)}")
             raise
         
-        # WF-3: Extract decision directly from response
-        decision = result.get("decision", "SKIP")
-        score = result.get("score", 0.0)
+        # WF-3.1: Extract decision and evaluation status
+        decision = result.get("decision", "ERROR")
+        score = result.get("score")
         reasons = result.get("reasons", [])
+        evaluation_performed = result.get("evaluation_performed", False)
+        error_class = result.get("error_class")
+        http_status = result.get("http_status")
         
-        # WF-3: Return decision payload with snapshot flag
-        return {
+        # WF-3.1: Provenance correctness - only claim profile evaluation if actually performed
+        base_payload = {
              "video_id": cand.video_id,
              "video_url": cand.video_url,
              "platform": cand.platform,
              "market_score": score,
              "decision": decision,
              "reasons": [r.get("detail", str(r)) if isinstance(r, dict) else str(r) for r in reasons],
-             "market_profile_id": profile.get("id"),
-             "market_profile_version": profile.get("version"),
-             "evaluated_against_snapshot": True  # WF-3: Traceability flag
+             "evaluation_performed": evaluation_performed,
+             "error_class": error_class,
+             "http_status": http_status
         }
+        
+        # Only attach market profile provenance if evaluation was actually performed
+        if evaluation_performed and decision != "ERROR":
+            base_payload["market_profile_id"] = profile.get("id")
+            base_payload["market_profile_version"] = profile.get("version")
+        
+        return base_payload
+    
+    async def _mark_run_failed(self, reason: str):
+        """WF-3.1: Mark run as FAILED/DEGRADED based on systemic failures."""
+        logger.error(f"Marking run {self.run_id} as FAILED: {reason}")
+        # TODO: Call Operator API to update run status
+        # For now, just log (will implement internal status update endpoint)
 
     async def _process_accepted_video(self, cand: VideoCandidate):
         try:

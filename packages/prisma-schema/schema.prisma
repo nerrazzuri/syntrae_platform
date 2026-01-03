@@ -477,6 +477,7 @@ enum RunStatus {
   PENDING
   RUNNING
   COMPLETED
+  DEGRADED  // WF-3.1: Completed but encountered ERROR decisions
   ABORTED
   FAILED
 
@@ -609,6 +610,7 @@ enum VideoDiscoveryDecision {
   ACCEPT
   REJECT
   SKIP
+  ERROR  // WF-3.1: System/operational failure (not business decision)
 
   @@schema("core")
 }
@@ -625,6 +627,12 @@ model DiscoveredVideo {
   market_score          Float                  @default(0.0)
   decision              VideoDiscoveryDecision
   decision_reasons      String[]
+  
+  // WF-3.1: Failure Semantics & Provenance
+  evaluation_performed  Boolean @default(true)
+  error_class           String?
+  http_status           Int?
+  
   discovered_at         DateTime               @default(now())
 
   // Relations

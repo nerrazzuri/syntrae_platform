@@ -129,4 +129,40 @@ router.get('/automation-run/:runId', async (req: Request, res: Response) => {
     }
 });
 
+// PATCH /internal/automation-run/:runId/status
+// WF-3.1: Update run status for systemic failures
+router.patch('/automation-run/:runId/status', async (req: Request, res: Response) => {
+    const { runId } = req.params;
+    const { status, abort_reason } = req.body;
+
+    if (!status) {
+        return res.status(400).json({ error: "Missing status" });
+    }
+
+    // Validate status is a known value
+    const validStatuses = ['PENDING', 'RUNNING', 'COMPLETED', 'DEGRADED', 'ABORTED', 'FAILED'];
+    if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: `Invalid status: ${status}` });
+    }
+
+    try {
+        const run = await prisma.automationRun.update({
+            where: { id: runId },
+            data: {
+                status,
+                abort_reason: abort_reason || null,
+                ended_at: (status === 'COMPLETED' || status === 'DEGRADED' || status === 'FAILED' || status === 'ABORTED') ? new Date() : null
+            }
+        });
+
+        return res.json(run);
+    } catch (e: any) {
+        console.error(`Failed to update run status ${runId}:`, e);
+        if (e.code === 'P2025') {
+            return res.status(404).json({ error: "Run not found", runId });
+        }
+        return res.status(500).json({ error: "Internal server error" });
+    }
+});
+
 export const internalRouter = router;

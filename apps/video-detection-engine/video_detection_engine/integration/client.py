@@ -313,7 +313,8 @@ class IntegrationClient:
 
     async def score_content(self, automation_run_id: str, text: str, hashtags: list, video_id: str = None, video_url: str = None) -> Dict[str, Any]:
         """
-        WF-3: Calls AI Core Market Match Service with automation_run_id.
+        WF-3.1: Calls AI Core Market Match Service with automation_run_id.
+        Worker is AUTHORITATIVE for ERROR tagging - generates envelope from status_code.
         """
         url = f"{self.ai_core_url}/v1/market/score"
         payload = {
@@ -331,16 +332,93 @@ class IntegrationClient:
         }
         
         try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(url, json=payload, headers=headers, timeout=5.0)
-                if resp.status_code == 200:
-                    return resp.json()
-                else:
-                    logger.error(f"Market score failed {resp.status_code}: {resp.text}")
-                    # WF-3: Fail-fast on auth/server errors
-                    if resp.status_code in (401, 403):
-                        raise Exception(f"WF-3 FATAL: Auth failure in market scoring {resp.status_code}")
-                    return {"decision": "SKIP", "score": 0.0, "reasons": [{"type": "API_ERROR", "detail": f"Status {resp.status_code}"}], "debug": {}}
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+                
+                # WF-3.1: Fail-fast on auth failures (abort run immediately)
+                if resp.status_code in (401, 403):
+                    logger.error(f"WF-3.1 FATAL AUTH FAILURE: {resp.status_code} from AI-Core")
+                    raise Exception(f"WF-3.1 FATAL: Auth failure in market scoring {resp.status_code}")
+                
+                # WF-3.1: Worker is authoritative - generate ERROR from status_code
+                if resp.status_code != 200:
+                    error_class = self._map_status_to_error_class(resp.status_code)
+                    logger.error(f"AI-Core non-200: {resp.status_code}, mapped to {error_class}")
+                    return {
+                        "decision": "ERROR",
+                        "score": None,
+                        "evaluation_performed": False,
+                        "error_class": error_class,
+                        "http_status": resp.status_code,
+                        "reasons": [{"type": "ERROR", "detail": f"AI-Core returned {resp.status_code}", "weight": None}],
+                        "debug": {}
+                    }
+                
+                # 200 response - validate contract
+                try:
+                    result = resp.json()
+                    
+                    # WF-3.1: Validate required fields
+                    if "decision" not in result or "evaluation_performed" not in result:
+                        logger.error(f"AI-Core CONTRACT violation: missing required fields")
+                        return {
+                            "decision": "ERROR",
+                            "score": None,
+                            "evaluation_performed": False,
+                            "error_class": "AI_CORE_CONTRACT",
+                            "http_status": 200,
+                            "reasons": [{"type": "ERROR", "detail": "Malformed AI-Core response", "weight": None}],
+                            "debug": {}
+                        }
+                    
+                    return result
+                    
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.error(f"AI-Core CONTRACT violation: invalid JSON - {e}")
+                    return {
+                        "decision": "ERROR",
+                        "score": None,
+                        "evaluation_performed": False,
+                        "error_class": "AI_CORE_CONTRACT",
+                        "http_status": 200,
+                        "reasons": [{"type": "ERROR", "detail": "Invalid JSON response", "weight": None}],
+                        "debug": {}
+                    }
+                    
+        except httpx.TimeoutException as e:
+            logger.error(f"AI-Core TIMEOUT: {e}")
+            return {
+                "decision": "ERROR",
+                "score": None,
+                "evaluation_performed": False,
+                "error_class": "AI_CORE_TIMEOUT",
+                "http_status": None,
+                "reasons": [{"type": "ERROR", "detail": f"Timeout: {str(e)}", "weight": None}],
+                "debug": {}
+            }
         except httpx.HTTPError as e:
-            logger.error(f"Market score exception: {e}")
-            raise Exception(f"WF-3 FATAL: Network failure in market scoring")
+            logger.error(f"AI-Core HTTP ERROR: {e}")
+            return {
+                "decision": "ERROR",
+                "score": None,
+                "evaluation_performed": False,
+                "error_class": "AI_CORE_HTTP_ERROR",
+                "http_status": None,
+                "reasons": [{"type": "ERROR", "detail": f"Network error: {str(e)}", "weight": None}],
+                "debug": {}
+            }
+    
+    def _map_status_to_error_class(self, status_code: int) -> str:
+        """WF-3.1: Map HTTP status codes to stable error machine tags."""
+        if status_code == 404:
+            return "AI_CORE_HTTP_404"
+        elif status_code == 409:
+            return "AI_CORE_HTTP_409"
+        elif status_code == 422:
+            return "AI_CORE_HTTP_422"
+        elif status_code >= 500:
+            return "AI_CORE_HTTP_500"
+        elif status_code >= 400:
+            return "AI_CORE_HTTP_4XX"
+        else:
+            return f"AI_CORE_HTTP_{status_code}"

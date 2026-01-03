@@ -95,7 +95,8 @@ async def run_automation(platform: str, browser_type: str, headless: bool, url: 
             decision = await engine._score_candidate(cand, active_profile)
             await client.record_discovery(run_id, decision)
             
-            if decision["decision"] == "ACCEPT" or True: # Force process for manual URL?
+            # WF-3.1: Obey decision strictly (no bypass)
+            if decision["decision"] == "ACCEPT":
                 await engine._process_accepted_video(cand)
         else:
             # Search Mode (Discovery)

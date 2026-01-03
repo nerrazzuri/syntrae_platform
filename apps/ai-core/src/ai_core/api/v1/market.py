@@ -47,10 +47,14 @@ class DecisionReason(BaseModel):
 
 class MarketScoreResponse(BaseModel):
     # WF-3: Explicit decision
-    decision: str  # ACCEPT | REJECT | SKIP
+    decision: str  # ACCEPT | REJECT | SKIP | ERROR
     
-    score: float
+    score: Optional[float] = None  # WF-3.1: None for ERROR decisions
     reasons: List[DecisionReason]
+    
+    # WF-3.1: Evaluation tracking
+    evaluation_performed: bool = True
+    error_class: Optional[str] = None
     
     # Debug info
     debug: Dict[str, Any] = {}
@@ -108,6 +112,8 @@ async def score_market_relevance(
         return MarketScoreResponse(
             decision=decision,
             score=score,
+            evaluation_performed=True,  # WF-3.1: Successful evaluation
+            error_class=None,
             reasons=[
                 DecisionReason(
                     type=r.get("type", "UNKNOWN"),
@@ -129,7 +135,15 @@ async def score_market_relevance(
         raise
     except Exception as e:
         logger.error(f"Market Score Error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        # WF-3.1: Return structured ERROR on internal failures
+        return MarketScoreResponse(
+            decision="ERROR",
+            score=None,
+            evaluation_performed=False,
+            error_class="AI_CORE_INTERNAL_ERROR",
+            reasons=[DecisionReason(type="ERROR", detail=f"Internal error: {str(e)}", weight=None)],
+            debug={}
+        )
 
 async def _fetch_run_snapshot(run_id: str) -> Dict[str, Any]:
     """

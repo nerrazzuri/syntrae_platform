@@ -8,6 +8,7 @@ class VideoDiscoveryDecision(str, Enum):
     ACCEPT = "ACCEPT"
     REJECT = "REJECT"
     SKIP = "SKIP"
+    ERROR = "ERROR"  # WF-3.1: System/operational failure
 
 class DiscoveryMode(str, Enum):
     URL = "URL"
@@ -35,13 +36,18 @@ class DiscoveredVideo(BaseModel):
     video_id: str
     video_url: str
     platform: str
-    market_score: float
+    market_score: Optional[float] = None  # WF-3.1: None for ERROR decisions
     decision: VideoDiscoveryDecision
     reasons: List[str] = Field(default_factory=list) # Note: API expects 'reasons' mapped to 'decision_reasons'
     market_profile_id: Optional[str] = None
     market_profile_version: Optional[int] = None
     brand_id: str # Required for linking
     automation_run_id: str # Required for linking
+    
+    # WF-3.1: Failure Semantics & Provenance
+    evaluation_performed: bool = True
+    error_class: Optional[str] = None
+    http_status: Optional[int] = None
 
 class CommentData(BaseModel):
     """
