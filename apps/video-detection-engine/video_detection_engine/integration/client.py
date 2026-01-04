@@ -318,7 +318,7 @@ class IntegrationClient:
         """
         url = f"{self.ai_core_url}/v1/market/score"
         payload = {
-            "automation_run_id": automation_run_id,
+            # "automation_run_id": automation_run_id,
             "text": text,
             "hashtags": hashtags,
             "video_id": video_id,

@@ -102,11 +102,20 @@ async def run_automation(platform: str, browser_type: str, headless: bool, url: 
                     f"error_class={decision.get('error_class')}"
                 )
 
-                # Mark run as DEGRADED (or FAILED if you prefer later)
+                error_class = decision.get("error_class")
+
+                fatal_errors = {
+                    "AI_CORE_HTTP_403",
+                    "AI_CORE_HTTP_404",
+                    "AI_CORE_HTTP_409",
+                }
+
+                status = "FAILED" if error_class in fatal_errors else "DEGRADED"
+
                 await client.update_run_internal(
                     run_id=run_id,
-                    status="DEGRADED",
-                    abort_reason=decision.get("error_class")
+                    status=status,
+                    abort_reason=error_class
                 )
 
                 return
