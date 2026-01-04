@@ -162,8 +162,7 @@ class DiscoveryEngine:
         Returns standardized decision payload with provenance correctness.
         """
         # Construct text representation for scoring (Caption + Hashtags)
-        # text_content = f"{cand.caption or ''} {' '.join(cand.hashtags)}"
-        text_content = ""
+        text_content = f"{cand.caption or ''} {' '.join(cand.hashtags)}"
         
         try:
             # WF-3.1: Call AI Core with automation_run_id
