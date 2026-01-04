@@ -94,6 +94,22 @@ async def run_automation(platform: str, browser_type: str, headless: bool, url: 
             # Let's score it for consistency.
             decision = await engine._score_candidate(cand, active_profile)
             await client.record_discovery(run_id, decision)
+
+            # WF-3.1: System failure must update run integrity
+            if decision["decision"] == "ERROR":
+                logger.error(
+                    f"WF-3.1: System failure detected. "
+                    f"error_class={decision.get('error_class')}"
+                )
+
+                # Mark run as DEGRADED (or FAILED if you prefer later)
+                await client.update_run_internal(
+                    run_id=run_id,
+                    status="DEGRADED",
+                    abort_reason=decision.get("error_class")
+                )
+
+                return
             
             # WF-3.1: Obey decision strictly (no bypass)
             if decision["decision"] == "ACCEPT":

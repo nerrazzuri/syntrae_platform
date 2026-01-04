@@ -64,21 +64,56 @@ class DiscoveryEngine:
                 # 3. Score & Decide
                 decision_payload = await self._score_candidate(cand, market_profile)
                 
-                # WF-3.1: Check for ERROR decision and track for run integrity
                 if decision_payload["decision"] == "ERROR":
-                    self.error_count += 1
-                    logger.error(f"ERROR decision for {cand.video_id}: {decision_payload.get('error_class')} (total errors: {self.error_count})")
-                    
-                    # Persist ERROR decision
+                    error_class = decision_payload.get("error_class")
+                    http_status = decision_payload.get("http_status")
+
+                    logger.error(
+                        f"WF-3.1: System ERROR for {cand.video_id} "
+                        f"error_class={error_class} http_status={http_status}"
+                    )
+
+                    # Always persist ERROR
                     await self.client.record_discovery(self.run_id, decision_payload)
-                    
-                    # Check if systemic failure threshold exceeded
+
+                    # --- WF-3.1 RUN INTEGRITY ENFORCEMENT ---
+                    FATAL_ERRORS = {
+                        "AI_CORE_HTTP_403",
+                        "AI_CORE_HTTP_404",
+                        "AI_CORE_HTTP_409",
+                        "AI_CORE_CONTRACT",
+                    }
+
+                    if error_class in FATAL_ERRORS:
+                        logger.error("WF-3.1: Fatal system failure → FAIL run")
+
+                        await self.client.update_run_internal(
+                            run_id=self.run_id,
+                            status="FAILED",
+                            abort_reason=error_class,
+                        )
+
+                        # HARD STOP — no continue
+                        return
+
+                    # Transient/systemic but not fatal
+                    self.error_count += 1
+
                     if self.error_count >= self.error_threshold:
-                        logger.error(f"WF-3.1: ERROR threshold exceeded ({self.error_count}). Marking run FAILED.")
-                        await self._mark_run_failed(f"Systemic failure: {self.error_count} ERROR decisions")
-                        raise Exception(f"WF-3.1: Run aborted due to repeated ERROR decisions")
-                    
-                    continue  # Skip to next candidate
+                        logger.error(
+                            f"WF-3.1: ERROR threshold exceeded ({self.error_count}) → DEGRADED"
+                        )
+
+                        await self.client.update_run_internal(
+                            run_id=self.run_id,
+                            status="DEGRADED",
+                            abort_reason=f"{error_class}_THRESHOLD",
+                        )
+
+                        return
+
+                    # Otherwise: tolerate and move on
+                    continue
                 
                 # Extract decision for conditional logic
                 decision = decision_payload["decision"]
@@ -91,10 +126,15 @@ class DiscoveryEngine:
                     try:
                         await self.client.record_discovery(self.run_id, decision_payload)
                     except Exception as e:
-                        logger.error(f"WF-3.1 FATAL: Failed to persist ACCEPT decision for {cand.video_id}: {e}")
-                        # Cannot proceed without audit trail
-                        await self._mark_run_failed(f"Persistence failure for ACCEPT decision: {str(e)}")
-                        raise Exception(f"WF-3.1: Cannot proceed with ACCEPT - persistence failed")
+                        logger.error(f"WF-3.1 FATAL: ACCEPT persistence failed: {e}")
+
+                        await self.client.update_run_internal(
+                            run_id=self.run_id,
+                            status="FAILED",
+                            abort_reason="ACCEPT_PERSISTENCE_FAILED",
+                        )
+
+                        raise
                     
                     # Process (Nav -> Validate -> Extract -> Emit)
                     await self._process_accepted_video(cand)
@@ -122,7 +162,8 @@ class DiscoveryEngine:
         Returns standardized decision payload with provenance correctness.
         """
         # Construct text representation for scoring (Caption + Hashtags)
-        text_content = f"{cand.caption or ''} {' '.join(cand.hashtags)}"
+        # text_content = f"{cand.caption or ''} {' '.join(cand.hashtags)}"
+        text_content = ""
         
         try:
             # WF-3.1: Call AI Core with automation_run_id
@@ -134,10 +175,13 @@ class DiscoveryEngine:
                 video_url=cand.video_url
             )
         except Exception as e:
-            # WF-3.1 Fail-Fast: Auth/network errors abort run
-            logger.error(f"WF-3.1 FATAL: Market scoring failed: {e}")
-            await self._mark_run_failed(f"Fatal scoring error: {str(e)}")
-            raise
+            return {
+                "decision": "ERROR",
+                "evaluation_performed": False,
+                "error_class": "AI_CORE_EXCEPTION",
+                "http_status": None,
+                "reasons": [str(e)],
+            }
         
         # WF-3.1: Extract decision and evaluation status
         decision = result.get("decision", "ERROR")
@@ -168,10 +212,13 @@ class DiscoveryEngine:
         return base_payload
     
     async def _mark_run_failed(self, reason: str):
-        """WF-3.1: Mark run as FAILED/DEGRADED based on systemic failures."""
         logger.error(f"Marking run {self.run_id} as FAILED: {reason}")
-        # TODO: Call Operator API to update run status
-        # For now, just log (will implement internal status update endpoint)
+
+        await self.client.update_run_internal(
+            run_id=self.run_id,
+            status="FAILED",
+            abort_reason=reason,
+        )
 
     async def _process_accepted_video(self, cand: VideoCandidate):
         try:
@@ -181,10 +228,15 @@ class DiscoveryEngine:
             # 2. Validate Page (Strict)
             is_valid, reason = await VideoPageValidator.validate(self.controller.page)
             if not is_valid:
-                logger.error(f"Video Page Validation Failed: {reason}")
-                # We ACCEPTED it, but now failed to process. 
-                # Ideally update decision to ERROR? For now, we just skip extraction.
-                return
+                logger.error(f"WF-3.1: ACCEPTED video failed validation: {reason}")
+
+                await self.client.update_run_internal(
+                    run_id=self.run_id,
+                    status="DEGRADED",
+                    abort_reason="ACCEPT_PROCESSING_FAILED",
+                )
+
+                raise Exception("Accepted video failed validation")
 
             # 3. Extract Comments (Strict)
             adapter = TikTokAdapter(self.controller.page)
