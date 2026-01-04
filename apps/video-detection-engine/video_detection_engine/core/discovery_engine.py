@@ -27,8 +27,11 @@ class DiscoveryEngine:
         # WF-3.1: Track systemic failures for run integrity
         self.error_count = 0
         self.error_threshold = 5  # Abort run if 5+ ERRORs encountered
+        self.search_candidates = 0
+        self.search_valid_decisions = 0
+        self.url_accepted = False
 
-    async def execute(self, market_profile: Dict[str, Any]):
+    async def execute(self, market_profile: Dict[str, Any], finalize: bool = True):
         """
         Main Execution Loop.
         """
@@ -39,6 +42,8 @@ class DiscoveryEngine:
         search_urls = qb.build_search_urls(limit=3) # Configurable limit
         
         if not search_urls:
+            self.search_candidates = 0
+            self.search_valid_decisions = 0
             logger.warning("No valid search queries generated. Aborting.")
             return
 
@@ -52,6 +57,7 @@ class DiscoveryEngine:
             # Navigate & Extract Candidates
             navigator = TikTokSearchNavigator(self.controller.page)
             candidates = await navigator.search_and_extract(url, max_results=5)
+            self.search_candidates += len(candidates)
             
             logger.info(f"Found {len(candidates)} candidates from {url}")
             
@@ -63,7 +69,10 @@ class DiscoveryEngine:
 
                 # 3. Score & Decide
                 decision_payload = await self._score_candidate(cand, market_profile)
-                
+
+                if decision_payload["decision"] != "ERROR":
+                    self.search_valid_decisions += 1
+
                 if decision_payload["decision"] == "ERROR":
                     error_class = decision_payload.get("error_class")
                     http_status = decision_payload.get("http_status")
@@ -87,14 +96,15 @@ class DiscoveryEngine:
                     if error_class in FATAL_ERRORS:
                         logger.error("WF-3.1: Fatal system failure → FAIL run")
 
-                        await self.client.update_run_internal(
-                            run_id=self.run_id,
-                            status="FAILED",
-                            abort_reason=error_class,
-                        )
+                        if finalize:
+                            await self.client.update_run_internal(
+                                run_id=self.run_id,
+                                status="FAILED",
+                                abort_reason=error_class,
+                            )
 
-                        # HARD STOP — no continue
-                        return
+                            # HARD STOP — no continue
+                            raise RuntimeError("Fatal system failure")
 
                     # Transient/systemic but not fatal
                     self.error_count += 1
@@ -104,11 +114,12 @@ class DiscoveryEngine:
                             f"WF-3.1: ERROR threshold exceeded ({self.error_count}) → DEGRADED"
                         )
 
-                        await self.client.update_run_internal(
-                            run_id=self.run_id,
-                            status="DEGRADED",
-                            abort_reason=f"{error_class}_THRESHOLD",
-                        )
+                        if finalize:
+                            await self.client.update_run_internal(
+                                run_id=self.run_id,
+                                status="DEGRADED",
+                                abort_reason=f"{error_class}_THRESHOLD",
+                            )
 
                         return
 
@@ -121,18 +132,18 @@ class DiscoveryEngine:
                 # WF-3.1: Obey ACCEPT/REJECT/SKIP decision
                 if decision == "ACCEPT":
                     logger.info(f"ACCEPT: {cand.video_id} (score={decision_payload.get('market_score', 0)})")
-                    
                     # WF-3.1: Persistence-required-for-ACCEPT
                     try:
                         await self.client.record_discovery(self.run_id, decision_payload)
                     except Exception as e:
                         logger.error(f"WF-3.1 FATAL: ACCEPT persistence failed: {e}")
-
-                        await self.client.update_run_internal(
-                            run_id=self.run_id,
-                            status="FAILED",
-                            abort_reason="ACCEPT_PERSISTENCE_FAILED",
-                        )
+                        
+                        if finalize:
+                            await self.client.update_run_internal(
+                                run_id=self.run_id,
+                                status="FAILED",
+                                abort_reason="ACCEPT_PERSISTENCE_FAILED",
+                            )
 
                         raise
                     
@@ -265,3 +276,20 @@ class DiscoveryEngine:
             # "Run must ABORT if 0 real comments".
             # So we should re-raise critical errors.
             raise e 
+    
+    async def finalize_run(self):
+        logger.warning(
+            f"[FINALIZE] run={self.run_id} "
+            f"search_valid={self.search_valid_decisions} "
+            f"url_accepted={self.url_accepted} "
+            f"errors={self.error_count}"
+        )
+        if self.search_valid_decisions == 0 and not self.url_accepted:
+            await self.client.update_run_internal(self.run_id, "DEGRADED", "SEARCH_NO_VALID_CANDIDATES")
+            return
+
+        if self.error_count > 0:
+            await self.client.update_run_internal(self.run_id, "DEGRADED", "NON_FATAL_ERRORS")
+            return
+
+        await self.client.update_run_internal(self.run_id, "COMPLETED", None)

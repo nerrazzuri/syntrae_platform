@@ -89,6 +89,21 @@ async def run_automation(platform: str, browser_type: str, headless: bool, url: 
                 video_id=VideoURLNormalizer.extract_id(clean_url) or "manual",
                 platform=platform
             )
+
+            # SEARCH is mandatory (Option B)
+            try:
+                await engine.execute(active_profile, finalize=False)
+            except RuntimeError as e:
+                # Treat as fatal search failure in URL mode
+                try:
+                    await client.update_run_internal(
+                        run_id=run_id,
+                        status="FAILED",
+                        abort_reason="SEARCH_FATAL"
+                    )
+                except Exception as ue:
+                    logger.error(f"Failed to update run status on SEARCH_FATAL: {ue}")
+                return
             
             # Direct processing bypasses search/score (or we can score it?)
             # Let's score it for consistency.
@@ -111,25 +126,31 @@ async def run_automation(platform: str, browser_type: str, headless: bool, url: 
                 }
 
                 status = "FAILED" if error_class in fatal_errors else "DEGRADED"
-
-                await client.update_run_internal(
-                    run_id=run_id,
-                    status=status,
-                    abort_reason=error_class
-                )
-
+                try:
+                    await client.update_run_internal(run_id=run_id, status=status, abort_reason=error_class)
+                except Exception as e:
+                    logger.error(f"Failed to update run status on ERROR: {e}")
                 return
-            
+
             # WF-3.1: Obey decision strictly (no bypass)
             if decision["decision"] == "ACCEPT":
+                engine.url_accepted = True
+                engine.error_count = 0
                 await engine._process_accepted_video(cand)
+
+            # FINALIZE RUN (this is non-optional)
+            await engine.finalize_run()
         else:
             # Search Mode (Discovery)
             if not active_profile:
                 logger.error("No Market Profile found. Cannot perform Search Discovery.")
                 return
 
+            # SEARCH is mandatory (Option B)
             await engine.execute(active_profile)
+
+            # FINALIZE RUN (this is non-optional)
+            await engine.finalize_run()
             
     except Exception as e:
         logger.error(f"Automation failed: {e}")
