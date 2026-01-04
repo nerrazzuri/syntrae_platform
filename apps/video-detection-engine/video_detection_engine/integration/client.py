@@ -156,6 +156,20 @@ class IntegrationClient:
         except Exception as e:
             logger.error(f"WF-1: {resource_name} fetch exception: {e}")
             return None
+    
+    async def _post_internal(self, url: str, payload: Dict[str, Any]):
+        headers = {
+            "x-internal-secret": self.internal_secret,
+            "Content-Type": "application/json"
+        }
+
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(url, json=payload, headers=headers, timeout=5.0)
+                if resp.status_code not in (200, 201):
+                    logger.error(f"WF-3.1: Internal POST failed {resp.status_code}: {resp.text}")
+        except Exception as e:
+            logger.error(f"WF-3.1: Internal POST exception: {e}")
 
     async def check_relevance(self, text: str, platform: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -422,3 +436,11 @@ class IntegrationClient:
             return "AI_CORE_HTTP_4XX"
         else:
             return f"AI_CORE_HTTP_{status_code}"
+
+    async def update_run_internal(self, run_id: str, status: str, abort_reason: str | None = None):
+        url = f"{self.operator_url}/internal/automation-run/{run_id}"
+        payload = {
+            "status": status,
+            "abort_reason": abort_reason,
+        }
+        await self._post_internal(url, payload)
