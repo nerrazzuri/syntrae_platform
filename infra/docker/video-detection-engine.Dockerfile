@@ -11,14 +11,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     ffmpeg \
-    xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- Torch FIRST (isolated layer: TIME BOMB DEFUSED) ------
 # This layer changes RARELY. Segregating it means app code changes 
 # NEVER trigger a torch re-download.
-# RUN --mount=type=cache,target=/root/.cache/pip \
-RUN pip install torch torchvision \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install torch torchvision \
     --index-url https://download.pytorch.org/whl/cpu
 
 # ---- Other deps (Context: requirements.txt) ---------------
@@ -26,8 +25,8 @@ RUN pip install torch torchvision \
 # Note: requirements.txt is located deep in the source tree
 COPY apps/video-detection-engine/video_detection_engine/requirements.txt .
 
-# RUN --mount=type=cache,target=/root/.cache/pip \
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements.txt
 
 # ---- App code (changes often) -----------------------------
 COPY apps/video-detection-engine/ /app/apps/video-detection-engine/

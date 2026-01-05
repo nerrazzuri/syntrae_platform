@@ -65,7 +65,7 @@ async def run_automation(platform: str, browser_type: str, headless: bool, url: 
     logger.info(f"WF-1: Run {run_id} Started Successfully.")
 
     # DEBUG: Force headless=False to bypass basic bot detection or solve CAPTCHA
-    controller = BrowserController(browser_type=browser_type, headless=False, storage_state_path=storage_state_path)
+    controller = BrowserController(browser_type=browser_type, headless=headless, storage_state_path=storage_state_path)
     
     try:
         # 5. Launch Browser

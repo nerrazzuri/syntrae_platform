@@ -204,11 +204,6 @@ services:
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
   video-detection-engine:
-    command:
-      - sh
-      - -c
-      - |
-        exec xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" python main_automation.py
     build:
       context: ../..
       dockerfile: infra/docker/video-detection-engine.Dockerfile
@@ -232,11 +227,7 @@ services:
     container_name: automation-worker
     # Override CMD to run the Global Poller
     # command: [ "xvfb-run", "--auto-servernum", "--server-args=-screen 0 1280x960x24", "python", "poll_automation.py", "--mode", "global", "--install-id", "docker-worker-1" ]
-    command:
-      - sh
-      - -c
-      - |
-        exec xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" python poll_automation.py --mode global --install-id docker-worker-1
+    command: [ "python", "poll_automation.py", "--mode", "global", "--install-id", "docker-worker-1" ]
     environment:
       - LOG_LEVEL=INFO
       # Needs to reach operator-api for polling
