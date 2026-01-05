@@ -248,13 +248,41 @@ class DiscoveryEngine:
 
                 raise Exception("Accepted video failed validation")
 
-            # 3. Extract Comments (Strict)
+            # 3. P1-A: Policy Enforcement BEFORE Comment Extraction
+            # Check if policy allows comment capture
+            can_capture = self.enforcer.check_comment_limit_gate(current_video_comments=0)
+            if not can_capture:
+                policy_reason = f"Policy limit reached: {self.enforcer.comments_processed}/{self.enforcer.max_comments_ph} hourly"
+                logger.warning(f"🛑 P1-A: Comment capture STOPPED by policy for {cand.video_id}. {policy_reason}")
+                # NOT an error - graceful policy stop
+                # Policy stops are non-fatal, partial capture allowed
+                return
+            
+            # Calculate allowed comment count based on policy caps
+            remaining_hourly = self.enforcer.max_comments_ph - self.enforcer.comments_processed
+            max_allowed_this_video = min(self.enforcer.max_comments_pv, remaining_hourly)
+            
+            if max_allowed_this_video <= 0:
+                logger.warning(f"🛑 P1-A: No comments allowed for {cand.video_id} (hourly quota exhausted)")
+                return
+            
+            logger.info(f"P1-A: Extracting up to {max_allowed_this_video} comments for {cand.video_id}")
+            
+            # 4. Extract Comments (Policy-Limited)
             adapter = TikTokAdapter(self.controller.page)
             # extract_comments navigates by default if url passed, but we already navigated.
             # Passing None as url implies use current page (and skip nav).
-            comments = await adapter.extract_comments(video_url=None) 
+            # Pass policy-calculated limit
+            comments = await adapter.extract_comments(video_url=None, max_comments=max_allowed_this_video) 
             
-            # 4. Emit
+            # 5. P1-A: Track captured comments in policy state
+            captured_count = len(comments) if comments else 0
+            for _ in range(captured_count):
+                self.enforcer.track_comment()
+            
+            logger.info(f"P1-A: Captured {captured_count} comments (total: {self.enforcer.comments_processed}/{self.enforcer.max_comments_ph})")
+            
+            # 6. Emit
             if comments:
                 # Augment with candidate metadata including video_id for STRICT VALIDATION
                 for c in comments:
@@ -266,6 +294,9 @@ class DiscoveryEngine:
                         
                 await self.client.emit_batch(comments, self.run_id)
                 logger.info(f"Emitted {len(comments)} events for {cand.video_id}")
+                
+                # P1-A: Respect pacing config (cooldown + jitter)
+                await self.enforcer.pace_action("comment_capture")
             
         except Exception as e:
             logger.error(f"Processing failed for {cand.video_id}: {e}")
