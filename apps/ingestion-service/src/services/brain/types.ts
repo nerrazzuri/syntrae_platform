@@ -49,6 +49,7 @@ export interface BrainInput {
         author_name: string | null;
         content_text: string;
         account_id?: string; // Phase 19.5
+        brand_id?: string; // P0 FIX: Required for lead persistence (Phase 33)
         comment_id?: string; // Phase 30
         source_event_id?: string; // Phase 30
     };

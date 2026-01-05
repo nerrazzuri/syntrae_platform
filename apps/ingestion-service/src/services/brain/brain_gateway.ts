@@ -48,6 +48,7 @@ function mapCapabilityToBrainInput(request: CapabilityRequest): BrainInput {
             author_name: rawAny.creator_name || rawAny.commenter_name || null,
             content_text: request.input.query,
             account_id: rawAny.account_id || null, // Gap B Fix
+            brand_id: rawAny.brand_id || null, // P0 FIX: Required for lead persistence
             comment_id: rawAny.comment_id || null,
             source_event_id: rawAny.source_event_id || null
         },

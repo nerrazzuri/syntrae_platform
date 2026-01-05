@@ -11,7 +11,8 @@ export class EngagementDomainFilter {
             video_id: input.event.video_id,
             source_event_id: input.event.source_event_id,
             user_handle: input.event.author_name,
-            account_id: input.event.account_id
+            account_id: input.event.account_id,
+            brand_id: input.event.brand_id  // P0 FIX: Required for lead persistence
         };
 
         const classification = await IntentClassifier.classify(text, context);

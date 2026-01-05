@@ -302,7 +302,11 @@ async function triggerAutoSuggest(event: any, accountId: string, installId: stri
         const req = VideoEventAdapter.toCapabilityRequest(videoEvent);
         req.tenant_id = installId;
         if (!req.context) req.context = {};
-        req.context.raw_event = { ...((req.context.raw_event as object) || {}), account_id: accountId };
+        req.context.raw_event = {
+            ...((req.context.raw_event as object) || {}),
+            account_id: accountId,
+            brand_id: event.brand_id  // P0 FIX: Required for lead persistence
+        };
 
         // 2. Brain
         const resp = await BrainGateway.processCapability(req);
