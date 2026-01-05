@@ -496,9 +496,23 @@ class IntegrationClient:
             return f"AI_CORE_HTTP_{status_code}"
 
     async def update_run_internal(self, run_id: str, status: str, abort_reason: str | None = None):
-        url = f"{self.operator_url}/internal/automation-run/{run_id}"
-        payload = {
-            "status": status,
-            "abort_reason": abort_reason,
-        }
-        await self._post_internal(url, payload)
+        """
+        P1-B.1: Update automation run status via Operator API.
+        Uses PATCH /internal/automation-run/:runId/status (WF-3.1 endpoint)
+        """
+        url = f"{self.operator_url}/internal/automation-run/{run_id}/status"
+        payload = {"status": status}
+        if abort_reason:
+            payload["abort_reason"] = abort_reason
+        
+        # P1-B.1: Use PATCH, not POST
+        headers = {"X-Internal-Secret": self.internal_secret, "Content-Type": "application/json"}
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.patch(url, json=payload, headers=headers, timeout=10.0)
+                if resp.status_code not in (200, 204):
+                    logger.error(f"P1-B.1: Failed to update run status: {resp.status_code} {resp.text}")
+                else:
+                    logger.info(f"P1-B.1: Run {run_id} status updated to {status}")
+        except Exception as e:
+            logger.error(f"P1-B.1: Exception updating run status: {e}")
