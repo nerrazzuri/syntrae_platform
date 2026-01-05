@@ -8,7 +8,8 @@ import { requireSession } from '../middleware/session_auth';
 const router = Router();
 
 // Apply session auth for UI endpoints (GET /runs)
-router.use('/runs', requireSession);
+// Apply session auth for UI endpoints (GET /runs)
+// router.use('/runs', requireSession); // REMOVED: Blocks /runs/pending used by agents
 
 // Reusing the access logic from `policy.ts`? 
 // For speed/DRY, we should export it or move to middleware.
@@ -222,7 +223,7 @@ router.post('/runs/:runId/discovery', requireInternalSecret, async (req: any, re
 
 // GET /runs - List all runs (for Operator UI visibility)
 // PILOT FIX: Secure with session auth and filter by workspace
-router.get('/runs', async (req: any, res: any) => {
+router.get('/runs', requireSession, async (req: any, res: any) => {
     try {
         // Require session (user must be logged in)
         if (!req.user) {
