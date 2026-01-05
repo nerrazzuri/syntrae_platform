@@ -228,9 +228,10 @@ router.get('/runs', async (req: any, res: any) => {
         const limit = parseInt(req.query.limit as string) || 50;
         const offset = parseInt(req.query.offset as string) || 0;
 
-        // Get workspace brands for filtering
-        const workspace = await prisma.workspace.findUnique({
-            where: { id: req.user.active_workspace_id },
+        // FIX: Get brands directly via account (no workspace model exists)
+        // User's account_id is stored in session, brands belong to accounts
+        const account = await prisma.account.findUnique({
+            where: { id: req.user.account_id },
             include: {
                 brands: {
                     select: { id: true }
@@ -238,11 +239,11 @@ router.get('/runs', async (req: any, res: any) => {
             }
         });
 
-        if (!workspace) {
-            return res.status(404).json({ error: 'Workspace not found' });
+        if (!account) {
+            return res.status(404).json({ error: 'Account not found' });
         }
 
-        const brandIds = workspace.brands.map((b: any) => b.id);
+        const brandIds = account.brands.map((b: any) => b.id);
 
         const runs = await prisma.automationRun.findMany({
             where: {
