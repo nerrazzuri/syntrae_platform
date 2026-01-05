@@ -6,10 +6,7 @@ import { prisma } from '../db'; // Direct prisma access for simple checks if nee
 const router = Router();
 
 const requireAgentOrSession = async (req: any, res: any, next: any) => {
-    // 1. Session Auth
-    if (req.session && req.session.user) return next();
-
-    // 2. Connector/Agent Auth (Internal Secret)
+    // 1. Connector/Agent Auth (Internal Secret) - Check FIRST (Fast path)
     // Supports case-insensitive header check
     const internalSecret = req.headers['x-internal-secret'] || req.headers['x_internal_secret'];
     const expectedSecret = process.env.AI_CORE_INTERNAL_SECRET;
@@ -18,7 +15,10 @@ const requireAgentOrSession = async (req: any, res: any, next: any) => {
         return next();
     }
 
-    return res.status(401).json({ error: "Unauthorized: Invalid or missing internal secret" });
+    // 2. Session Auth (UI User)
+    // Delegate to the standard session middleware which populates req.session and req.user
+    // If this fails (no session), it sends 401, which is correct for UI access without login
+    return requireSession(req, res, next);
 };
 
 // List Profiles for a Brand
