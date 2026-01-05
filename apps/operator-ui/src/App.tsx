@@ -5,6 +5,7 @@ import { Signup } from './pages/Signup';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { Suggestions } from './pages/Suggestions';
+import { Leads } from './pages/Leads';
 import { Settings } from './pages/Settings';
 import { BillingPage } from './pages/Billing';
 import { BrandsPage } from './pages/Brands';
@@ -22,6 +23,7 @@ function App() {
                 <Route path="/" element={<Layout />}>
                     <Route index element={<Dashboard />} />
                     <Route path="suggestions" element={<Suggestions />} />
+                    <Route path="leads" element={<Leads />} />
                     <Route path="brands" element={<BrandsPage />} />
                     <Route path="brands/:brandId/policy" element={<AutomationPolicySettings />} />
                     <Route path="brands/:brandId/market-profiles" element={<MarketProfiles />} />
