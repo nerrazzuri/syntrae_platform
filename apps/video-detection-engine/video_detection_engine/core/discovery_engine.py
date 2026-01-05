@@ -30,6 +30,12 @@ class DiscoveryEngine:
         self.search_candidates = 0
         self.search_valid_decisions = 0
         self.url_accepted = False
+        
+        # P1-B: Emission accounting (per-run totals)
+        self.total_captured = 0
+        self.total_emitted_success = 0
+        self.total_emitted_failed = 0
+        self.emission_error_classes = []  # Track unique error types
 
     async def execute(self, market_profile: Dict[str, Any], finalize: bool = True):
         """
@@ -282,8 +288,11 @@ class DiscoveryEngine:
             
             logger.info(f"P1-A: Captured {captured_count} comments (total: {self.enforcer.comments_processed}/{self.enforcer.max_comments_ph})")
             
-            # 6. Emit
+            # 6. P1-B: Emit with Accounting
             if comments:
+                # P1-B: Track captured count
+                self.total_captured += captured_count
+                
                 # Augment with candidate metadata including video_id for STRICT VALIDATION
                 for c in comments:
                     if not c.get("caption"):
@@ -291,9 +300,42 @@ class DiscoveryEngine:
                     # MUST set video_id for Ingestion Strict Validation
                     if not c.get("video_id") or c.get("video_id") == "unknown":
                         c["video_id"] = cand.video_id
-                        
-                await self.client.emit_batch(comments, self.run_id)
-                logger.info(f"Emitted {len(comments)} events for {cand.video_id}")
+                
+                # P1-B: Emit and capture results
+                success_count, failed_count, error_classes = await self.client.emit_batch(comments, self.run_id)
+                
+                # P1-B: Update run-level counters
+                self.total_emitted_success += success_count
+                self.total_emitted_failed += failed_count
+                for error_class in error_classes:
+                    if error_class not in self.emission_error_classes:
+                        self.emission_error_classes.append(error_class)
+                
+                # P1-B: Log emission outcome
+                logger.info(
+                    f"P1-B: Emission for {cand.video_id}: "
+                    f"{success_count} success, {failed_count} failed "
+                    f"(run totals: {self.total_emitted_success}S/{self.total_emitted_failed}F of {self.total_captured} captured)"
+                )
+                
+                # P1-B: Handle emission failures
+                if failed_count > 0:
+                    failure_rate = failed_count / captured_count
+                    if failure_rate >= 0.5:  # 50%+ failed
+                        logger.error(
+                            f"P1-B: CRITICAL emission failure for {cand.video_id}: "
+                            f"{failed_count}/{captured_count} failed. Error classes: {set(error_classes)}"
+                        )
+                        await self.client.update_run_internal(
+                            run_id=self.run_id,
+                            status="DEGRADED",
+                            abort_reason=f"EMISSION_FAILURE_{error_classes[0] if error_classes else 'UNKNOWN'}"
+                        )
+                    elif failed_count >= 5:  # Absolute count threshold
+                        logger.warning(
+                            f"P1-B: Significant emission failures for {cand.video_id}: "
+                            f"{failed_count} failed. Error classes: {set(error_classes)}"
+                        )
                 
                 # P1-A: Respect pacing config (cooldown + jitter)
                 await self.enforcer.pace_action("comment_capture")
@@ -313,8 +355,33 @@ class DiscoveryEngine:
             f"[FINALIZE] run={self.run_id} "
             f"search_valid={self.search_valid_decisions} "
             f"url_accepted={self.url_accepted} "
-            f"errors={self.error_count}"
+            f"errors={self.error_count} "
+            f"P1-B: captured={self.total_captured} "
+            f"emitted_success={self.total_emitted_success} "
+            f"emitted_failed={self.total_emitted_failed}"
         )
+        
+        # P1-B: CRITICAL - Captured ≠ Emitted
+        # Cannot report success if captured comments failed to emit
+        if self.total_captured > 0 and self.total_emitted_success == 0:
+            await self.client.update_run_internal(
+                self.run_id, 
+                "FAILED", 
+                f"P1-B: ZERO_SUCCESSFUL_EMISSIONS (captured={self.total_captured}, all failed)"
+            )
+            return
+        
+        # P1-B: Major emission failure (>30% failed)
+        if self.total_captured > 0:
+            emission_failure_rate = self.total_emitted_failed / self.total_captured
+            if emission_failure_rate > 0.3:
+                error_summary = ", ".join(set(self.emission_error_classes[:3]))  # Top 3 unique
+                await self.client.update_run_internal(
+                    self.run_id,
+                    "DEGRADED",
+                    f"P1-B: HIGH_EMISSION_FAILURE_RATE ({self.total_emitted_failed}/{self.total_captured}, errors: {error_summary})"
+                )
+                return
         if self.search_valid_decisions == 0 and not self.url_accepted:
             await self.client.update_run_internal(self.run_id, "DEGRADED", "SEARCH_NO_VALID_CANDIDATES")
             return

@@ -226,17 +226,40 @@ class IntegrationClient:
         except Exception as e:
             logger.error(f"Record discovery exception: {e}")
 
-    async def emit_batch(self, events: List[Dict[str, Any]], run_id: str):
+    async def emit_batch(self, events: List[Dict[str, Any]], run_id: str) -> tuple[int, int, List[str]]:
         """
         Emits a batch of events to Ingestion Service.
+        
+        Returns:
+            (success_count: int, failed_count: int, error_classes: List[str])
+            - success_count: Number of successfully emitted events
+            - failed_count: Number of failed emissions
+            - error_classes: List of error classifications for failed emissions
         """
+        success_count = 0
+        failed_count = 0
+        error_classes = []
+        
         for event_data in events:
-            await self.emit_event(event_data, run_id)
+            success, error_class = await self.emit_event(event_data, run_id)
+            if success:
+                success_count += 1
+            else:
+                failed_count += 1
+                if error_class:
+                    error_classes.append(error_class)
+        
+        return (success_count, failed_count, error_classes)
 
-    async def emit_event(self, data: Dict[str, Any], run_id: str):
+    async def emit_event(self, data: Dict[str, Any], run_id: str) -> tuple[bool, str | None]:
         """
         Emits a single standardized event.
         Enforces Automation Context fields.
+        
+        Returns:
+            (success: bool, error_class: str | None)
+            - success: True if HTTP 2xx AND response indicates acceptance
+            - error_class: Error classification if failed (HTTP_4XX, HTTP_5XX, NETWORK_ERROR, etc.)
         """
         url = f"{self.ingestion_url}/events"
         
@@ -294,13 +317,48 @@ class IntegrationClient:
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.post(url, json=payload, headers=headers, timeout=5.0)
-                if resp.status_code not in (200, 201, 202):
+                
+                # P1-B: Emission success = HTTP 2xx AND response indicates acceptance
+                if resp.status_code in (200, 201, 202):
+                    try:
+                        body = resp.json()
+                        status = body.get("status")
+                        if status in ("accepted", "success"):
+                            logger.info(f"Event emitted: {body.get('event_id')}")
+                            return (True, None)
+                        else:
+                            error_class = f"INGESTION_REJECTED_{status.upper() if status else 'UNKNOWN'}"
+                            logger.error(f"Event rejected by ingestion: {status}")
+                            return (False, error_class)
+                    except Exception:
+                        # 2xx but unparseable body - treat as success for leniency
+                        logger.warning("Emission returned 2xx but unparseable body, treating as success")
+                        return (True, None)
+                        
+                elif resp.status_code >= 500:
+                    error_class = f"INGESTION_HTTP_{resp.status_code}"
                     logger.error(f"Event emission failed {resp.status_code}: {resp.text}")
-                else:
-                    logger.info(f"Event emitted: {resp.json().get('event_id')}")
+                    return (False, error_class)
                     
+                elif resp.status_code >= 400:
+                    error_class = f"INGESTION_HTTP_{resp.status_code}"
+                    logger.error(f"Event emission client error {resp.status_code}: {resp.text}")
+                    return (False, error_class)
+                    
+                else:
+                    error_class = f"INGESTION_HTTP_{resp.status_code}"
+                    logger.error(f"Event emission unexpected status {resp.status_code}")
+                    return (False, error_class)
+                    
+        except httpx.TimeoutException:
+            logger.error("Event emission timeout")
+            return (False, "INGESTION_TIMEOUT")
+        except httpx.NetworkError as e:
+            logger.error(f"Event emission network error: {e}")
+            return (False, "INGESTION_NETWORK_ERROR")
         except Exception as e:
             logger.error(f"Event emission exception: {e}")
+            return (False, "INGESTION_EXCEPTION")
 
     async def get_market_profiles(self) -> Dict[str, Any]:
         """
