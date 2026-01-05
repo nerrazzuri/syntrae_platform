@@ -214,8 +214,6 @@ services:
       context: ../..
       dockerfile: infra/docker/video-detection-engine.Dockerfile
     container_name: video-detection-engine
-    ports:
-      - "8000:8000"
     volumes:
       - /mnt/data/docker/video:/data/storage
     environment:
@@ -234,7 +232,7 @@ services:
       dockerfile: infra/docker/video-detection-engine.Dockerfile
     container_name: automation-worker
     # Override CMD to run the Global Poller
-    command: [ "xvfb-run", "--auto-servernum", "--server-args='-screen 0 1280x960x24'", "python", "poll_automation.py", "--mode", "global", "--install-id", "docker-worker-1" ]
+    command: [ "xvfb-run", "--auto-servernum", "--server-args=-screen 0 1280x960x24", "python", "poll_automation.py", "--mode", "global", "--install-id", "docker-worker-1" ]
     environment:
       - LOG_LEVEL=INFO
       # Needs to reach operator-api for polling
