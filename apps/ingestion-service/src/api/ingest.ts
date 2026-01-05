@@ -67,7 +67,7 @@ router.post('/events', async (req: Request, res: Response) => {
         }
     }
 
-    // 2. Resolve Install & Account (Non-Blocking)
+    // 2. Resolve Install & Account (Non-Blocking → PILOT SECURITY: Now Blocking on Auth)
     let accountId: string | null = null;
     let initialStatus = 'RECEIVED';
     let failureReason: string | null = null;
@@ -79,36 +79,52 @@ router.post('/events', async (req: Request, res: Response) => {
         });
 
         if (!install) {
-            initialStatus = 'ORPHANED';
-            failureReason = 'Install not found';
-        } else {
-            // Check Secret (Auth)
-            if (install.install_secret && install.install_secret !== installSecret) {
-                initialStatus = 'AUTH_FAILED'; // Auth Failure
-                failureReason = 'Install Secret mismatch';
-                accountId = install.account_id; // Still bind if we can
-            }
-            // Check Kill Switch
-            else if (!install.is_active) {
-                initialStatus = 'BLOCKED_INSTALL'; // Logic Failure
-                failureReason = 'Install Inactive';
-                accountId = install.account_id;
-            }
-            // Check Orphaned (No Account)
-            else if (!install.account_id) {
-                initialStatus = 'ORPHANED';
-                failureReason = 'No Account Linked';
-            }
-            // Valid Binding
-            else {
-                accountId = install.account_id;
-                // Status remains RECEIVED
-            }
+            // PILOT SECURITY: Reject unknown install_id immediately
+            res.status(403).json({
+                status: 'error',
+                code: 'INSTALL_NOT_FOUND',
+                message: 'Unknown install_id'
+            });
+            return;
         }
+
+        // PILOT SECURITY: Check Secret (Auth) - HARD GATE
+        if (install.install_secret && install.install_secret !== installSecret) {
+            res.status(401).json({
+                status: 'error',
+                code: 'AUTH_FAILED',
+                message: 'Invalid install_secret'
+            });
+            return;
+        }
+
+        // Check Kill Switch
+        if (!install.is_active) {
+            res.status(403).json({
+                status: 'error',
+                code: 'INSTALL_INACTIVE',
+                message: 'Install has been deactivated'
+            });
+            return;
+        }
+
+        // Check Orphaned (No Account)
+        if (!install.account_id) {
+            initialStatus = 'ORPHANED';
+            failureReason = 'No Account Linked';
+        } else {
+            accountId = install.account_id;
+            // Status remains RECEIVED
+        }
+
     } catch (err: any) {
-        console.warn(`[Ingest] Install resolution warning:`, err);
-        initialStatus = 'ORPHANED';
-        failureReason = `Resolution Error: ${err.message}`;
+        console.error(`[Ingest] Install resolution error:`, err);
+        res.status(500).json({
+            status: 'error',
+            code: 'INSTALL_RESOLUTION_FAILED',
+            message: 'Failed to verify credentials'
+        });
+        return;
     }
 
     // 2.5 Resolve Brand (Strict Safety)

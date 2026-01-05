@@ -108,8 +108,10 @@ services:
       dockerfile: infra/docker/ingestion-service.Dockerfile
     container_name: ingestion-service
     restart: unless-stopped
-    ports:
-      - "3006:3005"
+    # PILOT SECURITY: Removed public port binding - only accessible via internal network
+    # Public access blocked, automation (video-detection-engine) uses http://ingestion-service:3005
+    # ports:
+    #   - "3006:3005"
     volumes:
       # Mount data if needed, but relative path might be tricky. Using named volume or omitting for now unless critical.
       # Original: ./ingestion-service/data:/app/data. 
@@ -118,8 +120,8 @@ services:
     networks:
       - syntrae_net
     environment:
-      - LOG_LEVEL=debug
-      - DEBUG=*
+      - LOG_LEVEL=info # Pilot: reduced from debug
+      # - DEBUG=*  # Pilot: disabled verbose debugging
       - PORT=3005
       - NODE_ENV=development
       - DATABASE_URL=${DATABASE_URL}?schema=core
@@ -214,6 +216,7 @@ services:
       - LOG_LEVEL=INFO
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
       - AI_CORE_BASE_URL=http://ai-core:8000
+      - INGESTION_URL=http://ingestion-service:3005 # PILOT SECURITY: Internal network
     restart: unless-stopped
     networks:
       - syntrae_net
@@ -233,6 +236,7 @@ services:
       # Internal Service Links
       - AI_CORE_URL=http://ai-core:8000
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
+      - INGESTION_URL=http://ingestion-service:3005 # PILOT SECURITY: Internal network
       # Testing Overrides
       - MOCK_TIKTOK_COMMENTS=${MOCK_TIKTOK_COMMENTS:-Sample captured comment}
     restart: unless-stopped
