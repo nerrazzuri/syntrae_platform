@@ -232,10 +232,15 @@ router.get('/runs', async (req: any, res: any) => {
         const limit = parseInt(req.query.limit as string) || 50;
         const offset = parseInt(req.query.offset as string) || 0;
 
-        // FIX: Get brands directly via account (no workspace model exists)
-        // User's account_id is stored in session, brands belong to accounts
+        // FIX: Session stores active_workspace_id (which is the account id)
+        const workspaceId = req.session?.active_workspace_id;
+
+        if (!workspaceId) {
+            return res.status(400).json({ error: 'No active workspace' });
+        }
+
         const account = await prisma.account.findUnique({
-            where: { id: req.user.account_id },
+            where: { id: workspaceId },
             include: {
                 brands: {
                     select: { id: true }
