@@ -204,6 +204,12 @@ services:
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
   video-detection-engine:
+    command:
+      - xvfb-run
+      - --auto-servernum
+      - --server-args=-screen 0 1280x960x24
+      - python
+      - main_automation.py
     build:
       context: ../..
       dockerfile: infra/docker/video-detection-engine.Dockerfile
