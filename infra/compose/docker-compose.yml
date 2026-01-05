@@ -234,7 +234,7 @@ services:
       # Needs to reach operator-api for polling
       - OPERATOR_API_URL=http://operator-api:3001
       # Internal Service Links
-      - AI_CORE_URL=http://ai-core:8000
+      - AI_CORE_BASE_URL=http://ai-core:8000 # FIX: was AI_CORE_URL, code expects AI_CORE_BASE_URL
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
       - INGESTION_URL=http://ingestion-service:3005 # PILOT SECURITY: Internal network
       # Testing Overrides
