@@ -2,9 +2,13 @@
 import { Router } from 'express';
 import { prisma } from '../db';
 import { requireInternalSecret } from "../middleware/internal_auth";
+import { requireSession } from '../middleware/session_auth';
 
 
 const router = Router();
+
+// Apply session auth for UI endpoints (GET /runs)
+router.use('/runs', requireSession);
 
 // Reusing the access logic from `policy.ts`? 
 // For speed/DRY, we should export it or move to middleware.
