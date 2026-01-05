@@ -216,4 +216,72 @@ router.post('/runs/:runId/discovery', requireInternalSecret, async (req: any, re
 });
 
 
+// GET /runs - List all runs (for Operator UI visibility)
+// PILOT FIX: Secure with session auth and filter by workspace
+router.get('/runs', async (req: any, res: any) => {
+    try {
+        // Require session (user must be logged in)
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const limit = parseInt(req.query.limit as string) || 50;
+        const offset = parseInt(req.query.offset as string) || 0;
+
+        // Get workspace brands for filtering
+        const workspace = await prisma.workspace.findUnique({
+            where: { id: req.user.active_workspace_id },
+            include: {
+                brands: {
+                    select: { id: true }
+                }
+            }
+        });
+
+        if (!workspace) {
+            return res.status(404).json({ error: 'Workspace not found' });
+        }
+
+        const brandIds = workspace.brands.map((b: any) => b.id);
+
+        const runs = await prisma.automationRun.findMany({
+            where: {
+                brand_id: { in: brandIds }  // Only show runs for workspace brands
+            },
+            orderBy: { started_at: 'desc' },
+            take: limit,
+            skip: offset,
+            include: {
+                policy: {
+                    select: {
+                        id: true,
+                        brand_id: true
+                    }
+                }
+            }
+        });
+
+        // Join brand names
+        const brandsMap = await prisma.brand.findMany({
+            where: { id: { in: brandIds } },
+            select: { id: true, name: true }
+        });
+        const brandNameMap = Object.fromEntries(brandsMap.map(b => [b.id, b.name]));
+
+        const runsWithBrandNames = runs.map(run => ({
+            ...run,
+            brand_name: brandNameMap[run.brand_id] || 'Unknown'
+        }));
+
+        const total = await prisma.automationRun.count({
+            where: { brand_id: { in: brandIds } }
+        });
+
+        res.json({ runs: runsWithBrandNames, total, limit, offset });
+    } catch (e: any) {
+        console.error('[Runs] List Error:', e);
+        res.status(500).json({ error: 'Failed to fetch runs' });
+    }
+});
+
 export const runsRouter = router;

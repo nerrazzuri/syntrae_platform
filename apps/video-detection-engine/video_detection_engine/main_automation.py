@@ -74,7 +74,7 @@ async def run_automation(platform: str, browser_type: str, headless: bool, url: 
         # Note: Empty profile means defaults or generic behavior if handled by Builder
         
         from video_detection_engine.core.discovery_engine import DiscoveryEngine
-        engine = DiscoveryEngine(controller, client, run_id, enforcer)
+        engine = DiscoveryEngine(controller, client, run_id, brand_id, enforcer)
 
         if url:
             # Single Video Mode (Manual Override)

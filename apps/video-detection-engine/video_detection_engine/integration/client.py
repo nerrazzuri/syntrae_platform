@@ -516,3 +516,23 @@ class IntegrationClient:
                     logger.info(f"P1-B.1: Run {run_id} status updated to {status}")
         except Exception as e:
             logger.error(f"P1-B.1: Exception updating run status: {e}")
+    
+    async def update_run_stats(self, run_id: str, brand_id: str, stats: dict):
+        """
+        Update automation run execution stats (videos, comments, emissions).
+        Called from finalize_run to persist counted outcomes.
+        """
+        url = f"{self.operator_url}/brands/{brand_id}/automation-runs/{run_id}"
+        payload = {"stats": stats}
+        
+        # FIX: Use x-install-id header (requireAgentAccess expects this, not internal secret)
+        headers = {"x-install-id": self.install_id, "Content-Type": "application/json"}
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.put(url, json=payload, headers=headers, timeout=10.0)
+                if resp.status_code not in (200, 204):
+                    logger.error(f"Failed to update run stats: {resp.status_code} {resp.text}")
+                else:
+                    logger.info(f"Run {run_id} stats updated: {stats}")
+        except Exception as e:
+            logger.error(f"Exception updating run stats: {e}")

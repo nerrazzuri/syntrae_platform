@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Client } from '../lib/api';
-import { LayoutDashboard, MessageSquare, Settings, LogOut, Layers, Briefcase, CreditCard, Target } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, Settings, LogOut, Layers, Briefcase, CreditCard, Target, Play } from 'lucide-react';
 
 export function Layout() {
     const [user, setUser] = useState<any>(null);
@@ -103,6 +103,10 @@ export function Layout() {
                     <Link to="/leads" className={navClass('/leads')}>
                         <Target className="w-5 h-5 mr-3" />
                         Leads
+                    </Link>
+                    <Link to="/runs" className={navClass('/runs')}>
+                        <Play className="w-5 h-5 mr-3" />
+                        Automation Runs
                     </Link>
                     <Link to="/brands" className={navClass('/brands')}>
                         <Briefcase className="w-5 h-5 mr-3" />

@@ -19,10 +19,11 @@ class DiscoveryEngine:
     1. Query Build -> 2. Search -> 3. Score -> 4. Decide -> 5. Extract -> 6. Emit
     """
     
-    def __init__(self, controller: BrowserController, client: IntegrationClient, run_id: str, enforcer: PolicyEnforcer):
+    def __init__(self, controller: BrowserController, client: IntegrationClient, run_id: str, brand_id: str, enforcer: PolicyEnforcer):
         self.controller = controller
         self.client = client
         self.run_id = run_id
+        self.brand_id = brand_id  # FIX: Added missing brand_id for stats persistence
         self.enforcer = enforcer
         # WF-3.1: Track systemic failures for run integrity
         self.error_count = 0
@@ -389,5 +390,14 @@ class DiscoveryEngine:
         if self.error_count > 0:
             await self.client.update_run_internal(self.run_id, "DEGRADED", "NON_FATAL_ERRORS")
             return
+
+        # Persist execution stats before marking completed
+        stats = {
+            "videos_processed": self.search_valid_decisions + (1 if self.url_accepted else 0),
+            "comments_captured": self.total_captured,
+            "comments_emitted_success": self.total_emitted_success,
+            "comments_emitted_failed": self.total_emitted_failed,
+        }
+        await self.client.update_run_stats(self.run_id, self.brand_id, stats)
 
         await self.client.update_run_internal(self.run_id, "COMPLETED", None)
