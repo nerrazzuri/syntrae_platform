@@ -35,6 +35,33 @@ class TikTokSearchNavigator:
                 # Wait for at least one video item
                 await self.page.wait_for_selector(self.RESULT_VIDEO_ITEM, timeout=15000)
             except Exception:
+                # === DEBUG PROOF ARTIFACTS (TEMPORARY) ===
+                try:
+                    import time
+                    ts = int(time.time())
+                    # Extracted query from URL logic or just generic
+                    safe_name = f"search_fail_{ts}"
+                    
+                    screenshot_path = f"/tmp/tiktok_{safe_name}.png"
+                    html_path = f"/tmp/tiktok_{safe_name}.html"
+
+                    await self.page.screenshot(path=screenshot_path, full_page=True)
+                    html = await self.page.content()
+
+                    with open(html_path, "w", encoding="utf-8") as f:
+                        f.write(html)
+
+                    logger.warning(
+                        "SEARCH DEBUG | title=%s url=%s screenshot=%s html=%s",
+                        await self.page.title(),
+                        self.page.url,
+                        screenshot_path,
+                        html_path,
+                    )
+                except Exception as e:
+                    logger.error("SEARCH DEBUG failed: %s", e)
+                # === END DEBUG PROOF ===
+
                 logger.warning(f"No search results found for {search_url} (or blocked).")
                 return []
 
