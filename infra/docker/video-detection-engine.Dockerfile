@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     ffmpeg \
+    xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- Torch FIRST (isolated layer: TIME BOMB DEFUSED) ------
