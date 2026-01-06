@@ -21,7 +21,7 @@ logger = logging.getLogger("AutomationCLI")
 
 from behavior.enforcer import PolicyEnforcer
 
-async def run_automation(platform: str, browser_type: str, headless: bool, url: str, brand_id: str, install_id: str, storage_state_path: str = None):
+async def run_automation(platform: str, browser_type: str, headless: bool, url: str, brand_id: str, install_id: str, storage_state_path: str = None, mobile: bool = False):
     """
     Main automation loop with Relevance & Integration wiring + POLICY ENFORCEMENT.
     """
@@ -70,7 +70,7 @@ async def run_automation(platform: str, browser_type: str, headless: bool, url: 
     try:
         # 5. Launch Browser
         await controller.launch()
-        await controller.new_context()
+        await controller.new_context(mobile=mobile)
         
         # 6. Use the Profile WE JUST FETCHED (Consistent Snapshot)
         active_profile = market_profile_data 

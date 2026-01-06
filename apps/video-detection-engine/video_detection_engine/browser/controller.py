@@ -35,18 +35,27 @@ class BrowserController:
         )
         logger.info("Browser launched successfully.")
 
-    async def new_context(self, user_agent: Optional[str] = None, locale: str = "en-US"):
+    async def new_context(self, user_agent: Optional[str] = None, locale: str = "en-US", mobile: bool = False):
         """Creates a new isolated browser context."""
         if not self._browser:
             raise RuntimeError("Browser not launched. Call launch() first.")
         
-        logger.info("Creating new browser context...")
-        context_args = {
-            "user_agent": user_agent,
-            "locale": locale,
-            "viewport": {"width": 1280, "height": 720}, # Standard desktop
-            "device_scale_factor": 1
-        }
+        logger.info(f"Creating new browser context (mobile={mobile})...")
+        
+        if mobile:
+            # Emulate iPhone 12 Pro
+            iphone_12 = self._playwright.devices['iPhone 12 Pro']
+            context_args = {
+                **iphone_12,
+                "locale": locale,
+            }
+        else:
+            context_args = {
+                "user_agent": user_agent,
+                "locale": locale,
+                "viewport": {"width": 1280, "height": 720}, # Standard desktop
+                "device_scale_factor": 1
+            }
 
         if self.storage_state_path and os.path.exists(self.storage_state_path):
             logger.info(f"Loading session from {self.storage_state_path}")
