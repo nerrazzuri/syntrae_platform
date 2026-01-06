@@ -80,9 +80,7 @@ class TikTokSearchNavigator:
                     pass # Continue to outer exception handling (Debug Dump is inside the 'except' block? No, it's next)
 
                 if not fallback_success:
-                     raise # Trigger the Debug Dump logic which follows in the outer block?
-                     # NO. The outer block is GONE because we are IN the catch block. 
-                     # Use a manual call to debug dump helper logic or Inline it.
+                     # Proceed to debug dump
                      pass 
                      
                 if not fallback_success:
