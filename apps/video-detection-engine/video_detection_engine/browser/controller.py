@@ -4,6 +4,7 @@ import os
 import logging
 from typing import Optional, Dict, Any, List
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, Playwright
+from playwright_stealth import stealth_async
 
 logger = logging.getLogger(__name__)
 
@@ -54,13 +55,16 @@ class BrowserController:
         self._context = await self._browser.new_context(**context_args)
         self._page = await self._context.new_page()
         
-        # Anti-detect: Remove 'webdriver' property
+        # Anti-detect: Stealth Plugin (Overrides webdriver, chrome properties, etc.)
+        await stealth_async(self._page)
+        
+        # Additional manual overrides if stealth misses them (Redundant but safe)
         await self._page.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => undefined
             });
         """)
-        logger.info("Context created.")
+        logger.info("Context created (Stealth Enabled).")
 
     async def navigate(self, url: str):
         """Safe navigation primitive."""
