@@ -30,10 +30,39 @@ class TikTokSearchNavigator:
             # Check for "No results" or Login Wall
             # Login wall might appear. Session persistence should handle it.
             
-            # Wait for content
+            # Strategy: Check if we are in "You may like" landing (Mobile/soft-fail)
+            # If so, try to find search input and type explicitly.
+            
+            # Detect Search Box (Mobile/Desktop)
+            search_input = self.page.locator('input[type="search"], input[placeholder="Search"]')
+            
             try:
-                # Wait for at least one video item
-                await self.page.wait_for_selector(self.RESULT_VIDEO_ITEM, timeout=15000)
+                # Wait for content or input
+                await self.page.wait_for_selector(self.RESULT_VIDEO_ITEM, timeout=5000)
+            except:
+                # If results not found immediately...
+                if await search_input.count() > 0:
+                    logger.info("Results not found. Attempting explicit search interaction (Mobile/Fallback)...")
+                    
+                    # Extract query from URL if possible, or we need to pass it.
+                    # Problem: 'search_url' is full URL. We need 'q'.
+                    from urllib.parse import urlparse, parse_qs
+                    parsed = urlparse(search_url)
+                    query_params = parse_qs(parsed.query)
+                    query = query_params.get('q', [''])[0]
+                    
+                    if query:
+                        logger.info(f"Typing query: {query}")
+                        await search_input.fill(query)
+                        await self.page.keyboard.press("Enter")
+                        
+                        # Wait for results AGAIN
+                        await self.page.wait_for_selector(self.RESULT_VIDEO_ITEM, timeout=15000)
+                    else:
+                        logger.warning("Could not extract query from URL for explicit typing.")
+                        raise # Re-raise to trigger debug dump
+                else:
+                    raise # Re-raise to trigger debug dump
             except Exception:
                 # === DEBUG PROOF ARTIFACTS (TEMPORARY) ===
                 try:
