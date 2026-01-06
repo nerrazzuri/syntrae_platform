@@ -56,8 +56,8 @@ class TikTokSearchNavigator:
                             await search_input.fill(query)
                             await self.page.keyboard.press("Enter")
                             
+                            # 1. Try "Search" button (Red text usually)
                             try:
-                                # 1. Try "Search" button (Red text usually)
                                 search_btns = self.page.locator('div[role="button"]:has-text("Search"), button:has-text("Search"), span:has-text("Search")')
                                 count = await search_btns.count()
                                 if count > 0:
@@ -65,12 +65,14 @@ class TikTokSearchNavigator:
                                     for i in range(count):
                                         btn = search_btns.nth(i)
                                         if await btn.is_visible():
-                                            await btn.click(timeout=1000)
+                                            # Use force=True to bypass strict checks if covered or animating
+                                            await btn.click(timeout=2000, force=True)
                                             logger.info(f"Clicked 'Search' button candidate {i}")
-                                            # We don't break immediately, just in case. 
-                                            # Actually, if it navigates, the next click might fail, which is fine.
+                            except Exception as e:
+                                logger.warning(f"Search button click failed: {e}")
 
-                                # 2. Fallback: Click the suggestion that matches the query
+                            # 2. Fallback: Click the suggestion that matches the query
+                            try:
                                 await self.page.wait_for_timeout(500)
                                 
                                 # Targeted "Click Suggestion"
@@ -87,12 +89,11 @@ class TikTokSearchNavigator:
                                         
                                         logger.info(f"Clicking suggestion candidate {i} ({tag})...")
                                         try:
-                                            await el.click(timeout=1000)
+                                            await el.click(timeout=1000, force=True)
                                         except:
                                             pass
-                                
                             except Exception as e:
-                                logger.warning(f"Mobile interaction tweaks failed: {e}")
+                                logger.warning(f"Suggestion click failed: {e}")
                             
                             # Wait for results AGAIN.
                             
