@@ -39,13 +39,12 @@ class TikTokSearchNavigator:
             try:
                 # Wait for content or input
                 await self.page.wait_for_selector(self.RESULT_VIDEO_ITEM, timeout=5000)
-            except:
-                # If results not found immediately...
+            except Exception:
+                # If results not found immediately (Timeout), try fallback
                 if await search_input.count() > 0:
                     logger.info("Results not found. Attempting explicit search interaction (Mobile/Fallback)...")
                     
                     # Extract query from URL if possible, or we need to pass it.
-                    # Problem: 'search_url' is full URL. We need 'q'.
                     from urllib.parse import urlparse, parse_qs
                     parsed = urlparse(search_url)
                     query_params = parse_qs(parsed.query)
@@ -56,13 +55,13 @@ class TikTokSearchNavigator:
                         await search_input.fill(query)
                         await self.page.keyboard.press("Enter")
                         
-                        # Wait for results AGAIN
+                        # Wait for results AGAIN. If this fails, it bubble up to the Debug Dump
                         await self.page.wait_for_selector(self.RESULT_VIDEO_ITEM, timeout=15000)
                     else:
                         logger.warning("Could not extract query from URL for explicit typing.")
-                        raise # Re-raise to trigger debug dump
+                        raise 
                 else:
-                    raise # Re-raise to trigger debug dump
+                    raise
             except Exception:
                 # === DEBUG PROOF ARTIFACTS (TEMPORARY) ===
                 try:
