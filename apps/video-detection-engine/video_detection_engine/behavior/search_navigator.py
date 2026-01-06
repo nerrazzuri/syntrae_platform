@@ -61,24 +61,35 @@ class TikTokSearchNavigator:
                                 search_btns = self.page.locator('div[role="button"]:has-text("Search"), button:has-text("Search"), span:has-text("Search")')
                                 count = await search_btns.count()
                                 if count > 0:
-                                    # Identify the one that looks like a button (usually right side)
-                                    # Or just click the last one (often the header action)
-                                    await search_btns.last.click()
-                                    logger.info("Clicked 'Search' button (last match).")
-                                else:
-                                    logger.warning("No 'Search' button found.")
+                                    logger.info(f"Found {count} 'Search' buttons. Clicking visible ones...")
+                                    for i in range(count):
+                                        btn = search_btns.nth(i)
+                                        if await btn.is_visible():
+                                            await btn.click(timeout=1000)
+                                            logger.info(f"Clicked 'Search' button candidate {i}")
+                                            # We don't break immediately, just in case. 
+                                            # Actually, if it navigates, the next click might fail, which is fine.
 
                                 # 2. Fallback: Click the suggestion that matches the query
-                                # Suggestions appear in a list below.
-                                await self.page.wait_for_timeout(1000)
-                                suggestion = self.page.locator(f'div:has-text("{query}")').nth(2) 
-                                if await suggestion.count() > 0:
-                                     # nth(0) might be inputs. nth(2) is safer for list items?
-                                     # Or filter by visibility/position.
-                                     pass
-                                     # Let's try clicking the text purely
-                                logger.info("Attempting to click suggestion text...")
-                                await self.page.click(f'text="{query}"', delay=100)
+                                await self.page.wait_for_timeout(500)
+                                
+                                # Targeted "Click Suggestion"
+                                # We find all elements with the query text, skip the Input field, and click the others.
+                                query_matches = self.page.locator(f'text="{query}"')
+                                q_count = await query_matches.count()
+                                
+                                for i in range(q_count):
+                                    el = query_matches.nth(i)
+                                    if await el.is_visible():
+                                        tag = await el.evaluate("el => el.tagName")
+                                        if tag == "INPUT":
+                                            continue # Don't click the input again
+                                        
+                                        logger.info(f"Clicking suggestion candidate {i} ({tag})...")
+                                        try:
+                                            await el.click(timeout=1000)
+                                        except:
+                                            pass
                                 
                             except Exception as e:
                                 logger.warning(f"Mobile interaction tweaks failed: {e}")
