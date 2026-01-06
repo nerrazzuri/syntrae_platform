@@ -56,6 +56,22 @@ class TikTokSearchNavigator:
                             await search_input.fill(query)
                             await self.page.keyboard.press("Enter")
                             
+                            # Mobile Web often requires clicking the "Search" button explicitly.
+                            # We look for "Search" text (usually top right).
+                            try:
+                                search_btn = self.page.locator('div[role="button"]:has-text("Search"), button:has-text("Search"), span:has-text("Search")').first
+                                if await search_btn.count() > 0 and await search_btn.is_visible():
+                                    logger.info("Clicking visible 'Search' button...")
+                                    await search_btn.click()
+                                else:
+                                    # Fallback: exact text
+                                    text_btn = self.page.locator('text="Search"').first
+                                    if await text_btn.count() > 0 and await text_btn.is_visible():
+                                         logger.info("Clicking 'Search' text element...")
+                                         await text_btn.click()
+                            except Exception as e:
+                                logger.warning(f"Failed to click search button: {e}")
+                            
                             # Wait for results AGAIN. We use a broader selector for mobile.
                             try:
                                 await self.page.wait_for_selector(self.RESULT_VIDEO_ITEM, timeout=15000)
