@@ -228,6 +228,8 @@ services:
     # Override CMD to run the Global Poller
     # command: [ "xvfb-run", "--auto-servernum", "--server-args=-screen 0 1280x960x24", "python", "poll_automation.py", "--mode", "global", "--install-id", "docker-worker-1" ]
     command: [ "python", "poll_automation.py", "--mode", "global", "--install-id", "docker-worker-1" ]
+    volumes:
+      - /mnt/data/docker/video:/data/storage
     environment:
       - LOG_LEVEL=INFO
       # Needs to reach operator-api for polling
