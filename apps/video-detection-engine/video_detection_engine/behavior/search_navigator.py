@@ -56,21 +56,34 @@ class TikTokSearchNavigator:
                             await search_input.fill(query)
                             await self.page.keyboard.press("Enter")
                             
-                            # Mobile Web often requires clicking the "Search" button explicitly.
-                            # We look for "Search" text (usually top right).
                             try:
-                                search_btn = self.page.locator('div[role="button"]:has-text("Search"), button:has-text("Search"), span:has-text("Search")').first
-                                if await search_btn.count() > 0 and await search_btn.is_visible():
-                                    logger.info("Clicking visible 'Search' button...")
-                                    await search_btn.click()
+                                # 1. Try "Search" button (Red text usually)
+                                search_btns = self.page.locator('div[role="button"]:has-text("Search"), button:has-text("Search"), span:has-text("Search")')
+                                count = await search_btns.count()
+                                if count > 0:
+                                    # Identify the one that looks like a button (usually right side)
+                                    # Or just click the last one (often the header action)
+                                    await search_btns.last.click()
+                                    logger.info("Clicked 'Search' button (last match).")
                                 else:
-                                    # Fallback: exact text
-                                    text_btn = self.page.locator('text="Search"').first
-                                    if await text_btn.count() > 0 and await text_btn.is_visible():
-                                         logger.info("Clicking 'Search' text element...")
-                                         await text_btn.click()
+                                    logger.warning("No 'Search' button found.")
+
+                                # 2. Fallback: Click the suggestion that matches the query
+                                # Suggestions appear in a list below.
+                                await self.page.wait_for_timeout(1000)
+                                suggestion = self.page.locator(f'div:has-text("{query}")').nth(2) 
+                                if await suggestion.count() > 0:
+                                     # nth(0) might be inputs. nth(2) is safer for list items?
+                                     # Or filter by visibility/position.
+                                     pass
+                                     # Let's try clicking the text purely
+                                logger.info("Attempting to click suggestion text...")
+                                await self.page.click(f'text="{query}"', delay=100)
+                                
                             except Exception as e:
-                                logger.warning(f"Failed to click search button: {e}")
+                                logger.warning(f"Mobile interaction tweaks failed: {e}")
+                            
+                            # Wait for results AGAIN.
                             
                             # Wait for results AGAIN. We use a broader selector for mobile.
                             try:
