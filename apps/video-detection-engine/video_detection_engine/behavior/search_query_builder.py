@@ -56,6 +56,6 @@ class SearchQueryBuilder:
         """
         queries = self.build_queries(limit)
         return [
-            f"https://www.tiktok.com/search?q={urllib.parse.quote(q)}"
+            f"https://www.tiktok.com/search/video?q={urllib.parse.quote(q)}"
             for q in queries
         ]
