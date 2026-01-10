@@ -31,49 +31,67 @@ class BrowserController:
         browser_launcher = getattr(self._playwright, self.browser_type_name)
         self._browser = await browser_launcher.launch(
             headless=self.headless,
-            args=["--disable-blink-features=AutomationControlled"]  # Basic anti-detect
+            # Add no-sandbox / shm-usage for container stability, plus basic stealth args
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+            ]
         )
         logger.info("Browser launched successfully.")
 
-    async def new_context(self, user_agent: Optional[str] = None, locale: str = "en-US", mobile: bool = False):
-        """Creates a new isolated browser context."""
+    async def new_context(self, user_agent: Optional[str] = None, locale: str = "en-MY", mobile: bool = False, proxy_url: str = "socks5://127.0.0.1:1080"):
+        """Creates a new isolated browser context with proxy and anti-detect."""
         if not self._browser:
             raise RuntimeError("Browser not launched. Call launch() first.")
         
-        logger.info(f"Creating new browser context (mobile={mobile})...")
+        logger.info(f"Creating new browser context (mobile={mobile}, proxy={proxy_url})...")
+        
+        # Base arguments (Timezone alignment is critical for TikTok)
+        context_args = {
+            "locale": locale,
+            "timezone_id": "Asia/Kuala_Lumpur", # Aligned with en-MY
+            "proxy": {"server": proxy_url} if proxy_url else None,
+            "permissions": ["geolocation"],
+        }
         
         if mobile:
             # Emulate iPhone 12 Pro
             iphone_12 = self._playwright.devices['iPhone 12 Pro']
-            context_args = {
-                **iphone_12,
-                "locale": locale,
-            }
+            # Merge device config + base config
+            context_args.update(iphone_12)
+            # Ensure our overrides stick
+            context_args["locale"] = locale
+            context_args["timezone_id"] = "Asia/Kuala_Lumpur"
         else:
-            context_args = {
+            context_args.update({
                 "user_agent": user_agent,
-                "locale": locale,
                 "viewport": {"width": 1280, "height": 720}, # Standard desktop
-                "device_scale_factor": 1
-            }
+                "device_scale_factor": 1,
+                "has_touch": False,
+                "is_mobile": False
+            })
 
         if self.storage_state_path and os.path.exists(self.storage_state_path):
             logger.info(f"Loading session from {self.storage_state_path}")
             context_args["storage_state"] = self.storage_state_path
 
         self._context = await self._browser.new_context(**context_args)
+        
+        # Anti-detect: Context Level Injection (Before Page Creation)
+        # This is more robust than page.add_init_script
+        await self._context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            Object.defineProperty(navigator, 'languages', { get: () => ['en-MY', 'en-US', 'en'] });
+        """)
+        
         self._page = await self._context.new_page()
         
         # Anti-detect: Stealth Plugin (Overrides webdriver, chrome properties, etc.)
+        # Must run after page creation but effectively re-applies evasions
         await stealth_async(self._page)
         
-        # Additional manual overrides if stealth misses them (Redundant but safe)
-        await self._page.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            });
-        """)
-        logger.info("Context created (Stealth Enabled).")
+        logger.info("Context created (Stealth + Proxy + Timezone Enabled).")
 
     async def navigate(self, url: str):
         """Safe navigation primitive."""
