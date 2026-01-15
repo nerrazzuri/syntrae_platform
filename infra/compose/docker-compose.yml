@@ -218,6 +218,8 @@ services:
     restart: unless-stopped
     networks:
       - syntrae_net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   automation-worker:
     # Reuses the same build context/image
@@ -245,3 +247,5 @@ services:
       - operator-api
     networks:
       - syntrae_net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
