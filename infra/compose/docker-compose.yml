@@ -215,6 +215,10 @@ services:
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
       - AI_CORE_BASE_URL=http://ai-core:8000
       - INGESTION_URL=http://ingestion-service:3005 # PILOT SECURITY: Internal network
+      - PROXY_ENABLED=true
+      - PROXY_SERVER=${PROXY_SERVER}
+      - PROXY_USERNAME=${PROXY_USERNAME}
+      - PROXY_PASSWORD=${PROXY_PASSWORD}
     restart: unless-stopped
     networks:
       - syntrae_net
@@ -242,6 +246,10 @@ services:
       - INGESTION_URL=http://ingestion-service:3005 # PILOT SECURITY: Internal network
       # Testing Overrides
       - MOCK_TIKTOK_COMMENTS=${MOCK_TIKTOK_COMMENTS:-Sample captured comment}
+      - PROXY_ENABLED=true
+      - PROXY_SERVER=${PROXY_SERVER}
+      - PROXY_USERNAME=${PROXY_USERNAME}
+      - PROXY_PASSWORD=${PROXY_PASSWORD}
     restart: unless-stopped
     depends_on:
       - operator-api
