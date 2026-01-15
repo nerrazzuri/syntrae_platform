@@ -28,38 +28,17 @@ class BrowserController:
         self._page: Optional[Page] = None
 
         # --- Proxy Configuration (Env Based) ---
-        self.proxy_server = os.getenv("PROXY_SERVER") # e.g., socks5://host:port
+        # EXPECTED: http://host:port (e.g. http://t.pr.thordata.net:9999)
+        self.proxy_server = os.getenv("PROXY_SERVER") 
         self.proxy_username = os.getenv("PROXY_USERNAME")
         self.proxy_password = os.getenv("PROXY_PASSWORD")
         
         # Enable by default if server is set, unless explicitly disabled
         enabled_str = os.getenv("PROXY_ENABLED", "true").lower()
         self.proxy_enabled = bool(self.proxy_server and enabled_str == "true")
-
-        self.proxy_config: Optional[Dict[str, str]] = None
-        self.proxy_url: Optional[str] = None
-
-        if self.proxy_enabled and self.proxy_server:
-            # 1. Playwright Config
-            self.proxy_config = {"server": self.proxy_server}
-            if self.proxy_username and self.proxy_password:
-                self.proxy_config["username"] = self.proxy_username
-                self.proxy_config["password"] = self.proxy_password
-
-            # 2. Httpx / Requests Config (for preflight)
-            # Construct URL with auth: scheme://user:pass@host:port
-            try:
-                parsed = urlparse(self.proxy_server)
-                scheme = parsed.scheme
-                netloc = parsed.netloc
-                
-                if self.proxy_username and self.proxy_password:
-                    self.proxy_url = f"{scheme}://{self.proxy_username}:{self.proxy_password}@{netloc}"
-                else:
-                    self.proxy_url = self.proxy_server
-            except Exception as e:
-                logger.error(f"Failed to parse PROXY_SERVER: {e}")
-                self.proxy_enabled = False # Fail safe
+        
+        # Cloud providers to Reject
+        self.blocked_asns = ["Hetzner", "Amazon", "AWS", "Google", "GCP", "Oracle", "OCI", "Microsoft", "Azure", "DigitalOcean"]
 
     def _mask_secret(self, text: Optional[str]) -> str:
         """Helper to mask secrets in logs."""
@@ -67,64 +46,14 @@ class BrowserController:
         if len(text) < 4: return "***"
         return f"{text[:2]}***{text[-2:]}"
 
-    def _check_tcp_connectivity(self, server_url: str):
-        """Low-level TCP connect check to the proxy host."""
-        try:
-            parsed = urlparse(server_url)
-            host = parsed.hostname
-            port = parsed.port
-            
-            if not host or not port:
-                raise ValueError(f"Invalid proxy server format: {server_url}")
-
-            logger.info(f"Checking TCP connectivity to proxy {host}:{port}...")
-            # Resolve first
-            socket.getaddrinfo(host, port)
-            # Connect
-            with socket.create_connection((host, port), timeout=5.0):
-                pass
-            logger.info("TCP connectivity to proxy confirmed.")
-        except Exception as e:
-            raise RuntimeError(f"Proxy TCP connectivity check failed: {e}")
-
-    async def _check_proxy(self):
-        """Pre-flight check for proxy connectivity."""
-        if not self.proxy_enabled or not self.proxy_config:
-            logger.info("Proxy is DISABLED. Skipping pre-flight.")
-            return
-
-        logger.info(f"Performing proxy pre-flight check. Server: {self.proxy_server}")
-
-        # 1. Low-level TCP Check
-        self._check_tcp_connectivity(self.proxy_server)
-
-        # 2. HTTPX Application Layer Check
-        # Important: httpx[socks] must be installed for socks support
-        try:
-            logger.info("Verifying proxy via httpx (Exit IP check)...")
-            async with httpx.AsyncClient(proxy=self.proxy_url, timeout=10.0) as client:
-                response = await client.get("https://api.ipify.org?format=json")
-                response.raise_for_status()
-                data = response.json()
-                logger.info(f"Proxy Pre-flight Success. Exit IP: {data.get('ip')}")
-        except ImportError:
-            logger.critical("Missing 'httpx[socks]' library which is required for SOCKS proxy support.")
-            raise
-        except Exception as e:
-            logger.critical(f"Proxy Application Layer Check FAILED: {e}")
-            raise RuntimeError(f"Proxy is unreachable or rejected connection: {e}")
-
     async def launch(self):
         """Launches the browser engine with hardened arguments."""
-        # 1. Proxy Pre-flight
-        await self._check_proxy()
-
         logger.info(f"Launching {self.browser_type_name} (headless={self.headless})...")
         self._playwright = await async_playwright().start()
         
         browser_launcher = getattr(self._playwright, self.browser_type_name)
         
-        # 2. Hardened Arguments (Minimal Safe Set)
+        # Hardened Arguments (Minimal Safe Set)
         hardened_args = [
             "--disable-blink-features=AutomationControlled",
             "--no-sandbox",
@@ -137,9 +66,17 @@ class BrowserController:
             "args": hardened_args
         }
         
-        if self.proxy_enabled and self.proxy_config:
-            launch_kwargs["proxy"] = self.proxy_config
-            logger.info(f"Launching with Proxy: {self.proxy_server} (User: {self._mask_secret(self.proxy_username)})")
+        if self.proxy_enabled:
+            # Construct Playwright Proxy Dict
+            proxy_config = {
+                "server": self.proxy_server
+            }
+            if self.proxy_username and self.proxy_password:
+                proxy_config["username"] = self.proxy_username
+                proxy_config["password"] = self.proxy_password
+                
+            launch_kwargs["proxy"] = proxy_config
+            logger.info(f"Launching with HTTP Proxy: {self.proxy_server} (User: {self._mask_secret(self.proxy_username)})")
         else:
             logger.info("Launching SANS PROXY (Direct Connection).")
 
@@ -188,21 +125,32 @@ class BrowserController:
         
         logger.info("Context created (Stealth + Timezone Enabled).")
 
-        # 4. In-Browser IP Verification (API Request)
-        # We use API context to avoid navigating the main page and polluting history/cache
+        # PROXY VERIFICATION & ASN CHECK
+        # We use API context to check the effective exit IP of the browser context
         if self.proxy_enabled:
-            logger.info("Verifying IP inside browser via API request...")
+            logger.info("Verifying Proxy Connectivity & ASN...")
             try:
                 # Use the context's request (shares proxy)
-                api_response = await self._context.request.get("https://api.ipify.org?format=json")
+                api_response = await self._context.request.get("https://ipinfo.io/json")
                 if not api_response.ok:
                      raise RuntimeError(f"IP verify failed: {api_response.status} {api_response.status_text}")
                 
                 data = await api_response.json()
-                logger.info(f"Playwright Context Exit IP: {data.get('ip')}")
+                ip = data.get("ip", "Unknown")
+                org = data.get("org", "Unknown")
+                country = data.get("country", "Unknown")
+                
+                logger.info(f"EXIT IP: {ip} | ORG: {org} | CN: {country}")
+                
+                # REJECT CLOUD PROVIDERS
+                for blocked in self.blocked_asns:
+                    if blocked.lower() in org.lower():
+                        raise RuntimeError(f"Detected Cloud/Datacenter ASN ({blocked}): {org}. Residential Proxy Required.")
+                        
+                logger.info("Proxy Verification PASSED (Residential Check OK).")
                 
             except Exception as e:
-                logger.critical(f"In-Browser IP Verification FAILED: {e}")
+                logger.critical(f"Proxy Verification FAILED: {e}")
                 await self.close()
                 raise RuntimeError(f"Browser could not verify proxy connection: {e}")
 
