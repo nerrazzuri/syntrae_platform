@@ -50,7 +50,7 @@ async def global_poll_loop(install_id):
                     if storage_path:
                         logger.info(f"Using Session File: {storage_path}")
 
-                    await run_automation(platform, "chromium", True, storage_path, brand_id, install_id, mobile=False)
+                    await run_automation(platform, "chromium", True, None, brand_id, install_id, storage_state_path=storage_path)
                     
                     # Complete
                     await http.put(f"{operator_url}/brands/{brand_id}/automation-runs/{run_id}", 
