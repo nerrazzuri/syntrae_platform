@@ -1,5 +1,7 @@
 import logging
 import asyncio
+import os
+import time
 from typing import List
 from playwright.async_api import Page
 
@@ -69,11 +71,26 @@ class TikTokSearchNavigator:
                 
                  # === DEBUG PROOF ARTIFACTS ===
                 try:
-                    import time
                     ts = int(time.time())
                     safe_name = f"search_fail_{ts}"
-                    screenshot_path = f"/tmp/tiktok_{safe_name}.png"
-                    html_path = f"/tmp/tiktok_{safe_name}.html"
+                    
+                    # Determine Artifact Directory
+                    # Priority: Env Var > Default (~/screenshots)
+                    home = os.path.expanduser("~")
+                    default_path = os.path.join(home, "screenshots")
+                    artifact_dir = os.environ.get("DEBUG_ARTIFACTS_DIR", default_path)
+                    
+                    # Ensure directory exists
+                    try:
+                        os.makedirs(artifact_dir, exist_ok=True)
+                    except Exception as e:
+                        # Fallback to tmp if permission denied or other error
+                        logger.error(f"Failed to create artifact dir {artifact_dir}: {e}")
+                        artifact_dir = "/tmp"
+
+                    screenshot_path = os.path.join(artifact_dir, f"tiktok_{safe_name}.png")
+                    html_path = os.path.join(artifact_dir, f"tiktok_{safe_name}.html")
+                    
                     await self.page.screenshot(path=screenshot_path, full_page=True)
                     html = await self.page.content()
                     with open(html_path, "w", encoding="utf-8") as f:
