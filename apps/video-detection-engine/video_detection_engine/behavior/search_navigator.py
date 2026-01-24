@@ -76,7 +76,7 @@ class TikTokSearchNavigator:
                     
                     # Determine Artifact Directory
                     # Priority: Env Var > Default (~/screenshots)
-                    home = os.path.expanduser("~")
+                    home = os.path.expanduser("~/")
                     default_path = os.path.join(home, "screenshots")
                     artifact_dir = os.environ.get("DEBUG_ARTIFACTS_DIR", default_path)
                     
