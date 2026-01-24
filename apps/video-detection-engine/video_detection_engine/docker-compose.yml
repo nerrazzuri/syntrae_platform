@@ -9,8 +9,10 @@ services:
     volumes:
       - .:/app # Mount code for easy development/testing
       - ./data_storage:/data/storage # Persist storage
+      - ${HOME}/screenshots:/data/screenshots # Debug artifacts
     environment:
       - LOG_LEVEL=INFO
+      - DEBUG_ARTIFACTS_DIR=/data/screenshots
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
