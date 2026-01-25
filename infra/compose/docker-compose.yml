@@ -210,8 +210,10 @@ services:
     container_name: video-detection-engine
     volumes:
       - /mnt/data/docker/video:/data/storage
+      - ${HOME}/screenshots:/data/screenshots # Debug artifacts
     environment:
       - LOG_LEVEL=INFO
+      - DEBUG_ARTIFACTS_DIR=/data/screenshots
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
       - AI_CORE_BASE_URL=http://ai-core:8000
       - INGESTION_URL=http://ingestion-service:3005 # PILOT SECURITY: Internal network
@@ -236,8 +238,10 @@ services:
     command: [ "python", "poll_automation.py", "--mode", "global", "--install-id", "docker-worker-1" ]
     volumes:
       - /mnt/data/docker/video:/data/storage
+      - ${HOME}/screenshots:/data/screenshots # Debug artifacts
     environment:
       - LOG_LEVEL=INFO
+      - DEBUG_ARTIFACTS_DIR=/data/screenshots
       # Needs to reach operator-api for polling
       - OPERATOR_API_URL=http://operator-api:3001
       # Internal Service Links
