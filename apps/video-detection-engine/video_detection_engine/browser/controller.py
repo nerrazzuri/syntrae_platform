@@ -32,54 +32,35 @@ class BrowserController:
         return f"{text[:2]}***{text[-2:]}"
 
     async def launch(self):
-        """Launches the browser engine with hardened arguments."""
-        logger.info(f"Launching {self.browser_type_name} (headless={self.headless})...")
+        """Launches the browser via Bright Data CDP (Remote Browser)."""
+        logger.info(f"Connecting to Bright Data CDP ({self.browser_type_name})...")
         self._playwright = await async_playwright().start()
         
-        browser_launcher = getattr(self._playwright, self.browser_type_name)
+        # Bright Data CDP Configuration
+        # We rely on PROXY_USERNAME and PROXY_PASSWORD environment variables.
+        username = os.getenv("PROXY_USERNAME")
+        password = os.getenv("PROXY_PASSWORD")
         
-        # Hardened Arguments (Minimal Safe Set)
-        hardened_args = [
-            "--disable-blink-features=AutomationControlled",
-            "--no-sandbox",
-            "--disable-dev-shm-usage",
-        ]
+        if not username or not password:
+            logger.error("Missing PROXY_USERNAME or PROXY_PASSWORD. Cannot connect to Bright Data.")
+            raise RuntimeError("Bright Data credentials missing in environment.")
 
-        proxy = None
-        if os.getenv("PROXY_ENABLED", "false").lower() == "true":
-            proxy_server = os.environ.get("PROXY_SERVER")
-            proxy_user = os.environ.get("PROXY_USERNAME", "")
-            proxy_pass = os.environ.get("PROXY_PASSWORD", "")
+        # Construct WebSocket Endpoint
+        # Endpoint: wss://brd.superproxy.io:9222
+        ws_endpoint = f"wss://brd.superproxy.io:9222?auth={username}:{password}"
+
+        try:
+            # Connect to Remote Browser
+            # Note: We use self._playwright.chromium specifically as Bright Data provides Chromium-based browsers.
+            self._browser = await self._playwright.chromium.connect_over_cdp(
+                ws_endpoint,
+                timeout=60000 # Increased timeout for remote connection
+            )
+            logger.info("Connected to Bright Data Browser successfully.")
             
-            if proxy_server:
-                # Bright Data / HTTP Proxy (Implicit Scheme Handling)
-                # User provided: brd.superproxy.io:33335 (No scheme)
-                # Playwright expects http:// for HTTP proxies usually, or we can explicit it
-                server_url = f"http://{proxy_server}" if "://" not in proxy_server else proxy_server
-                
-                proxy = {
-                    "server": server_url,
-                    "username": proxy_user,
-                    "password": proxy_pass
-                }
-                
-                # Safe Logging
-                safe_user = self._mask_secret(proxy_user)
-                logger.info(f"Using Proxy: {server_url} (User: {safe_user})")
-
-        launch_kwargs = {
-            "headless": self.headless,
-            "args": hardened_args,
-            "proxy": proxy
-        }
-        
-        # Remove proxy kwarg if None (Playwright might prefer it omitted)
-        if not proxy:
-            del launch_kwargs["proxy"]
-            logger.info("Launching SANS PROXY (Direct Connection).")
-
-        self._browser = await browser_launcher.launch(**launch_kwargs)
-        logger.info("Browser launched successfully.")
+        except Exception as e:
+            logger.critical(f"Failed to connect to Bright Data CDP: {e}")
+            raise
 
     async def new_context(self, user_agent: Optional[str] = None, locale: str = "en-MY"):
         """Creates a new isolated browser context. Forces DESKTOP mode."""
