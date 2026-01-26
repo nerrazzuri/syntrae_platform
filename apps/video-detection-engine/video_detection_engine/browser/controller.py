@@ -3,7 +3,7 @@ import os
 import logging
 import socket
 from typing import Optional, Dict, Any, List
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, Playwright
 from playwright_stealth import stealth_async
@@ -47,7 +47,14 @@ class BrowserController:
 
         # Construct WebSocket Endpoint
         # Endpoint: wss://brd.superproxy.io:9222
-        ws_endpoint = f"wss://brd.superproxy.io:9222?auth={username}:{password}"
+        # IMPORTANT: Ensure credentials are URL encoded to handle special characters
+        encoded_user = quote(username)
+        encoded_pass = quote(password)
+        ws_endpoint = f"wss://brd.superproxy.io:9222?auth={encoded_user}:{encoded_pass}"
+        
+        # Safe Log for Debugging (Mask password)
+        masked_endpoint = f"wss://brd.superproxy.io:9222?auth={username[:4]}***:{'***'}"
+        logger.info(f"Connecting to CDP Endpoint: {masked_endpoint}")
 
         try:
             # Connect to Remote Browser
