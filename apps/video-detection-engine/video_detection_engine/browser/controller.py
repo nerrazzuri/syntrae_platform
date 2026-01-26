@@ -1,4 +1,3 @@
-
 import asyncio
 import os
 import logging
@@ -6,7 +5,6 @@ import socket
 from typing import Optional, Dict, Any, List
 from urllib.parse import urlparse
 
-import httpx
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, Playwright
 from playwright_stealth import stealth_async
 
@@ -26,19 +24,6 @@ class BrowserController:
         self._browser: Optional[Browser] = None
         self._context: Optional[BrowserContext] = None
         self._page: Optional[Page] = None
-
-        # --- Proxy Configuration (Env Based) ---
-        # EXPECTED: http://host:port (e.g. http://t.pr.thordata.net:9999)
-        self.proxy_server = os.getenv("PROXY_SERVER") 
-        self.proxy_username = os.getenv("PROXY_USERNAME")
-        self.proxy_password = os.getenv("PROXY_PASSWORD")
-        
-        # Enable by default if server is set, unless explicitly disabled
-        enabled_str = os.getenv("PROXY_ENABLED", "true").lower()
-        self.proxy_enabled = bool(self.proxy_server and enabled_str == "true")
-        
-        # Cloud providers to Reject
-        self.blocked_asns = ["Hetzner", "Amazon", "AWS", "Google", "GCP", "Oracle", "OCI", "Microsoft", "Azure", "DigitalOcean"]
 
     def _mask_secret(self, text: Optional[str]) -> str:
         """Helper to mask secrets in logs."""
@@ -60,24 +45,37 @@ class BrowserController:
             "--disable-dev-shm-usage",
         ]
 
-        # Conditionally pass proxy only if enabled
+        proxy = None
+        if os.getenv("PROXY_ENABLED", "false").lower() == "true":
+            proxy_server = os.environ.get("PROXY_SERVER")
+            proxy_user = os.environ.get("PROXY_USERNAME", "")
+            proxy_pass = os.environ.get("PROXY_PASSWORD", "")
+            
+            if proxy_server:
+                # Bright Data / HTTP Proxy (Implicit Scheme Handling)
+                # User provided: brd.superproxy.io:33335 (No scheme)
+                # Playwright expects http:// for HTTP proxies usually, or we can explicit it
+                server_url = f"http://{proxy_server}" if "://" not in proxy_server else proxy_server
+                
+                proxy = {
+                    "server": server_url,
+                    "username": proxy_user,
+                    "password": proxy_pass
+                }
+                
+                # Safe Logging
+                safe_user = self._mask_secret(proxy_user)
+                logger.info(f"Using Proxy: {server_url} (User: {safe_user})")
+
         launch_kwargs = {
             "headless": self.headless,
-            "args": hardened_args
+            "args": hardened_args,
+            "proxy": proxy
         }
         
-        if self.proxy_enabled:
-            # Construct Playwright Proxy Dict
-            proxy_config = {
-                "server": self.proxy_server
-            }
-            if self.proxy_username and self.proxy_password:
-                proxy_config["username"] = self.proxy_username
-                proxy_config["password"] = self.proxy_password
-                
-            launch_kwargs["proxy"] = proxy_config
-            logger.info(f"Launching with HTTP Proxy: {self.proxy_server} (User: {self._mask_secret(self.proxy_username)})")
-        else:
+        # Remove proxy kwarg if None (Playwright might prefer it omitted)
+        if not proxy:
+            del launch_kwargs["proxy"]
             logger.info("Launching SANS PROXY (Direct Connection).")
 
         self._browser = await browser_launcher.launch(**launch_kwargs)
@@ -125,34 +123,8 @@ class BrowserController:
         
         logger.info("Context created (Stealth + Timezone Enabled).")
 
-        # PROXY VERIFICATION & ASN CHECK
-        # We use API context to check the effective exit IP of the browser context
-        if self.proxy_enabled:
-            logger.info("Verifying Proxy Connectivity & ASN...")
-            try:
-                # Use the context's request (shares proxy)
-                api_response = await self._context.request.get("https://ipinfo.io/json")
-                if not api_response.ok:
-                     raise RuntimeError(f"IP verify failed: {api_response.status} {api_response.status_text}")
-                
-                data = await api_response.json()
-                ip = data.get("ip", "Unknown")
-                org = data.get("org", "Unknown")
-                country = data.get("country", "Unknown")
-                
-                logger.info(f"EXIT IP: {ip} | ORG: {org} | CN: {country}")
-                
-                # REJECT CLOUD PROVIDERS
-                for blocked in self.blocked_asns:
-                    if blocked.lower() in org.lower():
-                        raise RuntimeError(f"Detected Cloud/Datacenter ASN ({blocked}): {org}. Residential Proxy Required.")
-                        
-                logger.info("Proxy Verification PASSED (Residential Check OK).")
-                
-            except Exception as e:
-                logger.critical(f"Proxy Verification FAILED: {e}")
-                await self.close()
-                raise RuntimeError(f"Browser could not verify proxy connection: {e}")
+        # Removed ThorData/ASN Verification logic as requested for Bright Data Integration.
+
 
         # WARM-UP NAVIGATION
         logger.info("Performing warm-up navigation...")
