@@ -50,7 +50,8 @@ class BrowserController:
         # IMPORTANT: Ensure credentials are URL encoded to handle special characters
         encoded_user = quote(username)
         encoded_pass = quote(password)
-        ws_endpoint = f"wss://brd.superproxy.io:9222?auth={encoded_user}:{encoded_pass}"
+        ws_endpoint = f"wss://{encoded_user}:{encoded_pass}@brd.superproxy.io:9222"
+
         
         # Safe Log for Debugging (Mask password)
         masked_endpoint = f"wss://brd.superproxy.io:9222?auth={username[:4]}***:{'***'}"
