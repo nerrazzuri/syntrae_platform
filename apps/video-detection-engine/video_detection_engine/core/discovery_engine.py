@@ -8,6 +8,7 @@ from video_detection_engine.behavior.enforcer import PolicyEnforcer
 from video_detection_engine.behavior.search_query_builder import SearchQueryBuilder
 from video_detection_engine.behavior.search_navigator import TikTokSearchNavigator
 from video_detection_engine.platforms.tiktok import TikTokAdapter
+from video_detection_engine.platforms.xiaohongshu import XiaohongshuPlatform
 from video_detection_engine.models import VideoDiscoveryDecision, VideoCandidate
 from video_detection_engine.utils.validators import VideoPageValidator
 
@@ -19,12 +20,13 @@ class DiscoveryEngine:
     1. Query Build -> 2. Search -> 3. Score -> 4. Decide -> 5. Extract -> 6. Emit
     """
     
-    def __init__(self, controller: BrowserController, client: IntegrationClient, run_id: str, brand_id: str, enforcer: PolicyEnforcer):
+    def __init__(self, controller: BrowserController, client: IntegrationClient, run_id: str, brand_id: str, enforcer: PolicyEnforcer, platform: str = "tiktok"):
         self.controller = controller
         self.client = client
         self.run_id = run_id
         self.brand_id = brand_id  # FIX: Added missing brand_id for stats persistence
         self.enforcer = enforcer
+        self.platform = platform
         # WF-3.1: Track systemic failures for run integrity
         self.error_count = 0
         self.error_threshold = 5  # Abort run if 5+ ERRORs encountered
@@ -55,6 +57,38 @@ class DiscoveryEngine:
             return
 
         logger.info(f"Generated {len(search_urls)} search queries.")
+
+        if self.platform == "xiaohongshu":
+            # Phase-1 Xiaohongshu Adapter Branch
+            try:
+                platform_adapter = XiaohongshuPlatform()
+                # Use the first keyword for the phase 1 validation
+                keyword = market_profile.get("keywords", ["acne"])[0] 
+                
+                # Execute extraction
+                results = await platform_adapter.run_search(self.controller.page, keyword)
+                
+                # Emit to pipeline
+                if results:
+                    self.total_captured = len(results)
+                    self.search_valid_decisions = len(results)
+                    self.url_accepted = True
+                    
+                    success_count, failed_count, error_classes = await self.client.emit_batch(results, self.run_id)
+                    
+                    self.total_emitted_success += success_count
+                    self.total_emitted_failed += failed_count
+                    
+                    logger.info(
+                        f"Xiaohongshu Emission: "
+                        f"{success_count} success, {failed_count} failed "
+                    )
+                
+            except Exception as e:
+                logger.error(f"Xiaohongshu Discovery Failed: {e}")
+                self.error_count += 1
+                
+            return
 
         # 2. Search Loop
         for url in search_urls:
