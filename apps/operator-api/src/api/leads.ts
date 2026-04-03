@@ -54,7 +54,7 @@ router.get('/export', async (req: Request, res: Response) => {
         const leads = await LeadService.exportLeads(accountId, filters);
 
         // Manual CSV format
-        // Columns: platform, buyer_stage, intent, confidence, recommended_action, urgency_score, user_handle, video_id, comment_id, created_at
+        // Columns: platform, buyer_stage, intent, confidence, recommended_action, urgency_score, user_handle, video_id, comment_id, original_comment, created_at
         const headers = [
             'platform',
             'buyer_stage',
@@ -66,6 +66,7 @@ router.get('/export', async (req: Request, res: Response) => {
             'user_profile_url',
             'video_id',
             'comment_id',
+            'original_comment',
             'created_at'
         ];
 
@@ -88,6 +89,7 @@ router.get('/export', async (req: Request, res: Response) => {
                 lead.user_profile_url || '',
                 lead.video_id,
                 lead.comment_id,
+                `"${((lead.event?.content_text as string | undefined) || '').replace(/"/g, '""')}"`,
                 lead.created_at.toISOString()
             ];
             res.write(row.join(',') + '\n');

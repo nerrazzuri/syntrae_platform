@@ -82,6 +82,7 @@ router.post('/ingest/event', requireInternalAuth, async (req: Request, res: Resp
             status: 'ok',
             ingest_status: result.status,
             id: result.id,
+            duplicate_reason: result.duplicateReason || null,
             correlation_id: correlationId
         });
 

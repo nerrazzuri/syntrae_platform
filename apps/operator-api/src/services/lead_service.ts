@@ -37,7 +37,7 @@ export class LeadService {
         }
 
         // Parallel fetch for count and data
-        const [total, items] = await Promise.all([
+        const [total, rawItems] = await Promise.all([
             prisma.leadOpportunity.count({ where }),
             prisma.leadOpportunity.findMany({
                 where,
@@ -57,11 +57,22 @@ export class LeadService {
                     recommended_action: true,
                     urgency_score: true,
                     risk_level: true,
+                    source_event_id: true,
                     created_at: true,
+                    event: {
+                        select: {
+                            content_text: true
+                        }
+                    },
                     // Exclude internal metadata/preferences for list view
                 }
             })
         ]);
+
+        const items = rawItems.map(({ event, ...lead }) => ({
+            ...lead,
+            original_comment: event?.content_text || null
+        }));
 
         return { items, total, limit, offset };
     }
@@ -71,9 +82,25 @@ export class LeadService {
             where: {
                 id: leadId,
                 account_id: accountId // Strict Scoping
+            },
+            include: {
+                event: {
+                    select: {
+                        content_text: true
+                    }
+                }
             }
         });
-        return lead;
+
+        if (!lead) {
+            return lead;
+        }
+
+        const { event, ...rest } = lead;
+        return {
+            ...rest,
+            original_comment: event?.content_text || null
+        };
     }
 
     /**
@@ -105,7 +132,25 @@ export class LeadService {
         return prisma.leadOpportunity.findMany({
             where,
             take: 5000,
-            orderBy: { created_at: 'desc' }
+            orderBy: { created_at: 'desc' },
+            select: {
+                platform: true,
+                buyer_stage: true,
+                intent: true,
+                confidence: true,
+                recommended_action: true,
+                urgency_score: true,
+                user_handle: true,
+                user_profile_url: true,
+                video_id: true,
+                comment_id: true,
+                created_at: true,
+                event: {
+                    select: {
+                        content_text: true
+                    }
+                }
+            }
         });
     }
 

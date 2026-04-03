@@ -32,5 +32,20 @@ This platform uses a dedicated service for running Prisma migrations. The applic
     docker compose up -d
     ```
 
+## Automation Worker
+
+The production worker service is defined in [infra/compose/docker-compose.yml](/home/liang-kai-feng/.gemini/antigravity/scratch/syntrae_platform-main/infra/compose/docker-compose.yml).
+
+- `automation-worker` is now intended to scale horizontally, so it should not use a fixed `container_name`.
+- Each replica derives a unique worker id from `AUTOMATION_WORKER_ID` or the container hostname.
+- Brand-scoped browser sessions should live under:
+  ```text
+  /data/storage/sessions/<brand_id>/<platform>/session.json
+  ```
+- You can capture a brand-scoped session with:
+  ```bash
+  python main_automation.py login --platform xiaohongshu --brand-id <brand_id>
+  ```
+
 ## Python Services (AI Core)
 Python services treat the database as **Read/Write**, but they do **not** own the schema. They expect the schema to be pre-created by the `db-migrate` service.

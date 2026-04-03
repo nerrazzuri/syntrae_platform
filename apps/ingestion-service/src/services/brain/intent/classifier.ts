@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { EngagementIntent, IntentClassificationResult, SignalCategory, SignalDef, DetectedSignal, BuyerIntentStrength } from '../types';
-import { signalInferenceClient } from '../../signalInferenceClient';
+import { EngagementIntent, IntentClassificationResult, SignalCategory, SignalDef, DetectedSignal, BuyerIntentStrength, IntentCategory } from '../types';
+import { signalInferenceClient, InferenceResult } from '../../signalInferenceClient';
 
 export class IntentClassifier {
     private signals: Map<SignalCategory, SignalDef[]> = new Map();
@@ -78,6 +78,11 @@ export class IntentClassifier {
         }
 
         const normalized = this.normalize(text);
+        const isRednote = context?.platform === 'rednote';
+        const rednoteHeuristic = isRednote
+            ? this.classifyRednoteHeuristic(text, normalized)
+            : null;
+
         const detectedSignals = this.scanSignals(normalized);
 
         // DEBUG LOGGING
@@ -87,47 +92,55 @@ export class IntentClassifier {
         let composition = this.composeIntent(detectedSignals);
         console.log(`[Classifier] Intent (Initial): ${composition.intent}, Strength: ${composition.strength}`);
 
-        // ==========================================
-        // Phase 18: Collaborative Signal Inference
-        // ==========================================
-        const isCandidate = composition.intent === 'UNKNOWN';
-        const signalCount = detectedSignals.length;
-        const rangeValid = signalCount >= 1 && signalCount <= 3;
-        const hasPreference = detectedSignals.some(s => s.category === 'PREFERENCE');
-        // Circuit breaker check could be added here if we had access to it, 
-        // but SignalInferenceClient handles its own timeouts/failures silently.
+        console.log('[Classifier] Triggering AI-Core Signal Inference...');
+        const start = Date.now();
+        const inferred = await signalInferenceClient.inferSignals(text, detectedSignals, context);
+        const aiClassification = this.tryUseAiClassification(
+            text,
+            normalized,
+            detectedSignals,
+            inferred,
+            isRednote ? 'zh' : 'en'
+        );
 
-        if (isCandidate && rangeValid && !hasPreference) {
-            console.log('[Classifier] Triggering AI-Core Signal Inference...');
-            const start = Date.now();
-            const inferred = await signalInferenceClient.inferSignals(text, detectedSignals, context);
+        if (aiClassification) {
+            console.log(
+                `[Classifier] AI classification accepted: ${aiClassification.intent}` +
+                ` (${inferred.intentCategory ?? 'uncategorized'}, ${inferred.intentConfidence ?? 'n/a'})`
+            );
+            return aiClassification;
+        }
 
-            if (inferred.length > 0) {
-                console.log(`[Classifier] Inference Received (${Date.now() - start}ms): ${inferred.map(s => s.signal).join(', ')}`);
+        if (inferred.inferredSignals.length > 0) {
+            console.log(`[Classifier] Inference Received (${Date.now() - start}ms): ${inferred.inferredSignals.map(s => s.signal).join(', ')}`);
 
-                // Merge safely
-                const ids = new Set(detectedSignals.map(s => s.id));
-                let newSignalsAdded = false;
-                for (const s of inferred) {
-                    // Avoid strict ID clash, but also maybe check signal text? 
-                    // Assuming AI-Core returns valid signal structures compatible with our types.
-                    if (!ids.has(s.id)) {
-                        detectedSignals.push(s);
-                        ids.add(s.id);
-                        newSignalsAdded = true;
-                    }
+            const ids = new Set(detectedSignals.map(s => s.id));
+            let newSignalsAdded = false;
+            for (const s of inferred.inferredSignals) {
+                if (!ids.has(s.id)) {
+                    detectedSignals.push(s);
+                    ids.add(s.id);
+                    newSignalsAdded = true;
                 }
-
-                if (newSignalsAdded) {
-                    const newComposition = this.composeIntent(detectedSignals);
-                    console.log(`[Classifier] Intent (Post-Inference): ${newComposition.intent}`);
-
-                    // Update only if changed (or indiscriminately, since it's the new truth)
-                    composition = newComposition;
-                }
-            } else {
-                console.log('[Classifier] No signals inferred.');
             }
+
+            if (newSignalsAdded) {
+                const newComposition = this.composeIntent(detectedSignals);
+                console.log(`[Classifier] Intent (Post-Inference Fallback): ${newComposition.intent}`);
+                composition = newComposition;
+            }
+        } else {
+            console.log('[Classifier] No usable AI classification or signals. Falling back to heuristics.');
+        }
+
+        // Fallback only: if AI did not produce a usable intent for rednote,
+        // keep a lightweight heuristic so obvious intent comments are still captured.
+        if (isRednote && rednoteHeuristic) {
+            console.log(`[Classifier] Rednote heuristic fallback matched: ${rednoteHeuristic.intent}`);
+            return {
+                ...rednoteHeuristic,
+                confidence: 0.7
+            };
         }
 
         return {
@@ -139,10 +152,123 @@ export class IntentClassifier {
             evidence: {
                 matched_families: [],
                 matched_signals: detectedSignals.map(s => s.signal),
-                language: 'en',
+                language: isRednote ? 'zh' : 'en',
                 scores: {} as any
             }
         };
+    }
+
+    private tryUseAiClassification(
+        text: string,
+        normalized: string,
+        detectedSignals: DetectedSignal[],
+        inferred: InferenceResult,
+        language: 'en' | 'zh'
+    ): IntentClassificationResult | null {
+        const aiIntent = inferred.intentHint;
+        const aiCategory = inferred.intentCategory;
+        const aiConfidence = inferred.intentConfidence ?? this.defaultAiConfidence(aiCategory, aiIntent);
+
+        if (aiCategory === 'junk') {
+            return this.buildAiClassificationResult(
+                'NOISE',
+                Math.max(aiConfidence, 0.85),
+                'NONE',
+                detectedSignals,
+                aiCategory,
+                language
+            );
+        }
+
+        if (aiIntent && aiIntent !== 'UNKNOWN' && aiIntent !== 'NOISE') {
+            if (!this.passesAiIntentGuard(aiIntent, text, normalized)) {
+                console.log(`[Classifier] AI Intent Hint Rejected by lexical guard: ${aiIntent}`);
+                return null;
+            }
+
+            return this.buildAiClassificationResult(
+                aiIntent,
+                aiConfidence,
+                this.strengthForAiIntent(aiIntent, aiConfidence),
+                detectedSignals,
+                aiCategory,
+                language
+            );
+        }
+
+        if (aiIntent === 'NOISE' && aiCategory === 'low intent') {
+            return this.buildAiClassificationResult(
+                'NOISE',
+                Math.max(aiConfidence, 0.7),
+                'NONE',
+                detectedSignals,
+                aiCategory,
+                language
+            );
+        }
+
+        if (aiIntent === 'UNKNOWN' && aiCategory === 'low intent') {
+            return this.buildAiClassificationResult(
+                'UNKNOWN',
+                Math.max(aiConfidence, 0.6),
+                'LOW',
+                detectedSignals,
+                aiCategory,
+                language
+            );
+        }
+
+        return null;
+    }
+
+    private buildAiClassificationResult(
+        intent: EngagementIntent,
+        confidence: number,
+        strength: BuyerIntentStrength,
+        detectedSignals: DetectedSignal[],
+        intentCategory: IntentCategory | undefined,
+        language: 'en' | 'zh'
+    ): IntentClassificationResult {
+        const aiSignals = [...detectedSignals];
+        aiSignals.push({
+            category: 'CONTEXT',
+            signal: `ai_intent_${intent.toLowerCase()}`,
+            id: `ai_intent_${Date.now()}`
+        });
+
+        if (intentCategory) {
+            aiSignals.push({
+                category: 'CONTEXT',
+                signal: `ai_category_${intentCategory.replace(/\s+/g, '_')}`,
+                id: `ai_category_${Date.now()}`
+            });
+        }
+
+        return {
+            intent,
+            confidence,
+            detected_intents: [],
+            strength,
+            signals: aiSignals,
+            evidence: {
+                matched_families: [],
+                matched_signals: aiSignals.map(s => s.signal),
+                language,
+                scores: {} as any
+            }
+        };
+    }
+
+    private defaultAiConfidence(
+        intentCategory?: IntentCategory,
+        intent?: EngagementIntent
+    ): number {
+        if (intentCategory === 'high intent') return 0.82;
+        if (intentCategory === 'mid intent') return 0.72;
+        if (intentCategory === 'low intent') return intent === 'NOISE' ? 0.75 : 0.62;
+        if (intentCategory === 'junk') return 0.9;
+        if (intent && intent !== 'UNKNOWN' && intent !== 'NOISE') return 0.72;
+        return 0.6;
     }
 
     private scanSignals(text: string): DetectedSignal[] {
@@ -264,5 +390,87 @@ export class IntentClassifier {
             signals: [],
             evidence: { matched_families: [], matched_signals: [], language: 'en', scores: {} as any }
         };
+    }
+
+    private classifyRednoteHeuristic(text: string, normalized: string): IntentClassificationResult | null {
+        const hasQuestion = /[?？吗呢呀嘛么]/.test(text);
+        const hasProductTerm = /(链接|link|面霜|精油|产品|牌子|色号|美瞳|粉底|粉底液|乳|乳液|芦荟胶|精华|护肤|衣服|哪款|什么.*(用|牌|产品)|what .*use|what she uses)/i.test(normalized);
+        const hasUsageTerm = /(每天|几天|多久|一次|频率|怎么用|如何用|可不可以|可以不|有(什么)?区别|区别)/i.test(normalized);
+        const hasProblemTerm = /(痘|敏感|泛红|干皮|油皮|毛孔|闭口|水光针|过敏|适合|刺痛|脱皮|fit|suitable)/i.test(normalized);
+        const hasPurchaseIntent = /(求|想买|买吗|入吗|值得吗|推荐吗|种草|可以涂脸上吗)/i.test(normalized);
+        const isPureSocial = /^(谢谢|謝謝|好白呀你|好漂亮|好美|姐姐好美|太美了|爱了|好看)$/.test(normalized.trim());
+
+        if (isPureSocial) {
+            return null;
+        }
+
+        if (hasQuestion && hasProductTerm) {
+            return this.rednoteResult('PRODUCT_INQUIRY', 'HIGH', ['product_inquiry', 'question']);
+        }
+
+        if (hasProblemTerm && (hasQuestion || hasUsageTerm)) {
+            return this.rednoteResult('PROBLEM_SOLUTION', 'HIGH', ['problem_solution']);
+        }
+
+        if (hasUsageTerm && hasQuestion) {
+            return this.rednoteResult('FIT_SUITABILITY', 'MEDIUM', ['usage_question']);
+        }
+
+        if (hasPurchaseIntent || (hasQuestion && /(推荐|求推荐|链接|买吗|入吗|值得)/i.test(normalized))) {
+            return this.rednoteResult('LATENT_PURCHASE', 'HIGH', ['purchase_intent']);
+        }
+
+        return null;
+    }
+
+    private rednoteResult(intent: EngagementIntent, strength: BuyerIntentStrength, signalNames: string[]): IntentClassificationResult {
+        const signals: DetectedSignal[] = signalNames.map((signal, index) => ({
+            category: 'CONTEXT',
+            signal,
+            id: `rednote_${intent.toLowerCase()}_${index}`
+        }));
+
+        return {
+            intent,
+            confidence: 0.85,
+            detected_intents: [],
+            strength,
+            signals,
+            evidence: {
+                matched_families: [],
+                matched_signals: signalNames,
+                language: 'zh',
+                scores: {} as any
+            }
+        };
+    }
+
+    private strengthForAiIntent(intent: EngagementIntent, confidence: number): BuyerIntentStrength {
+        if (intent === 'POST_PURCHASE_REGRET') return 'IMMEDIATE';
+        if (intent === 'LATENT_PURCHASE') return confidence >= 0.8 ? 'VERY_HIGH' : 'HIGH';
+        if (intent === 'PRODUCT_INQUIRY' || intent === 'PROBLEM_SOLUTION' || intent === 'FIT_SUITABILITY') {
+            return confidence >= 0.75 ? 'HIGH' : 'MEDIUM';
+        }
+        return confidence >= 0.6 ? 'LOW' : 'NONE';
+    }
+
+    private passesAiIntentGuard(intent: EngagementIntent, text: string, normalized: string): boolean {
+        if (intent === 'PRODUCT_INQUIRY') {
+            // Avoid false positives like appearance/social questions that contain only "吗?".
+            return /(链接|link|牌子|品牌|哪款|什么.*(用|牌|产品|面霜|精华|水|乳)|色号|面霜|精华|护肤|产品|刷子|身体乳|what .*use)/i.test(normalized);
+        }
+        if (intent === 'PROBLEM_SOLUTION') {
+            return /(痘|敏感|泛红|干皮|油皮|毛孔|闭口|过敏|刺痛|脱皮|不耐受|红肿|problem|issue)/i.test(normalized);
+        }
+        if (intent === 'FIT_SUITABILITY') {
+            return /(适合|合适|可以吗|能用吗|肤质|黄皮|干皮|油皮|fit|suitable)/i.test(normalized);
+        }
+        if (intent === 'LATENT_PURCHASE') {
+            return /(想买|买吗|入吗|值得吗|推荐吗|种草|求推荐|有钱就买|would buy)/i.test(normalized);
+        }
+        if (intent === 'POST_PURCHASE_REGRET') {
+            return /(后悔|买早了|刚买了|already bought|regret)/i.test(normalized);
+        }
+        return true;
     }
 }

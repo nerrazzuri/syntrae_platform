@@ -24,7 +24,9 @@ function extractRawEvent(context: Record<string, JsonValue | undefined>) {
 function mapStrategyToKind(strategy: StrategyType): CapabilityResponse['kind'] {
     switch (strategy) {
         case 'IGNORE':
-            return 'error'; // Mapping IGNORE to error/silent for now as per instruction
+        case 'SILENT_CAPTURE':
+        case 'OBSERVE_ONLY':
+            return 'ignore';
         case 'ACKNOWLEDGE':
         case 'ANSWER':
         case 'DE_ESCALATE':
@@ -80,6 +82,13 @@ export const BrainGateway = {
 
         // 2. Map
         const brainInput = mapCapabilityToBrainInput(request);
+        const intentTrace = (decision: { intent: string; strength: string; reason: string; forcedStrategy?: string; allowed: boolean }) => ({
+            intent: decision.intent,
+            strength: decision.strength,
+            reason: decision.reason,
+            forced_strategy: decision.forcedStrategy || null,
+            allowed: decision.allowed
+        });
 
         // --- PHASE 19: SAFETY PRE-CHECK ---
         const target = {
@@ -139,7 +148,7 @@ export const BrainGateway = {
                     confidence: 0,
                     policy_decisions: {
                         explanation: 'Owner Mode: OBSERVE_ONLY',
-                        trace: { mode: 'OBSERVE_ONLY', intent: decision.intent }
+                        trace: { mode: 'OBSERVE_ONLY', intent: intentTrace(decision) }
                     }
                 };
             }
@@ -157,7 +166,7 @@ export const BrainGateway = {
                 confidence: 0,
                 policy_decisions: {
                     explanation: decision.reason,
-                    trace: { intent: decision.intent, forced: false }
+                    trace: { intent: intentTrace(decision), forced: false }
                 }
             };
         }
@@ -205,6 +214,7 @@ export const BrainGateway = {
                 explanation: explanation,
                 trace: {
                     ...brainResp.decision_trace,
+                    intent: intentTrace(decision),
                     safety_trace: {
                         pre_rule: preCheck.rule_id,
                         post_rule: postCheck.rule_id,

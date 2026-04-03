@@ -1,7 +1,7 @@
 version: '3.8'
 
 networks:
-  syntrae_net:
+  syntrae_local_net:
     driver: bridge
 
 services:
@@ -15,12 +15,12 @@ services:
     environment:
       POSTGRES_DB: syntrae_core
       POSTGRES_USER: superuser
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_dev_password}
     volumes:
-      - ${POSTGRES_DATA_PATH:-/mnt/data/docker/postgres}:/var/lib/postgresql/data
-      - ../docker/postgres-init:/docker-entrypoint-initdb.d
+      - ./local-data/postgres:/var/lib/postgresql/data
+      - ./infra/docker/postgres-init:/docker-entrypoint-initdb.d
     networks:
-      - syntrae_net
+      - syntrae_local_net
 
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U superuser -d syntrae_core" ]
@@ -33,9 +33,9 @@ services:
     restart: unless-stopped
     command: [ "redis-server", "--appendonly", "yes" ]
     volumes:
-      - /mnt/data/docker/redis:/data
+      - ./local-data/redis:/data
     networks:
-      - syntrae_net
+      - syntrae_local_net
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 30s
@@ -46,9 +46,12 @@ services:
     image: qdrant/qdrant:v1.5.0
     restart: unless-stopped
     volumes:
-      - /mnt/data/docker/qdrant:/qdrant/storage
+      - ./local-data/qdrant:/qdrant/storage
     networks:
-      - syntrae_net
+      - syntrae_local_net
+    ports:
+      - "6333:6333" # Qdrant API
+      - "6334:6334" # Qdrant gRPC
 
   # =========================
   # SERVICES
@@ -56,17 +59,15 @@ services:
 
   db-migrate:
     build:
-      context: ../..
+      context: .
       dockerfile: infra/docker/db-migrate.Dockerfile
     environment:
-      - DATABASE_URL=${DATABASE_URL}?schema=core
+      - DATABASE_URL=${DATABASE_URL:-postgresql://superuser:local_dev_password@postgresql:5432/syntrae_core}?schema=core
     depends_on:
       postgresql:
         condition: service_healthy
-    # volumes:
-    #   - ../../packages/prisma-schema:/app/packages/prisma-schema
     networks:
-      - syntrae_net
+      - syntrae_local_net
 
   # =========================
   # APPS
@@ -74,17 +75,15 @@ services:
 
   ai-core:
     build:
-      context: ../..
+      context: .
       dockerfile: infra/docker/ai-core.Dockerfile
     restart: unless-stopped
     environment:
-      # Adjusted to use 'postgresql' service and create user/db in init
-      # Note: ai-core uses 'chatbot_user' which is the POSTGRES_USER.
-      - DATABASE_URL=${DATABASE_URL}?options=-c%20search_path%3Dcore
+      - DATABASE_URL=${DATABASE_URL:-postgresql://superuser:local_dev_password@postgresql:5432/syntrae_core}?options=-c%20search_path%3Dcore
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_URL=http://qdrant:6333
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
+      - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET:-local_dev_secret}
       - RAG_EMBED_MODEL=text-embedding-3-large
       - RAG_CHAT_MODEL=gpt-4o-mini
     depends_on:
@@ -100,33 +99,29 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - syntrae_net
+      - syntrae_local_net
+    ports:
+      - "8000:8000"
 
   ingestion-service:
     build:
-      context: ../..
+      context: .
       dockerfile: infra/docker/ingestion-service.Dockerfile
-    container_name: ingestion-service
+    container_name: ingestion-service-local
     restart: unless-stopped
-    # PILOT SECURITY: Removed public port binding - only accessible via internal network
-    # Public access blocked, automation (video-detection-engine) uses http://ingestion-service:3005
-    # ports:
-    #   - "3006:3005"
+    ports:
+      - "3005:3005" # Publicly exposed for local debugging
     volumes:
-      # Mount data if needed, but relative path might be tricky. Using named volume or omitting for now unless critical.
-      # Original: ./ingestion-service/data:/app/data. 
-      # We can map it to a local folder in infra/compose/data/ingestion?
-      - ./data/ingestion:/app/data
+      - ./local-data/ingestion:/app/data
     networks:
-      - syntrae_net
+      - syntrae_local_net
     environment:
-      - LOG_LEVEL=info # Pilot: reduced from debug
-      # - DEBUG=*  # Pilot: disabled verbose debugging
+      - LOG_LEVEL=debug 
       - PORT=3005
       - NODE_ENV=development
-      - DATABASE_URL=${DATABASE_URL}?schema=core
+      - DATABASE_URL=${DATABASE_URL:-postgresql://superuser:local_dev_password@postgresql:5432/syntrae_core}?schema=core
       - AI_CORE_BASE_URL=http://ai-core:8000
-      - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
+      - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET:-local_dev_secret}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       - postgresql
@@ -134,121 +129,84 @@ services:
 
   operator-api:
     build:
-      context: ../..
+      context: .
       dockerfile: infra/docker/operator-api.Dockerfile
-    container_name: operator-api
+    container_name: operator-api-local
     restart: unless-stopped
-    # PORTS REMOVED: Exposed only internally via network
-    # ports:
-    #   - "3001:3001"
+    ports:
+      - "3001:3001" # Exposed for local debugging
     networks:
-      - syntrae_net
+      - syntrae_local_net
     environment:
       - PORT=3001
       - NODE_ENV=development
-      - DATABASE_URL=${DATABASE_URL}?schema=core
+      - DATABASE_URL=${DATABASE_URL:-postgresql://superuser:local_dev_password@postgresql:5432/syntrae_core}?schema=core
       - JWT_SECRET=dev_secret_operator_key_123
       - AI_CORE_BASE_URL=http://ai-core:8000
-      - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
-      # NGINX is now the edge
-      - TRUST_PROXY=true
-      - COOKIE_DOMAIN=.syntraeai.com
+      - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET:-local_dev_secret}
+      - COOKIE_DOMAIN=localhost
     depends_on:
       - postgresql
 
   operator-ui:
     build:
-      context: ../..
+      context: .
       dockerfile: infra/docker/operator-ui.Dockerfile
-    container_name: operator-ui
-    restart: unless-stopped
-    # PORTS REMOVED: Exposed only internally via network
-    # ports:
-    #   - "5173:80"
-    networks:
-      - syntrae_net
-    depends_on:
-      - operator-api
-
-  # =========================
-  # EDGE & PROXY
-  # =========================
-
-  nginx:
-    image: nginx:1.25-alpine
-    container_name: nginx
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: operator-ui-local
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./nginx/proxy_params:/etc/nginx/proxy_params
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
+      - "8080:80" # Exposed on 8080 locally to avoid conflict with default 80
     networks:
-      - syntrae_net
+      - syntrae_local_net
     depends_on:
       - operator-api
-      - operator-ui
-      # Ensure config valid before start? NGINX handles it.
-
-  certbot:
-    image: certbot/certbot
-    container_name: certbot
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    # Daily renewal check
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
   video-detection-engine:
     build:
-      context: ../..
+      context: .
       dockerfile: infra/docker/video-detection-engine.Dockerfile
-    container_name: video-detection-engine
+    container_name: video-detection-engine-local
     volumes:
-      - /mnt/data/docker/video:/data/storage
-      - ${HOME}/screenshots:/data/screenshots # Debug artifacts
+      - ./local-data/video:/data/storage
+      - ./local-data/screenshots:/data/screenshots
     environment:
-      - LOG_LEVEL=INFO
+      - LOG_LEVEL=DEBUG
       - DEBUG_ARTIFACTS_DIR=/data/screenshots
-      - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
+      - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET:-local_dev_secret}
       - AI_CORE_BASE_URL=http://ai-core:8000
-      - INGESTION_URL=http://ingestion-service:3005 # PILOT SECURITY: Internal network
+      - INGESTION_URL=http://ingestion-service:3005
       - PROXY_ENABLED=true
       - PROXY_SERVER=${PROXY_SERVER}
       - PROXY_USERNAME=${PROXY_USERNAME}
       - PROXY_PASSWORD=${PROXY_PASSWORD}
     restart: unless-stopped
     networks:
-      - syntrae_net
+      - syntrae_local_net
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
   automation-worker:
-    # Reuses the same build context/image
     build:
-      context: ../..
+      context: .
       dockerfile: infra/docker/video-detection-engine.Dockerfile
-    # Do not set container_name so Compose can scale this service horizontally.
+    container_name: automation-worker-local
     command:
       - /bin/sh
       - -lc
-      - python poll_automation.py --mode global --install-id "$${AUTOMATION_WORKER_ID:-automation-worker-$${HOSTNAME}}"
+      - python poll_automation.py --mode global --install-id "$${AUTOMATION_WORKER_ID:-docker-worker-local-1}"
     volumes:
-      - /mnt/data/docker/video:/data/storage
-      - ${HOME}/screenshots:/data/screenshots # Debug artifacts
+      - ./local-data/video:/data/storage
+      - ./local-data/screenshots:/data/screenshots
+      - ./local-data/xiaohongshu-cli:/root/.xiaohongshu-cli
     environment:
-      - LOG_LEVEL=INFO
+      - LOG_LEVEL=DEBUG
       - DEBUG_ARTIFACTS_DIR=/data/screenshots
-      # Needs to reach operator-api for polling
       - OPERATOR_API_URL=http://operator-api:3001
-      # Internal Service Links
-      - AI_CORE_BASE_URL=http://ai-core:8000 # FIX: was AI_CORE_URL, code expects AI_CORE_BASE_URL
-      - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
-      - INGESTION_URL=http://ingestion-service:3005 # PILOT SECURITY: Internal network
+      - AI_CORE_BASE_URL=http://ai-core:8000 
+      - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET:-local_dev_secret}
+      - INGESTION_URL=http://ingestion-service:3005 
       - AUTOMATION_STORAGE_ROOT=/data/storage
       - AUTOMATION_LEASE_SECONDS=${AUTOMATION_LEASE_SECONDS:-120}
       - AUTOMATION_HEARTBEAT_SECONDS=${AUTOMATION_HEARTBEAT_SECONDS:-30}
@@ -258,7 +216,6 @@ services:
       - AUTOMATION_STALE_RETRY_DELAY_SECONDS=${AUTOMATION_STALE_RETRY_DELAY_SECONDS:-30}
       - AUTOMATION_STALE_MAX_ATTEMPTS=${AUTOMATION_STALE_MAX_ATTEMPTS:-3}
       - AUTOMATION_STALE_SWEEP_LIMIT=${AUTOMATION_STALE_SWEEP_LIMIT:-25}
-      # Testing Overrides
       - MOCK_TIKTOK_COMMENTS=${MOCK_TIKTOK_COMMENTS:-Sample captured comment}
       - PROXY_ENABLED=true
       - PROXY_SERVER=${PROXY_SERVER}
@@ -268,6 +225,6 @@ services:
     depends_on:
       - operator-api
     networks:
-      - syntrae_net
+      - syntrae_local_net
     extra_hosts:
       - "host.docker.internal:host-gateway"

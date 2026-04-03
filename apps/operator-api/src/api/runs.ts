@@ -7,6 +7,60 @@ import { requireSession } from '../middleware/session_auth';
 
 const router = Router();
 
+async function findConflictingRun(brandId: string, platform: string) {
+    const now = new Date();
+    const legacyCutoff = new Date(now.getTime() - 10 * 60 * 1000);
+
+    return prisma.automationRun.findFirst({
+        where: {
+            brand_id: brandId,
+            platform,
+            OR: [
+                { status: 'PENDING' },
+                {
+                    status: 'RUNNING',
+                    OR: [
+                        { lease_expires_at: { gt: now } },
+                        {
+                            lease_expires_at: null,
+                            started_at: { gt: legacyCutoff }
+                        }
+                    ]
+                }
+            ]
+        },
+        orderBy: { started_at: 'desc' },
+        select: {
+            id: true,
+            status: true,
+            started_at: true,
+            claimed_by: true,
+            lease_expires_at: true
+        }
+    });
+}
+
+function normalizeRunStats(stats: any) {
+    if (!stats || typeof stats !== 'object') return {};
+    return stats as Record<string, any>;
+}
+
+function deriveWorkerHealth(run: any): string {
+    if (run.status !== 'RUNNING') {
+        if (run.status === 'PENDING' && run.next_retry_at) return 'RETRY_PENDING';
+        return 'IDLE';
+    }
+
+    const now = Date.now();
+    const leaseExpiresAt = run.lease_expires_at ? new Date(run.lease_expires_at).getTime() : null;
+    const heartbeatAt = run.heartbeat_at ? new Date(run.heartbeat_at).getTime() : null;
+
+    if (leaseExpiresAt && leaseExpiresAt <= now) return 'LEASE_STALE';
+    if (heartbeatAt && now - heartbeatAt > 90_000) return 'HEARTBEAT_LATE';
+    if (run.claimed_by) return 'ACTIVE';
+    return 'UNCLAIMED_RUNNING';
+}
+
 // Apply session auth for UI endpoints (GET /runs)
 // Apply session auth for UI endpoints (GET /runs)
 // router.use('/runs', requireSession); // REMOVED: Blocks /runs/pending used by agents
@@ -42,6 +96,15 @@ router.post('/brands/:brandId/runs/queue', async (req: any, res: any) => {
     });
 
     try {
+        const conflictingRun = await findConflictingRun(brandId, platform);
+        if (conflictingRun) {
+            return res.status(409).json({
+                error: 'RUN_ALREADY_ACTIVE',
+                existing_run_id: conflictingRun.id,
+                existing_status: conflictingRun.status
+            });
+        }
+
         const run = await prisma.automationRun.create({
             data: {
                 brand_id: brandId,
@@ -63,33 +126,16 @@ router.post('/brands/:brandId/runs/queue', async (req: any, res: any) => {
 
 // List Pending Runs (For Agent Polling)
 router.get('/brands/:brandId/runs/pending', requireAgentAccess, async (req: any, res: any) => {
-    try {
-        const run = await prisma.automationRun.findFirst({
-            where: {
-                brand_id: req.params.brandId,
-                status: 'PENDING'
-            },
-            orderBy: { started_at: 'asc' }
-        });
-        res.json(run || null);
-    } catch (e) {
-        res.status(500).json({});
-    }
+    return res.status(410).json({
+        error: 'Deprecated endpoint. Use POST /internal/automation-runs/claim instead.'
+    });
 });
 
 // GLOBAL Pending Runs (For System Workers)
 router.get('/runs/pending', async (req: any, res: any) => {
-    // Should be secured by Admin/System Secret
-    try {
-        const run = await prisma.automationRun.findFirst({
-            where: { status: 'PENDING' },
-            orderBy: { started_at: 'asc' }
-        });
-        res.json(run || null);
-    } catch (e: any) {
-        console.error("[Runs] Pending Fetch Error:", e);
-        res.status(500).json({ error: e.message || "Unknown error" });
-    }
+    return res.status(410).json({
+        error: 'Deprecated endpoint. Use POST /internal/automation-runs/claim instead.'
+    });
 });
 
 router.post('/brands/:brandId/automation-runs', requireAgentAccess, async (req, res) => {
@@ -102,6 +148,15 @@ router.post('/brands/:brandId/automation-runs', requireAgentAccess, async (req, 
     } = req.body;
 
     try {
+        const conflictingRun = await findConflictingRun(brandId, platform || 'unknown');
+        if (conflictingRun) {
+            return res.status(409).json({
+                error: 'RUN_ALREADY_ACTIVE',
+                existing_run_id: conflictingRun.id,
+                existing_status: conflictingRun.status
+            });
+        }
+
         const run = await prisma.automationRun.create({
             data: {
                 brand_id: brandId,
@@ -281,14 +336,30 @@ router.get('/runs', requireSession, async (req: any, res: any) => {
 
         const runsWithBrandNames = runs.map(run => ({
             ...run,
-            brand_name: brandNameMap[run.brand_id] || 'Unknown'
+            brand_name: brandNameMap[run.brand_id] || 'Unknown',
+            stats: normalizeRunStats(run.stats),
+            worker_health: deriveWorkerHealth(run)
         }));
 
         const total = await prisma.automationRun.count({
             where: { brand_id: { in: brandIds } }
         });
 
-        res.json({ runs: runsWithBrandNames, total, limit, offset });
+        const health = {
+            active_workers: new Set(
+                runsWithBrandNames
+                    .filter((run: any) => run.worker_health === 'ACTIVE' && run.claimed_by)
+                    .map((run: any) => run.claimed_by)
+            ).size,
+            running_runs: runsWithBrandNames.filter((run: any) => run.status === 'RUNNING').length,
+            stale_runs: runsWithBrandNames.filter((run: any) => run.worker_health === 'LEASE_STALE').length,
+            retry_pending_runs: runsWithBrandNames.filter((run: any) => run.worker_health === 'RETRY_PENDING').length,
+            duplicate_suppressed: runsWithBrandNames.reduce((sum: number, run: any) => sum + Number(run.stats?.duplicate_suppressed || 0), 0),
+            cooldown_skipped: runsWithBrandNames.reduce((sum: number, run: any) => sum + Number(run.stats?.video_cooldown_suppressed || 0) + Number(run.stats?.videos_skipped_cooldown || 0), 0),
+            stale_retries: runsWithBrandNames.reduce((sum: number, run: any) => sum + Math.max(Number(run.attempt_count || 0) - 1, 0), 0)
+        };
+
+        res.json({ runs: runsWithBrandNames, total, limit, offset, health });
     } catch (e: any) {
         console.error('[Runs] List Error:', e);
         res.status(500).json({ error: 'Failed to fetch runs' });

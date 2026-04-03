@@ -39,6 +39,9 @@ class DiscoveryEngine:
         self.total_emitted_success = 0
         self.total_emitted_failed = 0
         self.emission_error_classes = []  # Track unique error types
+        self.duplicate_suppressed = 0
+        self.video_cooldown_suppressed = 0
+        self.videos_skipped_cooldown = 0
 
     async def execute(self, market_profile: Dict[str, Any], finalize: bool = True):
         """
@@ -63,10 +66,14 @@ class DiscoveryEngine:
             try:
                 platform_adapter = XiaohongshuPlatform()
                 # Use the first keyword for the phase 1 validation
-                keyword = market_profile.get("keywords", ["acne"])[0] 
+                keyword = market_profile.get("keywords_positive", ["acne"])[0]  
                 
                 # Execute extraction
-                results = await platform_adapter.run_search(self.controller.page, keyword)
+                results = await platform_adapter.run_search(
+                    self.controller.page,
+                    keyword,
+                    is_video_eligible=lambda note_id: self.client.check_video_eligibility(note_id, "rednote")
+                )
                 
                 # Emit to pipeline
                 if results:
@@ -74,10 +81,12 @@ class DiscoveryEngine:
                     self.search_valid_decisions = len(results)
                     self.url_accepted = True
                     
-                    success_count, failed_count, error_classes = await self.client.emit_batch(results, self.run_id)
+                    success_count, failed_count, error_classes, ingest_status_counts = await self.client.emit_batch(results, self.run_id)
                     
                     self.total_emitted_success += success_count
                     self.total_emitted_failed += failed_count
+                    self.duplicate_suppressed += ingest_status_counts.get("DUPLICATE_SUPPRESSED", 0)
+                    self.video_cooldown_suppressed += ingest_status_counts.get("VIDEO_COOLDOWN_SUPPRESSED", 0)
                     
                     logger.info(
                         f"Xiaohongshu Emission: "
@@ -173,6 +182,25 @@ class DiscoveryEngine:
                 # WF-3.1: Obey ACCEPT/REJECT/SKIP decision
                 if decision == "ACCEPT":
                     logger.info(f"ACCEPT: {cand.video_id} (score={decision_payload.get('market_score', 0)})")
+                    eligibility = await self.client.check_video_eligibility(cand.video_id, cand.platform)
+                    if not eligibility.get("eligible", True):
+                        self.videos_skipped_cooldown += 1
+                        logger.info(
+                            "SKIP: %s blocked by cooldown until %s",
+                            cand.video_id,
+                            eligibility.get("cooldown_until")
+                        )
+                        await self.client.record_discovery(self.run_id, {
+                            "video_id": cand.video_id,
+                            "video_url": cand.video_url,
+                            "platform": cand.platform,
+                            "decision": "SKIP",
+                            "market_score": decision_payload.get("market_score"),
+                            "reasons": [eligibility.get("reason", "VIDEO_COOLDOWN_ACTIVE")],
+                            "evaluation_performed": False
+                        })
+                        continue
+
                     # WF-3.1: Persistence-required-for-ACCEPT
                     try:
                         await self.client.record_discovery(self.run_id, decision_payload)
@@ -337,11 +365,13 @@ class DiscoveryEngine:
                         c["video_id"] = cand.video_id
                 
                 # P1-B: Emit and capture results
-                success_count, failed_count, error_classes = await self.client.emit_batch(comments, self.run_id)
+                success_count, failed_count, error_classes, ingest_status_counts = await self.client.emit_batch(comments, self.run_id)
                 
                 # P1-B: Update run-level counters
                 self.total_emitted_success += success_count
                 self.total_emitted_failed += failed_count
+                self.duplicate_suppressed += ingest_status_counts.get("DUPLICATE_SUPPRESSED", 0)
+                self.video_cooldown_suppressed += ingest_status_counts.get("VIDEO_COOLDOWN_SUPPRESSED", 0)
                 for error_class in error_classes:
                     if error_class not in self.emission_error_classes:
                         self.emission_error_classes.append(error_class)
@@ -386,6 +416,17 @@ class DiscoveryEngine:
             raise e 
     
     async def finalize_run(self):
+        stats = {
+            "videos_processed": self.search_valid_decisions + (1 if self.url_accepted else 0),
+            "comments_captured": self.total_captured,
+            "comments_emitted_success": self.total_emitted_success,
+            "comments_emitted_failed": self.total_emitted_failed,
+            "duplicate_suppressed": self.duplicate_suppressed,
+            "video_cooldown_suppressed": self.video_cooldown_suppressed,
+            "videos_skipped_cooldown": self.videos_skipped_cooldown,
+        }
+        await self.client.update_run_stats(self.run_id, self.brand_id, stats)
+
         logger.warning(
             f"[FINALIZE] run={self.run_id} "
             f"search_valid={self.search_valid_decisions} "
@@ -424,14 +465,5 @@ class DiscoveryEngine:
         if self.error_count > 0:
             await self.client.update_run_internal(self.run_id, "DEGRADED", "NON_FATAL_ERRORS")
             return
-
-        # Persist execution stats before marking completed
-        stats = {
-            "videos_processed": self.search_valid_decisions + (1 if self.url_accepted else 0),
-            "comments_captured": self.total_captured,
-            "comments_emitted_success": self.total_emitted_success,
-            "comments_emitted_failed": self.total_emitted_failed,
-        }
-        await self.client.update_run_stats(self.run_id, self.brand_id, stats)
 
         await self.client.update_run_internal(self.run_id, "COMPLETED", None)

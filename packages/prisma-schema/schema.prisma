@@ -150,6 +150,7 @@ model EngagementEvent {
   id                 String   @id @default(uuid())
   external_event_id  String?  @unique
   dedup_key          String   @unique
+  semantic_dedup_key String?  @unique
   observed_at        DateTime?
   platform           String
   target_id          String   @default("unknown")
@@ -177,6 +178,7 @@ model EngagementEvent {
   @@index([install_id])
   @@index([created_at])
   @@index([brand_id])
+  @@index([account_id, platform, video_id, created_at])
   @@schema("core")
 }
 
@@ -501,12 +503,24 @@ model AutomationRun {
   market_profile_snapshot Json?  // WF-1: Added for reproducible automation
   stats           Json     @default("{}")
   abort_reason    String?
+  claimed_by      String?
+  claim_token     String?
+  claimed_at      DateTime?
+  heartbeat_at    DateTime?
+  lease_expires_at DateTime?
+  attempt_count   Int      @default(0)
+  next_retry_at   DateTime?
+  last_error      String?
   
   policy          AutomationPolicy? @relation(fields: [policy_id], references: [id])
   discovered_videos DiscoveredVideo[]
   
   @@index([brand_id])
   @@index([install_id])
+  @@index([status, started_at])
+  @@index([status, lease_expires_at])
+  @@index([status, next_retry_at])
+  @@index([claimed_by])
   @@schema("core")
 }
 

@@ -106,9 +106,11 @@ def update_knowledge(
 
 class SignalInferenceRequest(BaseModel):
     text: str
-    existing_signals: Optional[List[str]] = []
+    existing_signals: Optional[List[Any]] = []
     language: Optional[str] = "en"
     domain: Optional[str] = "unknown"
+    intent_category: Optional[str] = None
+    context: Optional[Dict[str, Any]] = None
 
 
 @router.post("/signal-inference")
@@ -161,6 +163,8 @@ async def inference_signal(
             "existing_signals": payload.existing_signals,
             "language": payload.language,
             "domain": payload.domain,
+            "intent_category": payload.intent_category,
+            "context": payload.context,
         },
         context={
             "plan": "enterprise",

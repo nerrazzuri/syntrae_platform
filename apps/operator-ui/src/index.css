@@ -1,3 +1,152 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --app-bg: #f3efe6;
+    --app-bg-soft: #fbf8f1;
+    --app-panel: rgba(255, 252, 247, 0.86);
+    --app-panel-strong: rgba(255, 255, 255, 0.96);
+    --app-line: rgba(31, 41, 55, 0.08);
+    --app-line-strong: rgba(31, 41, 55, 0.14);
+    --app-ink: #16202b;
+    --app-muted: #617081;
+    --app-accent: #0f766e;
+    --app-accent-strong: #115e59;
+    --app-accent-soft: rgba(15, 118, 110, 0.12);
+    --app-warm: #c67d32;
+    --app-danger: #b94132;
+    --app-shadow: 0 18px 48px rgba(45, 55, 72, 0.08);
+  }
+
+  html {
+    @apply h-full;
+  }
+
+  body {
+    @apply h-full antialiased;
+    font-family: 'Manrope', 'Segoe UI', sans-serif;
+    color: var(--app-ink);
+    background:
+      radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 28%),
+      radial-gradient(circle at top right, rgba(198, 125, 50, 0.14), transparent 24%),
+      linear-gradient(180deg, #f9f6ef 0%, #f2ede3 48%, #ede7dc 100%);
+  }
+
+  #root {
+    @apply h-full;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: 'Space Grotesk', 'Manrope', sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  ::selection {
+    background: rgba(15, 118, 110, 0.18);
+  }
+}
+
+@layer components {
+  .app-shell {
+    @apply min-h-screen;
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.1)),
+      transparent;
+  }
+
+  .page-frame {
+    @apply px-4 py-4 md:px-6 md:py-6 xl:px-8;
+  }
+
+  .panel {
+    @apply rounded-3xl border;
+    background: var(--app-panel);
+    border-color: var(--app-line);
+    box-shadow: var(--app-shadow);
+    backdrop-filter: blur(14px);
+  }
+
+  .panel-strong {
+    @apply rounded-3xl border;
+    background: var(--app-panel-strong);
+    border-color: var(--app-line-strong);
+    box-shadow: var(--app-shadow);
+  }
+
+  .metric-panel {
+    @apply rounded-3xl border p-5 md:p-6;
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(249, 245, 236, 0.92));
+    border-color: var(--app-line);
+    box-shadow: var(--app-shadow);
+  }
+
+  .surface-input {
+    @apply w-full rounded-2xl border px-3 py-2.5 text-sm outline-none transition;
+    background: rgba(255, 255, 255, 0.9);
+    border-color: var(--app-line-strong);
+  }
+
+  .surface-input:focus {
+    border-color: rgba(15, 118, 110, 0.35);
+    box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.1);
+  }
+
+  .hero-kicker {
+    @apply text-[11px] font-semibold uppercase tracking-[0.28em];
+    color: var(--app-accent-strong);
+  }
+
+  .hero-title {
+    @apply text-3xl font-bold md:text-4xl;
+  }
+
+  .hero-copy {
+    @apply mt-2 max-w-2xl text-sm md:text-base;
+    color: var(--app-muted);
+  }
+
+  .filter-chip {
+    @apply rounded-full px-3 py-1.5 text-sm font-semibold transition;
+  }
+
+  .filter-chip-active {
+    background: linear-gradient(135deg, var(--app-accent), #0b8f84);
+    color: white;
+    box-shadow: 0 10px 25px rgba(15, 118, 110, 0.2);
+  }
+
+  .filter-chip-idle {
+    @apply bg-white/70 text-slate-500 hover:text-slate-800;
+  }
+
+  .table-shell {
+    @apply overflow-hidden rounded-3xl border;
+    background: var(--app-panel-strong);
+    border-color: var(--app-line);
+    box-shadow: var(--app-shadow);
+  }
+
+  .table-head {
+    background: rgba(248, 244, 236, 0.95);
+  }
+
+  .table-row {
+    @apply transition;
+  }
+
+  .table-row:hover {
+    background: rgba(15, 118, 110, 0.05);
+  }
+
+  .status-pill {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold;
+  }
+}
