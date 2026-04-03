@@ -9,10 +9,13 @@ import { BrainGateway } from '../brain/brain_gateway';
 import { SuggestionService } from '../hitl/suggestion_service';
 import { v4 as uuidv4 } from 'uuid';
 import { BrandLookupService } from '../brand_lookup_service';
+import { findDuplicateSuppression, generateSemanticDedupKey } from './dedup';
 
 export enum IngestStatus {
     RECEIVED = 'RECEIVED',
     DUPLICATE = 'DUPLICATE',
+    DUPLICATE_SUPPRESSED = 'DUPLICATE_SUPPRESSED',
+    VIDEO_COOLDOWN_SUPPRESSED = 'VIDEO_COOLDOWN_SUPPRESSED',
     BLOCKED_POLICY = 'BLOCKED_POLICY',
     BLOCKED_PLAN = 'BLOCKED_PLAN',
     OBSERVED = 'OBSERVED',
@@ -31,7 +34,7 @@ export class IngestionService {
         installId: string,
         accountId: string,
         correlationId: string = uuidv4()
-    ): Promise<{ status: IngestStatus; id?: string }> {
+    ): Promise<{ status: IngestStatus; id?: string; duplicateReason?: string }> {
 
         // 1. Validation (Schema)
         const parse = IngestionEventSchema.safeParse(rawEvent);
@@ -40,6 +43,7 @@ export class IngestionService {
             throw new Error('Invalid Schema'); // 400 Bad Request at API layer
         }
         const event = parse.data;
+        const canonicalPlatform = this.normalizePlatform(event.platform);
 
         // 2. Dedup (Primary - External ID)
         const existingPrimary = await prisma.engagementEvent.findUnique({
@@ -54,7 +58,7 @@ export class IngestionService {
         // Key: install_id + platform + video_id + comment_id + raw_text_hash
         const textHash = crypto.createHash('sha256').update(event.raw_text || '').digest('hex');
         const dedupKey = crypto.createHash('sha256')
-            .update(`${installId}:${event.platform}:${event.platform_video_id}:${event.platform_comment_id || 'null'}:${textHash}`)
+            .update(`${installId}:${canonicalPlatform}:${event.platform_video_id}:${event.platform_comment_id || 'null'}:${textHash}`)
             .digest('hex');
 
         const existingSecondary = await prisma.engagementEvent.findUnique({
@@ -63,6 +67,41 @@ export class IngestionService {
         if (existingSecondary) {
             console.log(`[Ingest][${correlationId}] Dedup Secondary Hit: ${dedupKey}`);
             return { status: IngestStatus.DUPLICATE, id: existingSecondary.id };
+        }
+
+        const semanticDedupKey = generateSemanticDedupKey(
+            accountId,
+            canonicalPlatform,
+            event.platform_video_id,
+            {
+                author_id: event.platform_comment_author_id || null,
+                author_name: event.platform_comment_author_name || null,
+                text: event.raw_text || null
+            }
+        );
+
+        const suppression = await findDuplicateSuppression({
+            accountId,
+            platform: canonicalPlatform,
+            videoId: event.platform_video_id,
+            source: event.source || 'EXTENSION',
+            automationRunId: event.automation_run_id || null,
+            comment: {
+                author_id: event.platform_comment_author_id || null,
+                author_name: event.platform_comment_author_name || null,
+                text: event.raw_text || null
+            }
+        });
+
+        if (suppression) {
+            console.log(`[Ingest][${correlationId}] Duplicate Suppressed: ${suppression.reason}`);
+            return {
+                status: suppression.ingestStatus === 'VIDEO_COOLDOWN_SUPPRESSED'
+                    ? IngestStatus.VIDEO_COOLDOWN_SUPPRESSED
+                    : IngestStatus.DUPLICATE_SUPPRESSED,
+                id: suppression.existingEventId,
+                duplicateReason: suppression.reason
+            };
         }
 
         // 4. Plan Limits
@@ -82,7 +121,7 @@ export class IngestionService {
         // 4.5 Resolve Brand (Strict)
         let brandId: string | null = null;
         try {
-            brandId = await BrandLookupService.resolveBrand(accountId);
+            brandId = await BrandLookupService.resolveBrand(accountId, event.brand_id);
         } catch (e) {
             console.warn(`[Ingest][${correlationId}] Brand Resolution Failed:`, e);
             return { status: IngestStatus.ERROR };
@@ -98,7 +137,8 @@ export class IngestionService {
             data: {
                 external_event_id: event.event_id,
                 dedup_key: dedupKey,
-                platform: event.platform,
+                semantic_dedup_key: semanticDedupKey,
+                platform: canonicalPlatform,
                 video_id: event.platform_video_id,
                 comment_id: event.platform_comment_id || 'null',
                 content_text: event.raw_text || '',
@@ -108,10 +148,15 @@ export class IngestionService {
                 brand_id: brandId,
                 status: status,
                 observed_at: new Date(event.observed_at),
-                metadata: JSON.stringify({
+                metadata: {
                     ...event,
+                    platform: canonicalPlatform,
+                    context: {
+                        source: event.source || 'EXTENSION',
+                        automation_run_id: event.automation_run_id || null
+                    },
                     correlation_id: correlationId
-                })
+                } as any
             }
         });
 
@@ -140,7 +185,7 @@ export class IngestionService {
             // Invoke Pipeline (Reusing logic from triggerAutoSuggest but cleaner)
             // Adapter
             const videoEvent: VideoEvent = {
-                platform: event.platform as any,
+                platform: canonicalPlatform as any,
                 video_id: event.platform_video_id,
                 creator_id: 'unknown', // Explicit no enrichment
                 creator_name: 'unknown',
@@ -178,7 +223,7 @@ export class IngestionService {
             await SuggestionService.createSuggestion({
                 workspaceId: accountId,
                 eventId: engagementEvent.id,
-                platform: event.platform,
+                platform: canonicalPlatform,
                 videoId: event.platform_video_id,
                 commentId: event.platform_comment_id || 'null',
                 text: p?.text || '',
@@ -197,15 +242,23 @@ export class IngestionService {
 
         } catch (err) {
             console.error(`[Ingest][${correlationId}] Pipeline Error:`, err);
-            // Don't crash ingestion response, just log async failure
-            // But we are async anyway? No, processEvent is awaited by API? 
-            // Plan said "Process Asynchronously" in old ingest. 
-            // In new strict ingest, we might want to await if we want to confirm "Received" vs "Blocked".
-            // The plan says "Persist". Post-persistence logic can be async if we want fast response.
-            // But for reliability, waiting is safer unless perf is critical. 
-            // We'll await for now to ensure we capture BLOCKED status correctly if logic fails synchronously.
         }
 
         return { status: IngestStatus.RECEIVED, id: engagementEvent.id };
+    }
+
+    private static normalizePlatform(platform: IngestionEvent['platform']): string {
+        switch (platform) {
+            case 'TIKTOK':
+                return 'tiktok';
+            case 'YOUTUBE':
+                return 'youtube';
+            case 'IG':
+                return 'instagram';
+            case 'REDNOTE':
+                return 'rednote';
+            default:
+                return 'other';
+        }
     }
 }

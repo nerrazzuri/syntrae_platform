@@ -1,11 +1,25 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { DesktopCaptureEventSchema, EngagementEventSchema } from '../schemas/desktop_capture_event';
+import type { DesktopCaptureEvent } from '../schemas/desktop_capture_event';
 import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'crypto';
 import { prisma } from '../db';
 import { requireAdmin } from '../auth/admin_middleware';
 import { BrandLookupService } from '../services/brand_lookup_service';
+import {
+    findDuplicateSuppression,
+    generateSemanticDedupKey,
+    parseEventMetadata
+} from '../services/ingestion/dedup';
+import {
+    buildDecision,
+    extractTerminalDecision,
+    hasTerminalDecision,
+    inferSkipReasonFromBrain,
+    LeadPipelineAudit,
+    normalizeCommentForAi
+} from '../services/lead_pipeline/decision';
 
 const router = Router();
 // const prisma = new PrismaClient(); // Removed local instance
@@ -19,6 +33,137 @@ function generateDedupKey(platform: string, videoId: string, commentId: string):
     return crypto.createHash('sha256')
         .update(`${platform}:${videoId}:${commentId}`)
         .digest('hex');
+}
+
+function buildTargetId(platform: string, comment: { author_name?: string | null; author_id?: string | null }): string {
+    const name = (comment.author_name || '').trim();
+    const authorId = (comment.author_id || '').trim();
+    const identity = name || authorId || 'unknown';
+    return `${platform}:${identity}`;
+}
+
+function nowIso(): string {
+    return new Date().toISOString();
+}
+
+function logLeadPipeline(eventId: string, stage: string, payload: Record<string, any>) {
+    console.log(`[LeadPipeline] ${JSON.stringify({
+        event_id: eventId,
+        stage,
+        at: nowIso(),
+        ...payload
+    })}`);
+}
+
+function pickModelResultRaw(resp: any): Record<string, any> {
+    if (!resp) return {};
+    return {
+        kind: resp.kind ?? null,
+        strategy: (resp.payload as any)?.strategy ?? null,
+        confidence: resp.confidence ?? null,
+        explanation: (resp.policy_decisions as any)?.explanation ?? '',
+        intent: ((resp.policy_decisions as any)?.trace as any)?.intent ?? null
+    };
+}
+
+function extractPayloadFromEventMetadata(event: any): any {
+    const meta = parseEventMetadata(event?.metadata);
+    if (!meta || Object.keys(meta).length === 0) {
+        return {};
+    }
+    return meta;
+}
+
+function buildLeadPipelineAudit(input: {
+    decision: string;
+    normalizationStatus: string;
+    aiInvoked: boolean;
+    aiCompletedAt?: string | null;
+    skipReason?: string | null;
+    errorReason?: string | null;
+    modelResultRaw?: any;
+}): LeadPipelineAudit {
+    return {
+        decision: input.decision,
+        normalization_status: input.normalizationStatus,
+        ai_invoked: input.aiInvoked,
+        ai_completed_at: input.aiCompletedAt ?? null,
+        skip_reason: input.skipReason ?? null,
+        error_reason: input.errorReason ?? null,
+        model_result_raw: input.modelResultRaw ?? null,
+        updated_at: nowIso()
+    };
+}
+
+async function persistLeadPipelineOutcome(event: any, input: {
+    decision: string;
+    normalizationStatus: string;
+    aiInvoked: boolean;
+    aiCompletedAt?: string | null;
+    skipReason?: string | null;
+    errorReason?: string | null;
+    modelResultRaw?: any;
+    leadId?: string | null;
+    intent?: string | null;
+    strength?: string | null;
+    explanation?: string | null;
+    strategy?: string | null;
+    forceStatus?: string | null;
+}) {
+    const currentMeta = parseEventMetadata((event as any).metadata);
+    const audit = buildLeadPipelineAudit({
+        decision: input.decision,
+        normalizationStatus: input.normalizationStatus,
+        aiInvoked: input.aiInvoked,
+        aiCompletedAt: input.aiCompletedAt,
+        skipReason: input.skipReason,
+        errorReason: input.errorReason,
+        modelResultRaw: input.modelResultRaw
+    });
+
+    const nextMeta: Record<string, any> = {
+        ...currentMeta,
+        lead_pipeline_outcome: audit
+    };
+
+    if (event.platform === 'rednote') {
+        nextMeta.qualification_outcome = {
+            result: input.decision,
+            lead_id: input.leadId ?? null,
+            intent: input.intent ?? null,
+            strength: input.strength ?? null,
+            explanation: input.explanation ?? ''
+        };
+    } else {
+        nextMeta.value_outcome = {
+            result: input.decision,
+            reason: input.skipReason || input.errorReason || input.explanation || '',
+            strategy: input.strategy || null,
+            explanation: input.explanation || ''
+        };
+    }
+
+    await prisma.engagementEvent.update({
+        where: { id: event.id },
+        data: {
+            metadata: nextMeta as any,
+            ...(input.forceStatus ? { status: input.forceStatus } : {}),
+            ...(input.errorReason ? { failure_reason: input.errorReason } : {})
+        }
+    });
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutCode: string): Promise<T> {
+    let timeoutHandle: NodeJS.Timeout | null = null;
+    const timeoutPromise = new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error(timeoutCode)), timeoutMs);
+    });
+
+    try {
+        return await Promise.race([promise, timeoutPromise]);
+    } finally {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+    }
 }
 
 // POST /events - Ingest Raw Event (Write-First Architecture)
@@ -159,7 +304,47 @@ router.post('/events', async (req: Request, res: Response) => {
 
     // 3. DB Write (ALWAYS Persist)
     const dedupKey = generateDedupKey(eventData.platform, eventData.video.video_id, eventData.comment.comment_id);
+    const semanticDedupKey = accountId
+        ? generateSemanticDedupKey(accountId, eventData.platform, eventData.video.video_id, {
+            author_id: eventData.comment.author_id,
+            author_name: eventData.comment.author_name,
+            text: eventData.comment.text
+        })
+        : null;
     let persistedEvent;
+
+    if (accountId) {
+        const suppression = await findDuplicateSuppression({
+            accountId,
+            platform: eventData.platform,
+            videoId: eventData.video.video_id,
+            source: eventData.context.source,
+            automationRunId: eventData.context.automation_run_id || null,
+            comment: {
+                author_id: eventData.comment.author_id,
+                author_name: eventData.comment.author_name,
+                text: eventData.comment.text
+            }
+        });
+        if (suppression) {
+            console.log(`[Ingest][DuplicateSuppressed] ${JSON.stringify({
+                account_id: accountId,
+                platform: eventData.platform,
+                video_id: eventData.video.video_id,
+                comment_id: eventData.comment.comment_id,
+                reason: suppression.reason,
+                existing_event_id: suppression.existingEventId
+            })}`);
+
+            res.status(202).json({
+                status: 'accepted',
+                event_id: suppression.existingEventId,
+                ingest_status: suppression.ingestStatus,
+                duplicate_reason: suppression.reason
+            });
+            return;
+        }
+    }
 
     try {
         persistedEvent = await prisma.engagementEvent.upsert({
@@ -169,17 +354,18 @@ router.post('/events', async (req: Request, res: Response) => {
             },
             create: {
                 dedup_key: dedupKey,
+                semantic_dedup_key: semanticDedupKey,
                 platform: eventData.platform,
                 video_id: eventData.video.video_id,
                 comment_id: eventData.comment.comment_id,
                 content_text: eventData.comment.text,
-                metadata: JSON.stringify(eventData),
+                metadata: eventData as any,
                 status: initialStatus,
                 failure_reason: failureReason,
                 install_id: installId,
                 account_id: accountId,
                 brand_id: brandId,
-                target_id: `${eventData.platform}:${eventData.comment.author_name || 'unknown'}`
+                target_id: buildTargetId(eventData.platform, eventData.comment)
             }
         });
 
@@ -203,6 +389,23 @@ router.post('/events', async (req: Request, res: Response) => {
         }
 
     } catch (writeErr) {
+        const err: any = writeErr;
+        if (err?.code === 'P2002' && accountId && semanticDedupKey) {
+            const existingSemantic = await prisma.engagementEvent.findUnique({
+                where: { semantic_dedup_key: semanticDedupKey },
+                select: { id: true }
+            });
+
+            if (existingSemantic) {
+                res.status(202).json({
+                    status: 'accepted',
+                    event_id: existingSemantic.id,
+                    ingest_status: 'DUPLICATE_SUPPRESSED',
+                    duplicate_reason: 'SEMANTIC_COMMENT_DUPLICATE'
+                });
+                return;
+            }
+        }
         console.error('[Ingest] DB Write Failed:', writeErr);
         res.status(500).json({ status: 'error', code: 'DB_WRITE_FAILED' });
         return;
@@ -229,7 +432,65 @@ async function processAsyncIngest(eventId: string, rawData: any) {
     });
 
     if (updateResult.count === 0) {
-        console.log(`[Async][${eventId}] Skipped (Not RECEIVED or locked)`);
+        const existing = await prisma.engagementEvent.findUnique({ where: { id: eventId } });
+        if (!existing) {
+            console.log(`[Async][${eventId}] Skipped (Event not found)`);
+            return;
+        }
+
+        const existingMeta = parseEventMetadata((existing as any).metadata);
+        const terminal = extractTerminalDecision(existingMeta);
+        const hasDeterministicTerminal = hasTerminalDecision(existingMeta);
+
+        // If event already has a terminal outcome, idempotency is respected.
+        if (hasDeterministicTerminal && terminal) {
+            if (!existingMeta.lead_pipeline_outcome && existing.status === 'PROCESSED' && existing.account_id && existing.install_id) {
+                console.warn(`[Async][${eventId}] Re-evaluating legacy terminal without lead pipeline audit: ${terminal}`);
+                const fallbackPayload = Object.keys(rawData || {}).length > 0 ? rawData : extractPayloadFromEventMetadata(existing);
+                const outcome = await triggerAutoSuggest(existing, existing.account_id, existing.install_id, fallbackPayload);
+                await prisma.engagementEvent.update({
+                    where: { id: eventId },
+                    data: {
+                        status: 'PROCESSED',
+                        ...(outcome.errorReason ? { failure_reason: outcome.errorReason } : {})
+                    }
+                });
+                return;
+            }
+            console.log(`[Async][${eventId}] Skipped (Already terminal: ${terminal})`);
+            return;
+        }
+
+        if (terminal && !hasDeterministicTerminal) {
+            console.warn(`[Async][${eventId}] Found legacy/non-deterministic terminal value "${terminal}", forcing re-evaluation`);
+        }
+
+        // Legacy rows may be PROCESSED without terminal outcome due historical silent paths.
+        // Backfill deterministically using the newest payload so "NO_AI_RESULT" cannot persist.
+        if (existing.status === 'PROCESSED' && existing.account_id && existing.install_id) {
+            console.warn(`[Async][${eventId}] Re-evaluating stale PROCESSED event without terminal decision`);
+            const fallbackPayload = Object.keys(rawData || {}).length > 0 ? rawData : extractPayloadFromEventMetadata(existing);
+            const outcome = await triggerAutoSuggest(existing, existing.account_id, existing.install_id, fallbackPayload);
+            await prisma.engagementEvent.update({
+                where: { id: eventId },
+                data: {
+                    status: 'PROCESSED',
+                    ...(outcome.errorReason ? { failure_reason: outcome.errorReason } : {})
+                }
+            });
+            return;
+        }
+
+        const skipReason = `EVENT_STATUS_${existing.status || 'LOCKED'}`;
+        const skipDecision = buildDecision('SKIPPED', skipReason);
+        await persistLeadPipelineOutcome(existing, {
+            decision: skipDecision,
+            normalizationStatus: 'SKIPPED_PRECHECK',
+            aiInvoked: false,
+            skipReason,
+            explanation: 'Event was not claimable for async processing.'
+        });
+        console.log(`[Async][${eventId}] Skipped (${skipDecision})`);
         return;
     }
 
@@ -239,6 +500,17 @@ async function processAsyncIngest(eventId: string, rawData: any) {
     if (!eventRecord || !eventRecord.account_id) {
         // Should not happen if it was RECEIVED, but safeguard.
         console.warn(`[Async][${eventId}] Abort: Missing Record or Account ID`);
+        if (eventRecord) {
+            const skipReason = 'MISSING_ACCOUNT_CONTEXT';
+            await persistLeadPipelineOutcome(eventRecord, {
+                decision: buildDecision('SKIPPED', skipReason),
+                normalizationStatus: 'SKIPPED_PRECHECK',
+                aiInvoked: false,
+                skipReason,
+                forceStatus: 'PROCESSED',
+                explanation: 'Missing account context for AI evaluation.'
+            });
+        }
         return;
     }
     const accountId = eventRecord.account_id;
@@ -253,6 +525,14 @@ async function processAsyncIngest(eventId: string, rawData: any) {
                 status: 'BLOCKED_ACCOUNT',
                 failure_reason: 'Account Suspended or Missing'
             }
+        });
+        await persistLeadPipelineOutcome(eventRecord, {
+            decision: buildDecision('SKIPPED', 'BLOCKED_ACCOUNT'),
+            normalizationStatus: 'SKIPPED_PRECHECK',
+            aiInvoked: false,
+            skipReason: 'BLOCKED_ACCOUNT',
+            forceStatus: 'BLOCKED_ACCOUNT',
+            explanation: 'Account is suspended or missing.'
         });
         return;
     }
@@ -279,6 +559,14 @@ async function processAsyncIngest(eventId: string, rawData: any) {
                 failure_reason: limitErr.message
             }
         });
+        await persistLeadPipelineOutcome(eventRecord, {
+            decision: buildDecision('SKIPPED', 'BLOCKED_LIMIT'),
+            normalizationStatus: 'SKIPPED_PRECHECK',
+            aiInvoked: false,
+            skipReason: 'BLOCKED_LIMIT',
+            forceStatus: 'BLOCKED_LIMIT',
+            explanation: limitErr.message
+        });
         return;
     }
 
@@ -287,84 +575,249 @@ async function processAsyncIngest(eventId: string, rawData: any) {
     await OnboardingService.advance(accountId, OnboardingState.FIRST_EVENT_INGESTED);
 
     // 5. AI Trigger
-    await triggerAutoSuggest(eventRecord, accountId, eventRecord.install_id!, rawData);
+    const outcome = await triggerAutoSuggest(eventRecord, accountId, eventRecord.install_id!, rawData);
 
     await prisma.engagementEvent.update({
         where: { id: eventId },
-        data: { status: 'PROCESSED' }
+        data: {
+            status: 'PROCESSED',
+            ...(outcome.errorReason ? { failure_reason: outcome.errorReason } : {})
+        }
     });
 }
 
-// Helper: Auto-Suggest Pipeline (Phase 21)
-async function triggerAutoSuggest(event: any, accountId: string, installId: string, payload: any) {
-    try {
-        // 1. Adapter
-        const videoEvent: VideoEvent = {
+async function persistLeadOpportunity(event: any, payload: any, trace: any, confidence: number) {
+    const intent = trace?.intent;
+    if (!intent?.intent || !event.comment_id || !event.account_id || !event.brand_id) {
+        return null;
+    }
+
+    let buyerStage: 'READY' | 'EVALUATING' | null = null;
+    let recommendedAction: 'PRIORITY_DM' | 'RECOMMEND_DM' | 'SILENT_CAPTURE' | null = null;
+
+    switch (intent.intent) {
+        case 'PRODUCT_INQUIRY':
+            buyerStage = 'READY';
+            recommendedAction = 'PRIORITY_DM';
+            break;
+        case 'LATENT_PURCHASE':
+        case 'POST_PURCHASE_REGRET':
+        case 'PROBLEM_SOLUTION':
+        case 'FIT_SUITABILITY':
+            buyerStage = 'EVALUATING';
+            recommendedAction = confidence >= 0.8 ? 'RECOMMEND_DM' : 'SILENT_CAPTURE';
+            break;
+        default:
+            return null;
+    }
+
+    const existingLead = await prisma.leadOpportunity.findFirst({
+        where: {
+            platform: event.platform,
+            comment_id: event.comment_id
+        }
+    });
+
+    if (existingLead) {
+        return existingLead;
+    }
+
+    const leadConfidence = buyerStage === 'READY'
+        ? Math.max(confidence || 0, 0.9)
+        : Math.max(confidence || 0, 0.6);
+
+    return prisma.leadOpportunity.create({
+        data: {
             platform: event.platform,
             video_id: event.video_id,
-            creator_id: payload.video?.author_id || 'unknown',
-            creator_name: payload.video?.author_name || 'unknown',
-            video_title: payload.video?.title || 'Untitled',
-            video_description: '',
-            video_tags: [],
-            timestamp: payload.page?.timestamp || new Date().toISOString(),
-            session_id: payload.session?.session_id || 'unknown_session',
-            install_id: installId,
-            text: event.content_text,
             comment_id: event.comment_id,
-            source_event_id: event.id
-        };
-
-        const req = VideoEventAdapter.toCapabilityRequest(videoEvent);
-        req.tenant_id = installId;
-        if (!req.context) req.context = {};
-        req.context.raw_event = {
-            ...((req.context.raw_event as object) || {}),
-            account_id: accountId,
-            brand_id: event.brand_id  // P0 FIX: Required for lead persistence
-        };
-
-        // 2. Brain
-        const resp = await BrainGateway.processCapability(req);
-
-        // Phase 22: Value Outcome Persistence
-        // If ignore or error, we persist the outcome in metadata for silent value metrics
-        // and DO NOT create a suggestion.
-        if ((resp.kind as any) === 'ignore' || (resp.kind as any) === 'error') {
-            const outcome = {
-                result: (resp.kind as any) === 'error' ? 'BLOCKED' : 'IGNORED',
-                reason: (resp.payload as any)?.reason || (resp.payload as any)?.error || 'Unknown',
-                strategy: (resp.payload as any)?.strategy, // e.g. OBSERVE_ONLY
-                explanation: (resp.policy_decisions as any)?.explanation || ''
-            };
-
-            // Update Event Metadata
-            const currentMeta = JSON.parse((event as any).metadata || '{}');
-            const newMeta = { ...currentMeta, value_outcome: outcome };
-
-            await prisma.engagementEvent.update({
-                where: { id: event.id },
-                data: {
-                    metadata: JSON.stringify(newMeta),
-                    status: (resp.kind as any) === 'error' ? 'ERROR' : 'IGNORED'
-                }
-            });
-
-            console.log(`[Ingest] Silent Value Captured for ${event.id}: ${outcome.strategy || outcome.reason}`);
-            return;
+            user_handle: payload.comment?.author_name || null,
+            user_profile_url: null,
+            intent: intent.intent,
+            buyer_stage: buyerStage,
+            confidence: leadConfidence,
+            recommended_action: recommendedAction,
+            urgency_score: buyerStage === 'READY' ? 0.9 * leadConfidence : 0.6 * leadConfidence,
+            risk_level: 'LOW',
+            source_event_id: event.id,
+            account_id: event.account_id,
+            brand_id: event.brand_id,
+            preferences: {
+                source: 'ingestion-service',
+                strength: intent.strength,
+                strategy: trace?.final_strategy || null
+            }
         }
+    });
+}
 
-        // If here, kind is 'answer' or 'recommend' -> Create Suggestion
-        const p = resp.payload as any;
-        const strategy = p?.strategy;
-        const text = p?.text || '';
+type TriggerOutcome = {
+    decision: string;
+    errorReason?: string | null;
+};
 
+// Helper: Auto-Suggest Pipeline (Phase 21)
+async function triggerAutoSuggest(event: any, accountId: string, installId: string, payload: any): Promise<TriggerOutcome> {
+    const normalized = normalizeCommentForAi(event.content_text);
+    if (!normalized.ok) {
+        const skipReason = normalized.skipReason || 'NORMALIZATION_FAILED';
+        const decision = buildDecision('SKIPPED', skipReason);
+        await persistLeadPipelineOutcome(event, {
+            decision,
+            normalizationStatus: normalized.normalizationStatus,
+            aiInvoked: false,
+            skipReason,
+            explanation: 'Comment normalization failed before AI execution.'
+        });
+        logLeadPipeline(event.id, 'normalization_skipped', {
+            decision,
+            normalization_status: normalized.normalizationStatus,
+            ai_invoked: false,
+            skip_reason: skipReason
+        });
+        return { decision };
+    }
+
+    const eventPayload = Object.keys(payload || {}).length > 0 ? payload : extractPayloadFromEventMetadata(event);
+
+    // 1. Adapter
+    const videoEvent: VideoEvent = {
+        platform: event.platform,
+        video_id: event.video_id,
+        creator_id: eventPayload.video?.author_id || 'unknown',
+        creator_name: eventPayload.video?.author_name || 'unknown',
+        video_title: eventPayload.video?.title || 'Untitled',
+        video_description: '',
+        video_tags: [],
+        timestamp: eventPayload.page?.timestamp || new Date().toISOString(),
+        session_id: eventPayload.session?.session_id || 'unknown_session',
+        install_id: installId,
+        text: normalized.normalizedText,
+        comment_id: event.comment_id,
+        source_event_id: event.id
+    };
+
+    const req = VideoEventAdapter.toCapabilityRequest(videoEvent);
+    req.tenant_id = installId;
+    if (!req.context) req.context = {};
+    req.context.raw_event = {
+        ...((req.context.raw_event as object) || {}),
+        account_id: accountId,
+        brand_id: event.brand_id
+    };
+
+    let resp: any;
+    let trace: any = {};
+    let aiCompletedAt = nowIso();
+    try {
+        resp = await withTimeout(BrainGateway.processCapability(req), 65000, 'AI_TIMEOUT');
+        trace = (resp.policy_decisions as any)?.trace || {};
+        aiCompletedAt = nowIso();
+    } catch (err: any) {
+        const errorReason = String(err?.message || 'AI_INVOCATION_FAILED');
+        const decision = buildDecision('ERROR', errorReason);
+        await persistLeadPipelineOutcome(event, {
+            decision,
+            normalizationStatus: normalized.normalizationStatus,
+            aiInvoked: true,
+            aiCompletedAt,
+            errorReason,
+            modelResultRaw: { error: errorReason },
+            explanation: 'AI execution failed before terminal classification.'
+        });
+        logLeadPipeline(event.id, 'ai_error', {
+            decision,
+            normalization_status: normalized.normalizationStatus,
+            ai_invoked: true,
+            ai_completed_at: aiCompletedAt,
+            error_reason: errorReason
+        });
+        return { decision, errorReason };
+    }
+
+    let lead: any = null;
+    try {
+        lead = await persistLeadOpportunity(event, eventPayload, trace, resp.confidence ?? 0);
+    } catch (err: any) {
+        const errorReason = `LEAD_PERSISTENCE_FAILED_${String(err?.message || 'UNKNOWN')}`;
+        const decision = buildDecision('ERROR', errorReason);
+        await persistLeadPipelineOutcome(event, {
+            decision,
+            normalizationStatus: normalized.normalizationStatus,
+            aiInvoked: true,
+            aiCompletedAt,
+            errorReason,
+            modelResultRaw: pickModelResultRaw(resp),
+            intent: trace?.intent?.intent || null,
+            strength: trace?.intent?.strength || null,
+            explanation: (resp.policy_decisions as any)?.explanation || ''
+        });
+        console.error(`[Ingest] Lead persistence failed for ${event.id}: ${errorReason}`);
+        return { decision, errorReason };
+    }
+
+    const skipReason = inferSkipReasonFromBrain(resp);
+    const strategy = (resp.payload as any)?.strategy || null;
+    const decision = skipReason
+        ? buildDecision('SKIPPED', skipReason)
+        : (lead ? 'QUALIFIED_LEAD' : 'FILTERED_OUT');
+
+    await persistLeadPipelineOutcome(event, {
+        decision,
+        normalizationStatus: normalized.normalizationStatus,
+        aiInvoked: true,
+        aiCompletedAt,
+        skipReason,
+        modelResultRaw: pickModelResultRaw(resp),
+        leadId: lead?.id || null,
+        intent: trace?.intent?.intent || null,
+        strength: trace?.intent?.strength || null,
+        explanation: (resp.policy_decisions as any)?.explanation || '',
+        strategy
+    });
+
+    logLeadPipeline(event.id, 'terminal_decision', {
+        decision,
+        normalization_status: normalized.normalizationStatus,
+        ai_invoked: true,
+        ai_completed_at: aiCompletedAt,
+        skip_reason: skipReason || null,
+        strategy: strategy || null
+    });
+
+    if (skipReason) {
+        return { decision };
+    }
+
+    if ((resp.kind as any) === 'error') {
+        const errorDecision = buildDecision('ERROR', 'BRAIN_RESPONSE_ERROR');
+        await persistLeadPipelineOutcome(event, {
+            decision: errorDecision,
+            normalizationStatus: normalized.normalizationStatus,
+            aiInvoked: true,
+            aiCompletedAt,
+            errorReason: 'BRAIN_RESPONSE_ERROR',
+            modelResultRaw: pickModelResultRaw(resp),
+            intent: trace?.intent?.intent || null,
+            strength: trace?.intent?.strength || null,
+            explanation: (resp.policy_decisions as any)?.explanation || '',
+            strategy
+        });
+        return { decision: errorDecision, errorReason: 'BRAIN_RESPONSE_ERROR' };
+    }
+
+    // If here, kind is 'answer' or 'recommend' -> Create Suggestion when not silent.
+    const p = resp.payload as any;
+    const text = p?.text || '';
+    if (strategy === 'SILENT_CAPTURE' || strategy === 'OBSERVE_ONLY' || strategy === 'IGNORE') {
+        console.log(`[Ingest] Skipping suggestion for silent strategy ${strategy} on ${event.id}`);
+        return { decision };
+    }
+
+    try {
         console.log(`[Ingest] Proceeding to create suggestion. Strategy: ${strategy}, Text len: ${text.length}`);
-
         const { OwnerSettingsService } = require('../services/owner/owner_settings_service');
         const settings = await OwnerSettingsService.getSettings(accountId);
-
-        console.log(`[Ingest] Got Owner Settings. Creating Suggestion...`);
 
         await SuggestionService.createSuggestion({
             workspaceId: accountId,
@@ -377,17 +830,31 @@ async function triggerAutoSuggest(event: any, accountId: string, installId: stri
             confidence: resp.confidence ?? 0,
             signals: JSON.stringify(resp.policy_decisions || {}),
             ownerSettingsSnapshot: JSON.stringify(settings),
-            // Phase 23: Context Extraction
             contextType: (resp.policy_decisions as any)?.trace?.context?.context_type,
             speakerRole: (resp.policy_decisions as any)?.trace?.context?.speaker_role,
             templateCategory: (resp.policy_decisions as any)?.trace?.context?.template_category
         });
-
         console.log(`[Ingest] Suggestion Created for ${event.id}`);
-
-    } catch (err) {
-        console.error('[Ingest] Auto-Suggest Failed:', err);
+    } catch (err: any) {
+        const errorReason = `SUGGESTION_PERSIST_FAILED_${String(err?.message || 'UNKNOWN')}`;
+        const errorDecision = buildDecision('ERROR', errorReason);
+        await persistLeadPipelineOutcome(event, {
+            decision: errorDecision,
+            normalizationStatus: normalized.normalizationStatus,
+            aiInvoked: true,
+            aiCompletedAt,
+            errorReason,
+            modelResultRaw: pickModelResultRaw(resp),
+            intent: trace?.intent?.intent || null,
+            strength: trace?.intent?.strength || null,
+            explanation: (resp.policy_decisions as any)?.explanation || '',
+            strategy
+        });
+        console.error(`[Ingest] Suggestion persistence failed for ${event.id}: ${errorReason}`);
+        return { decision: errorDecision, errorReason };
     }
+
+    return { decision };
 }
 
 // ==========================================
@@ -468,7 +935,7 @@ router.post('/suggestions', async (req: Request, res: Response) => {
         const count = await prisma.suggestionSession.count({ where: { event_id: event.id } });
 
         // Phase 17B: Reconstruct Domain Event
-        const rawMeta = JSON.parse((event as any).metadata || '{}');
+        const rawMeta = parseEventMetadata((event as any).metadata);
 
         const videoEvent: VideoEvent = {
             platform: event.platform as any,

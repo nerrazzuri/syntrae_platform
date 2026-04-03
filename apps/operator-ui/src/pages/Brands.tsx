@@ -122,14 +122,25 @@ export function BrandsPage() {
                             </button>
                             <button
                                 onClick={async () => {
-                                    if (confirm('Queue a Discovery Run? Make sure your Agent is running!')) {
+                                    if (confirm('Queue a TikTok Discovery Run?')) {
                                         await api.post(`/brands/${brand.id}/runs/queue`, { platform: 'tiktok' });
-                                        alert('Run Queued! Watch your agent console.');
+                                        alert('TikTok Run Queued! Watch your agent console.');
                                     }
                                 }}
                                 className="text-sm font-medium text-green-600 hover:text-green-800 underline"
                             >
-                                Run Discovery
+                                Run TikTok
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (confirm('Queue a Xiaohongshu Discovery Run?')) {
+                                        await api.post(`/brands/${brand.id}/runs/queue`, { platform: 'xiaohongshu' });
+                                        alert('Xiaohongshu Run Queued! Watch your agent console.');
+                                    }
+                                }}
+                                className="text-sm font-medium text-red-600 hover:text-red-800 underline"
+                            >
+                                Run XHS
                             </button>
                             <Link
                                 to={`/brands/${brand.id}/policy`}

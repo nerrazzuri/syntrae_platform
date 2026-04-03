@@ -24,12 +24,17 @@ export class SuggestionService {
             where.status = status;
         }
 
-        return await prisma.suggestion.findMany({
+        const suggestions = await prisma.suggestion.findMany({
             where,
             orderBy: { created_at: 'desc' },
             take: 100, // Cap for now
             include: { event: true }
         });
+
+        return suggestions.map((suggestion: any) => ({
+            ...suggestion,
+            original_comment: suggestion.event?.content_text || null
+        })) as any;
     }
 
     /**
@@ -37,7 +42,8 @@ export class SuggestionService {
      */
     static async getSuggestionDetail(workspaceId: string, suggestionId: string) {
         const suggestion = await prisma.suggestion.findUnique({
-            where: { id: suggestionId }
+            where: { id: suggestionId },
+            include: { event: true }
         });
 
         if (!suggestion || suggestion.workspace_id !== workspaceId) {
@@ -49,6 +55,7 @@ export class SuggestionService {
 
         return {
             ...suggestion,
+            original_comment: suggestion.event?.content_text || null,
             explanation
         };
     }

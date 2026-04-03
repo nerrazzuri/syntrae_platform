@@ -59,7 +59,7 @@ export class BootstrapService {
             await tx.ownerSettings.create({
                 data: {
                     workspace_id: account.id,
-                    mode: 'OBSERVE_ONLY',
+                    mode: 'SUGGEST',
                     max_suggestions_per_day: 20, // Free tier default
                     max_suggestions_per_video: 2,
                     automation_opt_in: false,

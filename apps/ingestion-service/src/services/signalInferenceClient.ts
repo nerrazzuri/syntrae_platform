@@ -1,5 +1,4 @@
-
-import { DetectedSignal } from './brain/types';
+import { DetectedSignal, EngagementIntent, IntentCategory } from './brain/types';
 
 export interface InferenceRequest {
     text: string;
@@ -7,18 +6,28 @@ export interface InferenceRequest {
 }
 
 export interface InferenceResponse {
-    inferred_signals: DetectedSignal[];
+    inferred_signals?: Array<{ type: string; confidence: number }>;
+    intent_hint?: string;
+    intent_category?: string;
+    intent_confidence?: number;
+}
+
+export interface InferenceResult {
+    inferredSignals: DetectedSignal[];
+    intentHint?: EngagementIntent;
+    intentCategory?: IntentCategory;
+    intentConfidence?: number;
 }
 
 export class SignalInferenceClient {
     private baseUrl: string;
-    private timeoutMs: number = 5000;
+    private timeoutMs: number = 60000;
 
     constructor() {
         this.baseUrl = process.env.AI_CORE_BASE_URL || process.env.AI_CORE_URL || 'http://localhost:8000';
     }
 
-    async inferSignals(text: string, existingSignals: DetectedSignal[], context?: any): Promise<DetectedSignal[]> {
+    async inferSignals(text: string, existingSignals: DetectedSignal[], context?: any): Promise<InferenceResult> {
         const url = `${this.baseUrl}/v1/internal/signal-inference`;
 
         try {
@@ -29,12 +38,15 @@ export class SignalInferenceClient {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Internal-Secret': process.env.AI_CORE_INTERNAL_SECRET || ''
+                    'X-Internal-Secret': process.env.AI_CORE_INTERNAL_SECRET || '',
+                    'X-Tenant-Id': context?.account_id || context?.workspaceId || 'system'
                 },
                 body: JSON.stringify({
                     text,
+                    existing_signals: existingSignals,
+                    language: context?.language || 'en',
+                    domain: context?.platform || 'unknown',
                     context
-                    // existing_signals: existingSignals // Causing 422? User curl used text only.
                 }),
                 signal: controller.signal
             });
@@ -43,18 +55,15 @@ export class SignalInferenceClient {
 
             if (!response.ok) {
                 console.warn(`[SignalInference] Failed: ${response.status} ${response.statusText}`);
-                return [];
+                return { inferredSignals: [] };
             }
 
-            const data = await response.json() as any;
+            const data = await response.json() as InferenceResponse;
 
-            // Validate and Map Response
-            if (!data.inferred_signals || !Array.isArray(data.inferred_signals)) {
-                return [];
-            }
+            const rawSignals = Array.isArray(data.inferred_signals) ? data.inferred_signals : [];
 
             // Adapter: AI-Core Types -> Brain Categories
-            return data.inferred_signals.map((s: any) => {
+            const inferredSignals = rawSignals.map((s: any) => {
                 let category: any = 'CONTEXT'; // Default
                 let signal = s.type ? s.type.toLowerCase() : 'unknown';
 
@@ -80,6 +89,19 @@ export class SignalInferenceClient {
                 } as DetectedSignal;
             });
 
+            const intentHint = this.mapIntentHint(data.intent_hint);
+            const intentCategory = this.mapIntentCategory(data.intent_category);
+            const intentConfidence = typeof data.intent_confidence === 'number'
+                ? Math.max(0, Math.min(1, data.intent_confidence))
+                : undefined;
+
+            return {
+                inferredSignals,
+                intentHint,
+                intentCategory,
+                intentConfidence
+            };
+
         } catch (err: any) {
             // SILENT FAIL (Logs only)
             if (err.name === 'AbortError') {
@@ -87,8 +109,30 @@ export class SignalInferenceClient {
             } else {
                 console.warn(`[SignalInference] Network Error: ${err.message}`);
             }
-            return [];
+            return { inferredSignals: [] };
         }
+    }
+
+    private mapIntentHint(raw?: string): EngagementIntent | undefined {
+        const allowed: EngagementIntent[] = [
+            'NOISE',
+            'UNKNOWN',
+            'PRODUCT_INQUIRY',
+            'PROBLEM_SOLUTION',
+            'FIT_SUITABILITY',
+            'LATENT_PURCHASE',
+            'POST_PURCHASE_REGRET'
+        ];
+
+        if (!raw) return undefined;
+        return allowed.includes(raw as EngagementIntent) ? (raw as EngagementIntent) : undefined;
+    }
+
+    private mapIntentCategory(raw?: string): IntentCategory | undefined {
+        const allowed: IntentCategory[] = ['high intent', 'mid intent', 'low intent', 'junk'];
+        if (!raw) return undefined;
+        const normalized = raw.trim().toLowerCase() as IntentCategory;
+        return allowed.includes(normalized) ? normalized : undefined;
     }
 }
 

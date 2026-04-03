@@ -147,6 +147,7 @@ model EngagementEvent {
   id                 String   @id @default(uuid())
   external_event_id  String?  @unique
   dedup_key          String   @unique
+  semantic_dedup_key String?  @unique
   observed_at        DateTime?
   platform           String
   target_id          String   @default("unknown")
@@ -174,6 +175,7 @@ model EngagementEvent {
   @@index([install_id])
   @@index([created_at])
   @@index([brand_id])
+  @@index([account_id, platform, video_id, created_at])
   @@schema("core")
 }
 

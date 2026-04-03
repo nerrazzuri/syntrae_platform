@@ -18,5 +18,25 @@
     {
         "id": "sig_int_w_which",
         "signal": "which"
+    },
+    {
+        "id": "sig_int_w_zh_what",
+        "signal": "什么"
+    },
+    {
+        "id": "sig_int_w_zh_how",
+        "signal": "怎么"
+    },
+    {
+        "id": "sig_int_w_zh_where",
+        "signal": "哪"
+    },
+    {
+        "id": "sig_int_w_zh_beg",
+        "signal": "求"
+    },
+    {
+        "id": "sig_int_w_zh_q",
+        "signal": "吗"
     }
 ]

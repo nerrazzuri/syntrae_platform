@@ -32,8 +32,7 @@ class BrowserController:
         return f"{text[:2]}***{text[-2:]}"
 
     async def launch(self):
-        """Launches the browser via Bright Data CDP (Remote Browser)."""
-        logger.info(f"Connecting to Bright Data CDP ({self.browser_type_name})...")
+        """Launches the browser via Bright Data CDP or falls back to Local Browser."""
         self._playwright = await async_playwright().start()
         
         # Bright Data CDP Configuration
@@ -42,17 +41,23 @@ class BrowserController:
         password = os.getenv("PROXY_PASSWORD")
         
         if not username or not password:
-            logger.error("Missing PROXY_USERNAME or PROXY_PASSWORD. Cannot connect to Bright Data.")
-            raise RuntimeError("Bright Data credentials missing in environment.")
+            logger.info("Missing Bright Data Proxy credentials. Launching LOCAL Chromium browser.")
+            self._browser = await self._playwright.chromium.launch(
+                headless=self.headless,
+                args=["--disable-blink-features=AutomationControlled"]
+            )
+            logger.info("Local browser launched.")
+            return
 
+        logger.info(f"Connecting to Bright Data CDP ({self.browser_type_name})...")
         # Construct WebSocket Endpoint
         # Endpoint: wss://brd.superproxy.io:9222
         # IMPORTANT: Ensure credentials are URL encoded to handle special characters
+        from urllib.parse import quote
         encoded_user = quote(username)
         encoded_pass = quote(password)
         ws_endpoint = f"wss://{encoded_user}:{encoded_pass}@brd.superproxy.io:9222"
 
-        
         # Safe Log for Debugging (Mask password)
         masked_endpoint = f"wss://brd.superproxy.io:9222?auth={username[:4]}***:{'***'}"
         logger.info(f"Connecting to CDP Endpoint: {masked_endpoint}")
@@ -70,7 +75,7 @@ class BrowserController:
             logger.critical(f"Failed to connect to Bright Data CDP: {e}")
             raise
 
-    async def new_context(self, user_agent: Optional[str] = None, locale: str = "en-MY"):
+    async def new_context(self, user_agent: Optional[str] = None, locale: str = "en-MY", warmup_url: Optional[str] = None):
         """Creates a new isolated browser context. Forces DESKTOP mode."""
         if not self._browser:
             raise RuntimeError("Browser not launched. Call launch() first.")
@@ -116,14 +121,15 @@ class BrowserController:
 
 
         # WARM-UP NAVIGATION
-        logger.info("Performing warm-up navigation...")
-        try:
-            await self._page.goto("https://www.tiktok.com/foryou", wait_until="domcontentloaded", timeout=45000)
-            logger.info("Warm-up page loaded. Waiting 3 seconds...")
-            await asyncio.sleep(3)
-            logger.info("Warm-up completed.")
-        except Exception as e:
-            logger.warning(f"Warm-up navigation encountered an issue (non-fatal): {e}")
+        if warmup_url:
+            logger.info("Performing warm-up navigation...")
+            try:
+                await self._page.goto(warmup_url, wait_until="domcontentloaded", timeout=45000)
+                logger.info("Warm-up page loaded. Waiting 3 seconds...")
+                await asyncio.sleep(3)
+                logger.info("Warm-up completed.")
+            except Exception as e:
+                logger.warning(f"Warm-up navigation encountered an issue (non-fatal): {e}")
 
     async def navigate(self, url: str):
         """Safe navigation primitive."""

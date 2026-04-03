@@ -1,10 +1,11 @@
-
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Client } from '../lib/api';
-import { Play, CheckCircle, AlertTriangle, XCircle, Clock } from 'lucide-react';
+import { Play, CheckCircle, AlertTriangle, XCircle, Clock, Activity } from 'lucide-react';
 
 export function Runs() {
     const [runs, setRuns] = useState<any[]>([]);
+    const [health, setHealth] = useState<any | null>(null);
     const [loading, setLoading] = useState(true);
     const [selectedRun, setSelectedRun] = useState<any | null>(null);
 
@@ -13,6 +14,7 @@ export function Runs() {
             setLoading(true);
             const data = await Client.get('/runs');
             setRuns(data.runs || []);
+            setHealth(data.health || null);
         } catch (e) {
             console.error(e);
         } finally {
@@ -30,61 +32,67 @@ export function Runs() {
     };
 
     const statusBadge = (status: string) => {
-        const styles: Record<string, { bg: string; text: string; icon: any }> = {
-            COMPLETED: { bg: 'bg-green-100', text: 'text-green-800', icon: <CheckCircle className="w-4 h-4" /> },
-            DEGRADED: { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: <AlertTriangle className="w-4 h-4" /> },
-            FAILED: { bg: 'bg-red-100', text: 'text-red-800', icon: <XCircle className="w-4 h-4" /> },
-            RUNNING: { bg: 'bg-blue-100', text: 'text-blue-800', icon: <Play className="w-4 h-4" /> },
-            PENDING: { bg: 'bg-gray-100', text: 'text-gray-800', icon: <Clock className="w-4 h-4" /> },
+        const styles: Record<string, { bg: string; icon: any }> = {
+            COMPLETED: { bg: 'bg-emerald-100 text-emerald-700', icon: <CheckCircle className="h-4 w-4" /> },
+            DEGRADED: { bg: 'bg-amber-100 text-amber-700', icon: <AlertTriangle className="h-4 w-4" /> },
+            FAILED: { bg: 'bg-rose-100 text-rose-700', icon: <XCircle className="h-4 w-4" /> },
+            RUNNING: { bg: 'bg-sky-100 text-sky-700', icon: <Play className="h-4 w-4" /> },
+            PENDING: { bg: 'bg-slate-100 text-slate-700', icon: <Clock className="h-4 w-4" /> },
         };
         const style = styles[status] || styles.PENDING;
-        return (
-            <span className={`px-2 py-1 rounded text-xs font-bold flex items-center gap-1 ${style.bg} ${style.text}`}>
-                {style.icon}
-                {status}
-            </span>
-        );
+        return <span className={`status-pill ${style.bg}`}>{style.icon}{status}</span>;
     };
 
-    return (
-        <div className="flex h-full flex-col">
-            {/* Toolbar */}
-            <div className="p-4 border-b bg-white flex justify-between items-center">
-                <div>
-                    <h2 className="text-xl font-bold flex items-center gap-2">
-                        <Play className="w-6 h-6 text-blue-600" />
-                        Automation Runs
-                    </h2>
-                    <p className="text-sm text-gray-500 mt-1">
-                        View discovery run outcomes and execution stats
-                    </p>
-                </div>
-            </div>
+    const statValue = (run: any, key: string) => Number(run.stats?.[key] || 0);
 
-            {/* List */}
-            <div className="flex-1 overflow-auto p-4">
-                {loading ? (
-                    <div className="text-center py-12 text-gray-500">Loading...</div>
-                ) : runs.length === 0 ? (
-                    <div className="text-center py-12">
-                        <Play className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                        <h3 className="text-lg font-medium text-gray-600 mb-2">No Runs Yet</h3>
-                        <p className="text-sm text-gray-500">
-                            Automation runs will appear here once you trigger discovery
+    return (
+        <div className="space-y-6">
+            <section className="panel p-6 lg:p-8">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                        <div className="hero-kicker">Automation Runs</div>
+                        <h1 className="hero-title mt-3">See what the workers touched, skipped, retried, and emitted.</h1>
+                        <p className="hero-copy">
+                            This is the operating console for discovery health. Duplicate suppression, cooldown skips, retries, and worker status are visible here by run.
                         </p>
                     </div>
+                    <div className="panel-strong flex items-center gap-3 px-5 py-4">
+                        <Activity className="h-5 w-5 text-teal-700" />
+                        <div>
+                            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Run Records</div>
+                            <div className="mt-1 text-2xl font-bold text-slate-900">{runs.length}</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {health && (
+                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <SummaryCard label="Active Workers" value={health.active_workers || 0} tone="teal" />
+                    <SummaryCard label="Cooldown Skips" value={health.cooldown_skipped || 0} tone="amber" />
+                    <SummaryCard label="Duplicates Suppressed" value={health.duplicate_suppressed || 0} tone="sky" />
+                    <SummaryCard label="Stale Retries" value={health.stale_retries || 0} tone="rose" />
+                </section>
+            )}
+
+            <section className="table-shell overflow-x-auto">
+                {loading ? (
+                    <div className="p-8 text-slate-500">Loading runs...</div>
+                ) : runs.length === 0 ? (
+                    <div className="p-10 text-center text-slate-400">Automation runs will appear here once discovery is triggered.</div>
                 ) : (
-                    <table className="w-full bg-white border rounded shadow-sm">
-                        <thead className="bg-gray-50 border-b">
+                    <table className="min-w-full">
+                        <thead className="table-head border-b border-slate-200">
                             <tr>
-                                <th className="text-left p-3 text-sm font-semibold text-gray-500">Run ID</th>
-                                <th className="text-left p-3 text-sm font-semibold text-gray-500">Brand</th>
-                                <th className="text-left p-3 text-sm font-semibold text-gray-500">Status</th>
-                                <th className="text-left p-3 text-sm font-semibold text-gray-500">Videos</th>
-                                <th className="text-left p-3 text-sm font-semibold text-gray-500">Comments</th>
-                                <th className="text-left p-3 text-sm font-semibold text-gray-500">Emitted</th>
-                                <th className="text-left p-3 text-sm font-semibold text-gray-500">Started</th>
-                                <th className="w-10"></th>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Run ID</th>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Brand</th>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Status</th>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Videos</th>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Comments</th>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Suppressed</th>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Worker</th>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Started</th>
+                                <th className="px-4 py-4"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -93,27 +101,35 @@ export function Runs() {
                                 return (
                                     <tr
                                         key={run.id}
-                                        className="border-b hover:bg-gray-50 cursor-pointer"
+                                        className="table-row cursor-pointer border-b border-slate-100"
                                         onClick={() => setSelectedRun(run)}
                                     >
-                                        <td className="p-3 text-sm text-gray-600 font-mono">
-                                            {run.id.substring(0, 8)}...
+                                        <td className="px-4 py-4 font-mono text-xs text-slate-500">{run.id.substring(0, 10)}...</td>
+                                        <td className="px-4 py-4 text-sm font-semibold text-slate-800">{run.brand_name || 'Unknown'}</td>
+                                        <td className="px-4 py-4 text-sm">{statusBadge(run.status)}</td>
+                                        <td className="px-4 py-4 text-sm text-slate-700">{stats.videos_processed || 0}</td>
+                                        <td className="px-4 py-4 text-sm text-slate-700">
+                                            <div>Captured: {stats.comments_captured || 0}</div>
+                                            <div className="text-xs text-slate-500">
+                                                Emitted: {stats.comments_emitted_success || 0}
+                                                {stats.comments_emitted_failed > 0 && ` / ${stats.comments_emitted_failed} failed`}
+                                            </div>
                                         </td>
-                                        <td className="p-3 text-sm text-gray-800 font-medium">{run.brand_name || 'Unknown'}</td>
-                                        <td className="p-3 text-sm">{statusBadge(run.status)}</td>
-                                        <td className="p-3 text-sm text-gray-700">{stats.videos_processed || 0}</td>
-                                        <td className="p-3 text-sm text-gray-700">{stats.comments_captured || 0}</td>
-                                        <td className="p-3 text-sm">
-                                            <span className="text-green-700">{stats.comments_emitted_success || 0}</span>
-                                            {stats.comments_emitted_failed > 0 && (
-                                                <span className="text-red-700 ml-1">/ {stats.comments_emitted_failed}</span>
-                                            )}
+                                        <td className="px-4 py-4 text-sm text-slate-700">
+                                            <div>Dupes: {statValue(run, 'duplicate_suppressed')}</div>
+                                            <div className="text-xs text-slate-500">
+                                                Cooldown: {statValue(run, 'video_cooldown_suppressed') + statValue(run, 'videos_skipped_cooldown')}
+                                            </div>
                                         </td>
-                                        <td className="p-3 text-sm text-gray-500 whitespace-nowrap">
-                                            {formatDate(run.started_at)}
+                                        <td className="px-4 py-4 text-sm text-slate-700">
+                                            <div>{run.claimed_by || '-'}</div>
+                                            <div className="text-xs text-slate-500">{run.worker_health}</div>
                                         </td>
-                                        <td className="p-3 text-right">
-                                            <button className="text-blue-600 text-sm font-medium">View</button>
+                                        <td className="px-4 py-4 text-sm whitespace-nowrap text-slate-500">{formatDate(run.started_at)}</td>
+                                        <td className="px-4 py-4 text-right">
+                                            <button className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-teal-700 transition hover:bg-teal-50">
+                                                View
+                                            </button>
                                         </td>
                                     </tr>
                                 );
@@ -121,98 +137,59 @@ export function Runs() {
                         </tbody>
                     </table>
                 )}
-            </div>
+            </section>
 
-            {/* Detail Modal */}
             {selectedRun && (
                 <div
-                    className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50"
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4"
                     onClick={() => setSelectedRun(null)}
                 >
                     <div
-                        className="bg-white rounded-lg shadow-2xl max-w-3xl w-full mx-4 max-h-[80vh] overflow-auto"
+                        className="panel-strong max-h-[85vh] w-full max-w-4xl overflow-auto"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="p-6 border-b">
-                            <h3 className="text-lg font-bold flex items-center gap-2">
-                                <Play className="w-5 h-5 text-blue-600" />
-                                Run Details
-                            </h3>
+                        <div className="border-b border-slate-200 p-6">
+                            <div className="hero-kicker">Run Detail</div>
+                            <h3 className="mt-2 text-xl font-bold">Automation execution record</h3>
                         </div>
-                        <div className="p-6 space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-xs font-semibold text-gray-500 uppercase">Run ID</label>
-                                    <div className="text-sm font-mono bg-gray-50 p-2 rounded mt-1">{selectedRun.id}</div>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-gray-500 uppercase">Status</label>
-                                    <div className="mt-1">{statusBadge(selectedRun.status)}</div>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-gray-500 uppercase">Platform</label>
-                                    <div className="text-sm font-medium mt-1 uppercase">{selectedRun.platform}</div>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-gray-500 uppercase">Brand ID</label>
-                                    <div className="text-sm font-mono mt-1">{selectedRun.brand_id}</div>
-                                </div>
+                        <div className="space-y-5 p-6">
+                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                <DetailPanel label="Run ID" value={<div className="font-mono text-sm">{selectedRun.id}</div>} />
+                                <DetailPanel label="Status" value={statusBadge(selectedRun.status)} />
+                                <DetailPanel label="Platform" value={<span className="uppercase">{selectedRun.platform}</span>} />
+                                <DetailPanel label="Brand ID" value={<div className="font-mono text-sm">{selectedRun.brand_id}</div>} />
+                                <DetailPanel label="Worker" value={selectedRun.claimed_by || '-'} />
+                                <DetailPanel label="Worker Health" value={selectedRun.worker_health || 'IDLE'} />
+                                <DetailPanel label="Retry Attempts" value={Math.max((selectedRun.attempt_count || 0) - 1, 0)} />
+                                <DetailPanel label="Last Error" value={selectedRun.last_error || '-'} />
                             </div>
 
-                            <div className="border-t pt-4">
-                                <h4 className="font-semibold mb-3">Execution Counts</h4>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-blue-50 p-3 rounded">
-                                        <div className="text-xs text-blue-600 font-semibold uppercase">Videos Processed</div>
-                                        <div className="text-2xl font-bold text-blue-900 mt-1">
-                                            {selectedRun.stats?.videos_processed || 0}
-                                        </div>
-                                    </div>
-                                    <div className="bg-purple-50 p-3 rounded">
-                                        <div className="text-xs text-purple-600 font-semibold uppercase">Comments Captured</div>
-                                        <div className="text-2xl font-bold text-purple-900 mt-1">
-                                            {selectedRun.stats?.comments_captured || 0}
-                                        </div>
-                                    </div>
-                                    <div className="bg-green-50 p-3 rounded">
-                                        <div className="text-xs text-green-600 font-semibold uppercase">Successfully Emitted</div>
-                                        <div className="text-2xl font-bold text-green-900 mt-1">
-                                            {selectedRun.stats?.comments_emitted_success || 0}
-                                        </div>
-                                    </div>
-                                    <div className="bg-red-50 p-3 rounded">
-                                        <div className="text-xs text-red-600 font-semibold uppercase">Emission Failures</div>
-                                        <div className="text-2xl font-bold text-red-900 mt-1">
-                                            {selectedRun.stats?.comments_emitted_failed || 0}
-                                        </div>
-                                    </div>
-                                </div>
+                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                <MetricBox label="Videos Processed" value={selectedRun.stats?.videos_processed || 0} tone="sky" />
+                                <MetricBox label="Comments Captured" value={selectedRun.stats?.comments_captured || 0} tone="amber" />
+                                <MetricBox label="Successfully Emitted" value={selectedRun.stats?.comments_emitted_success || 0} tone="green" />
+                                <MetricBox label="Emission Failures" value={selectedRun.stats?.comments_emitted_failed || 0} tone="rose" />
+                                <MetricBox label="Duplicates Suppressed" value={selectedRun.stats?.duplicate_suppressed || 0} tone="sky" />
+                                <MetricBox label="Cooldown Suppressed" value={(selectedRun.stats?.video_cooldown_suppressed || 0) + (selectedRun.stats?.videos_skipped_cooldown || 0)} tone="amber" />
                             </div>
 
                             {selectedRun.abort_reason && (
-                                <div className="bg-yellow-50 border border-yellow-200 p-3 rounded">
-                                    <div className="text-xs font-semibold text-yellow-800 uppercase mb-1">Abort Reason</div>
-                                    <div className="text-sm text-yellow-900">{selectedRun.abort_reason}</div>
+                                <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4">
+                                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">Abort Reason</div>
+                                    <div className="mt-2 text-sm text-amber-900">{selectedRun.abort_reason}</div>
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <label className="text-xs font-semibold text-gray-500 uppercase">Started At</label>
-                                    <div className="text-sm mt-1">{formatDate(selectedRun.started_at)}</div>
-                                </div>
-                                {selectedRun.ended_at && (
-                                    <div>
-                                        <label className="text-xs font-semibold text-gray-500 uppercase">Ended At</label>
-                                        <div className="text-sm mt-1">{formatDate(selectedRun.ended_at)}</div>
-                                    </div>
-                                )}
+                            <div className="grid gap-4 md:grid-cols-3">
+                                <DetailPanel label="Started At" value={formatDate(selectedRun.started_at)} />
+                                <DetailPanel label="Last Heartbeat" value={selectedRun.heartbeat_at ? formatDate(selectedRun.heartbeat_at) : '-'} />
+                                <DetailPanel label="Ended At" value={selectedRun.ended_at ? formatDate(selectedRun.ended_at) : '-'} />
                             </div>
                         </div>
-                        <div className="p-6 border-t flex justify-end">
+                        <div className="border-t border-slate-200 p-6 text-right">
                             <button
                                 onClick={() => setSelectedRun(null)}
-                                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded font-medium"
+                                className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                             >
                                 Close
                             </button>
@@ -220,6 +197,47 @@ export function Runs() {
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+function SummaryCard({ label, value, tone }: { label: string; value: number; tone: 'teal' | 'amber' | 'sky' | 'rose' }) {
+    const toneStyles: Record<string, string> = {
+        teal: 'from-teal-500/20 to-emerald-500/10',
+        amber: 'from-amber-500/20 to-orange-500/10',
+        sky: 'from-sky-500/20 to-cyan-500/10',
+        rose: 'from-rose-500/20 to-pink-500/10',
+    };
+
+    return (
+        <div className={`metric-panel bg-gradient-to-br ${toneStyles[tone]}`}>
+            <div className="text-sm font-semibold text-slate-500">{label}</div>
+            <div className="mt-2 text-3xl font-bold text-slate-900">{value}</div>
+        </div>
+    );
+}
+
+function DetailPanel({ label, value }: { label: string; value: ReactNode }) {
+    return (
+        <div className="panel p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">{label}</div>
+            <div className="mt-3 text-slate-800">{value}</div>
+        </div>
+    );
+}
+
+function MetricBox({ label, value, tone }: { label: string; value: number; tone: 'sky' | 'amber' | 'green' | 'rose' }) {
+    const toneStyles: Record<string, string> = {
+        sky: 'bg-sky-50 text-sky-900 border-sky-100',
+        amber: 'bg-amber-50 text-amber-900 border-amber-100',
+        green: 'bg-emerald-50 text-emerald-900 border-emerald-100',
+        rose: 'bg-rose-50 text-rose-900 border-rose-100',
+    };
+
+    return (
+        <div className={`rounded-3xl border p-5 ${toneStyles[tone]}`}>
+            <div className="text-xs font-semibold uppercase tracking-[0.24em] opacity-75">{label}</div>
+            <div className="mt-2 text-3xl font-bold">{value}</div>
         </div>
     );
 }

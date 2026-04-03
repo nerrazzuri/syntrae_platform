@@ -82,6 +82,12 @@ export type EngagementIntent =
     | 'FIT_SUITABILITY'
     | 'UNKNOWN';
 
+export type IntentCategory =
+    | 'high intent'
+    | 'mid intent'
+    | 'low intent'
+    | 'junk';
+
 export interface IntentRule {
     id: string;
     intent: EngagementIntent;

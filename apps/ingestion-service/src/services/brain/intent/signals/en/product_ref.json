@@ -30,5 +30,41 @@
     {
         "id": "sig_prod_lipstick",
         "signal": "lipstick"
+    },
+    {
+        "id": "sig_prod_zh_guasha",
+        "signal": "刮痧板"
+    },
+    {
+        "id": "sig_prod_zh_cleanser",
+        "signal": "洗面奶"
+    },
+    {
+        "id": "sig_prod_zh_mask",
+        "signal": "泥膜"
+    },
+    {
+        "id": "sig_prod_zh_softmask",
+        "signal": "软膜"
+    },
+    {
+        "id": "sig_prod_zh_cream",
+        "signal": "霜"
+    },
+    {
+        "id": "sig_prod_zh_product",
+        "signal": "产品"
+    },
+    {
+        "id": "sig_prod_zh_this",
+        "signal": "这"
+    },
+    {
+        "id": "sig_prod_zh_essence",
+        "signal": "精华"
+    },
+    {
+        "id": "sig_prod_zh_water",
+        "signal": "爽肤水"
     }
 ]

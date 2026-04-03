@@ -58,6 +58,9 @@ def test_signal_inference_success(client, mock_openai, valid_headers):
                 content=json.dumps(
                     {
                         "signals": [{"type": "VALUE_EVALUATION", "confidence": 0.8}],
+                        "intent_hint": "PRODUCT_INQUIRY",
+                        "intent_category": "mid intent",
+                        "intent_confidence": 0.81,
                         "explanation": "Valid signal.",
                     }
                 )
@@ -82,6 +85,8 @@ def test_signal_inference_success(client, mock_openai, valid_headers):
     data = response.json()
     assert len(data["inferred_signals"]) == 1
     assert data["inferred_signals"][0]["type"] == "VALUE_EVALUATION"
+    assert data["intent_hint"] == "PRODUCT_INQUIRY"
+    assert data["intent_category"] == "mid intent"
 
 
 def test_missing_internal_secret(client):
@@ -151,3 +156,125 @@ def test_signal_inference_internal_error_handling(client, mock_openai, valid_hea
 
     assert response.status_code == 500
     assert "OpenAI Error" in response.json()["detail"]
+
+
+def test_signal_inference_returns_intent_category(client, mock_openai, valid_headers):
+    mock_instance = mock_openai.return_value
+    mock_chat = mock_instance.chat.completions.create.return_value
+    mock_chat.choices = [
+        MagicMock(
+            message=MagicMock(
+                content=json.dumps(
+                    {
+                        "signals": [],
+                        "intent_hint": "PROBLEM_SOLUTION",
+                        "intent_category": "high intent",
+                        "intent_confidence": 0.88,
+                        "explanation": "Strong problem-solving request.",
+                    }
+                )
+            )
+        )
+    ]
+
+    response = client.post(
+        "/v1/internal/signal-inference",
+        json={
+            "text": "总感觉脸很黄，很粗糙，毛孔大怎么办😱",
+        },
+        headers=valid_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["intent_hint"] == "PROBLEM_SOLUTION"
+    assert data["intent_category"] == "high intent"
+    assert data["intent_confidence"] >= 0.8
+
+
+def test_signal_inference_allows_empty_signals_with_category(
+    client, mock_openai, valid_headers
+):
+    mock_instance = mock_openai.return_value
+    mock_chat = mock_instance.chat.completions.create.return_value
+    mock_chat.choices = [
+        MagicMock(
+            message=MagicMock(
+                content=json.dumps(
+                    {
+                        "signals": [],
+                        "intent_hint": "NOISE",
+                        "intent_category": "junk",
+                        "intent_confidence": 0.91,
+                        "explanation": "Pure reaction with no commercial intent.",
+                    }
+                )
+            )
+        )
+    ]
+
+    response = client.post(
+        "/v1/internal/signal-inference",
+        json={
+            "text": "好看爱看[赞R]",
+        },
+        headers=valid_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["inferred_signals"] == []
+    assert data["intent_hint"] == "NOISE"
+    assert data["intent_category"] == "junk"
+
+
+def test_signal_inference_resolves_high_intent_to_lead_intent(
+    client, mock_openai, valid_headers
+):
+    mock_instance = mock_openai.return_value
+    mock_instance.chat.completions.create.side_effect = [
+        MagicMock(
+            choices=[
+                MagicMock(
+                    message=MagicMock(
+                        content=json.dumps(
+                            {
+                                "signals": [],
+                                "intent_hint": "UNKNOWN",
+                                "intent_category": "high intent",
+                                "intent_confidence": 0.62,
+                                "explanation": "Commercially relevant but not yet resolved.",
+                            }
+                        )
+                    )
+                )
+            ]
+        ),
+        MagicMock(
+            choices=[
+                MagicMock(
+                    message=MagicMock(
+                        content=json.dumps(
+                            {
+                                "intent_hint": "PRODUCT_INQUIRY",
+                                "intent_confidence": 0.9,
+                                "explanation": "This is best treated as a direct product request.",
+                            }
+                        )
+                    )
+                )
+            ]
+        ),
+    ]
+
+    response = client.post(
+        "/v1/internal/signal-inference",
+        json={"text": "宝宝乳液和精油可以分享一下吗？"},
+        headers=valid_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["intent_category"] == "high intent"
+    assert data["intent_hint"] == "PRODUCT_INQUIRY"
+    assert data["intent_confidence"] >= 0.82

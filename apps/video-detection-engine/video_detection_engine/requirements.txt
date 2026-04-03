@@ -16,5 +16,6 @@ SpeechRecognition
 pytest-asyncio
 playwright==1.40.0
 nest_asyncio==1.5.8
-httpx==0.26.0
+httpx>=0.27.0
 playwright-stealth==1.0.6
+xiaohongshu-cli

@@ -18,5 +18,21 @@
     {
         "id": "sig_src_brand",
         "signal": "brand"
+    },
+    {
+        "id": "sig_src_zh_buy",
+        "signal": "买"
+    },
+    {
+        "id": "sig_src_zh_link",
+        "signal": "链接"
+    },
+    {
+        "id": "sig_src_zh_brand",
+        "signal": "牌子"
+    },
+    {
+        "id": "sig_src_zh_brand_2",
+        "signal": "品牌"
     }
 ]
