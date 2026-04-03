@@ -5,11 +5,14 @@ import { IngestionService, IngestStatus } from '../services/ingestion/ingestion_
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
+const BYPASS_ENABLED = process.env.INTERNAL_AUTH_BYPASS_ENABLE === '1';
+const ALLOW_BYPASS_ENV = new Set(['local', 'test']);
+const CURRENT_ENV = (process.env.NODE_ENV || 'development').toLowerCase();
 
 // Middleware: Internal Secret & Headers
 const requireInternalAuth = async (req: Request, res: Response, next: Function) => {
     // Dev Admin Bypass (Testing)
-    if (process.env.NODE_ENV === 'development' && req.headers['x-dev-admin'] === '1') {
+    if (BYPASS_ENABLED && ALLOW_BYPASS_ENV.has(CURRENT_ENV) && req.headers['x-dev-admin'] === '1') {
         console.warn(`[IngestBridge] Bypass Activated for ${req.path}`);
         // Mock required IDs to prevent crash in controller
         (req as any).checkedInstallId = 'dev-install-bypass';

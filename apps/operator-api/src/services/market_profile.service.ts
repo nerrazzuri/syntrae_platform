@@ -35,7 +35,51 @@ const CATEGORY_EXCLUSIONS: Record<MarketCategory, string[]> = {
 
 export class MarketProfileService {
 
-    static async createProfile(brandId: string, data: CreateProfileDTO) {
+    static async assertBrandAccess(brandId: string, workspaceId: string) {
+        const brand = await prisma.brand.findFirst({
+            where: { id: brandId, workspace_id: workspaceId },
+            select: { id: true }
+        });
+
+        if (!brand) {
+            throw new Error('Brand not found or access denied');
+        }
+
+        return brand;
+    }
+
+    static async assertBrandExists(brandId: string) {
+        const brand = await prisma.brand.findUnique({
+            where: { id: brandId },
+            select: { id: true }
+        });
+
+        if (!brand) {
+            throw new Error('Brand not found');
+        }
+
+        return brand;
+    }
+
+    static async assertProfileAccess(id: string, workspaceId: string) {
+        const profile = await prisma.marketProfile.findFirst({
+            where: {
+                id,
+                brand: {
+                    workspace_id: workspaceId
+                }
+            }
+        });
+
+        if (!profile) {
+            throw new Error('Profile not found or access denied');
+        }
+
+        return profile;
+    }
+
+    static async createProfile(brandId: string, workspaceId: string, data: CreateProfileDTO) {
+        await this.assertBrandAccess(brandId, workspaceId);
         const { validation_warnings, quality_score } = this.validateProfile(data);
 
         // Default weights if not provided
@@ -60,9 +104,8 @@ export class MarketProfileService {
         });
     }
 
-    static async updateProfile(id: string, data: UpdateProfileDTO) {
-        const existing = await prisma.marketProfile.findUnique({ where: { id } });
-        if (!existing) throw new Error("Profile not found");
+    static async updateProfile(id: string, workspaceId: string, data: UpdateProfileDTO) {
+        const existing = await this.assertProfileAccess(id, workspaceId);
 
         // Merge data for validation
         const merged: CreateProfileDTO = {
@@ -109,13 +152,23 @@ export class MarketProfileService {
         });
     }
 
-    static async getActiveProfile(brandId: string) {
+    static async getActiveProfile(brandId: string, workspaceId?: string) {
+        if (workspaceId) {
+            await this.assertBrandAccess(brandId, workspaceId);
+        } else {
+            await this.assertBrandExists(brandId);
+        }
         return prisma.marketProfile.findFirst({
             where: { brand_id: brandId, is_active: true }
         });
     }
 
-    static async listProfiles(brandId: string) {
+    static async listProfiles(brandId: string, workspaceId?: string) {
+        if (workspaceId) {
+            await this.assertBrandAccess(brandId, workspaceId);
+        } else {
+            await this.assertBrandExists(brandId);
+        }
         return prisma.marketProfile.findMany({
             where: { brand_id: brandId },
             orderBy: { updated_at: 'desc' }

@@ -4,7 +4,6 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
-import { PrismaClient } from '@syntrae/prisma-schema';
 
 // Import Routers
 import { authRouter } from './api/auth';
@@ -24,56 +23,64 @@ import { internalRouter } from './api/internal';
 
 dotenv.config();
 
-const app = express();
 const port = process.env.PORT || 3001;
 
-app.use(helmet());
+export function createApp() {
+    const app = express();
 
-// Proxy Configuration
-if (process.env.TRUST_PROXY === 'true') {
-    app.set('trust proxy', 1); // Trust local NGINX
+    app.use(helmet({
+        crossOriginResourcePolicy: { policy: "cross-origin" }
+    }));
+
+    // Proxy Configuration
+    if (process.env.TRUST_PROXY === 'true') {
+        app.set('trust proxy', 1); // Trust local NGINX
+    }
+
+    // CORS Configuration
+    app.use(cors({
+        origin: [
+            'https://app.syntraeai.com',
+            'https://syntraeai.com',
+            'http://localhost:5173', // Dev
+            'http://localhost:3000'
+        ],
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+    }));
+
+    app.use(cookieParser());
+    app.use(express.json());
+    app.use(morgan('dev'));
+
+    app.get('/health', (req, res) => {
+        res.json({ status: 'ok', service: 'operator-api' });
+    });
+
+    app.use('/auth', authRouter);
+    app.use('/workspaces', workspaceRouter);
+    app.use('/owner', ownerRouter);
+    app.use('/suggestions', suggestionsRouter);
+    app.use('/value', valueRouter);
+    app.use('/leads', leadsRouter);
+    app.use('/billing', billingRouter);
+    app.use('/', runsRouter);
+    app.use('/', policyRouter);
+    app.use('/', marketProfileRouter);
+    app.use('/internal', internalRouter);
+    app.use('/brands', brandRouter);
+    app.use('/analytics', analyticsRouter);
+    app.use('/drafts', draftsRouter);
+
+    return app;
 }
 
-// CORS Configuration
-app.use(cors({
-    origin: [
-        'https://app.syntraeai.com',
-        'https://syntraeai.com',
-        'http://localhost:5173', // Dev
-        'http://localhost:3000'
-    ],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
-}));
+const app = createApp();
 
-app.use(cookieParser());
-app.use(express.json());
-app.use(morgan('dev'));
+if (require.main === module) {
+    app.listen(port, () => {
+        console.log(`[OperatorAPI] Server running on port ${port}`);
+    });
+}
 
-// export const prisma = new PrismaClient(); // Moved to db.ts to avoid circular deps
-
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok', service: 'operator-api' });
-});
-
-// Register Routes
-// Register Routes
-app.use('/auth', authRouter); // Was /api, changed to /auth to match Frontend /auth/me
-app.use('/workspaces', workspaceRouter);
-app.use('/owner', ownerRouter);
-app.use('/suggestions', suggestionsRouter);
-app.use('/value', valueRouter);
-app.use('/leads', leadsRouter);
-app.use('/billing', billingRouter);
-app.use('/', runsRouter);
-app.use('/', policyRouter); // Specific /brands/:id/automation-policy routes
-app.use('/', marketProfileRouter); // Routes are mounted at root level - MUST be before /brands to avoid session conflict
-app.use('/internal', internalRouter); // WF-1: Internal Auth Routes (Strict)
-app.use('/brands', brandRouter); // Generic /brands routes
-app.use('/analytics', analyticsRouter);
-
-app.use('/drafts', draftsRouter);
-
-app.listen(port, () => {
-    console.log(`[OperatorAPI] Server running on port ${port}`);
-});
+export default app;

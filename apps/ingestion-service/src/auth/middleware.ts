@@ -10,9 +10,9 @@ VALID_INSTALLS.set('test-install-id', 'test-token');
 
 export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
     // Dev Admin Bypass (Testing)
-    // Fix: Use config.env which handles defaults, or check process.env explicitly if config not trusted.
-    // Ensure it runs BEFORE any header checks.
-    if (config.env === 'development' && req.headers['x-dev-admin'] === '1') {
+    const env = (config.env || 'development').toLowerCase();
+    const bypassEnabled = process.env.AUTH_BYPASS_ENABLE === '1';
+    if (bypassEnabled && (env === 'local' || env === 'test') && req.headers['x-dev-admin'] === '1') {
         return next();
     }
 

@@ -9,15 +9,39 @@ export const authRouter = Router();
 // Cookie Configuration
 const COOKIE_NAME = 'syntrae_session';
 const IS_PROD = process.env.NODE_ENV === 'production';
+const COOKIE_SECURE = (process.env.COOKIE_SECURE || '').toLowerCase() === 'true'
+    ? true
+    : (process.env.COOKIE_SECURE || '').toLowerCase() === 'false'
+        ? false
+        : IS_PROD;
+const BETA_SIGNUP_ENABLED = (process.env.BETA_SIGNUP_ENABLED || 'false').toLowerCase() === 'true';
+const BETA_SIGNUP_ALLOWLIST = new Set(
+    (process.env.BETA_SIGNUP_ALLOWLIST || '')
+        .split(',')
+        .map(email => email.trim().toLowerCase())
+        .filter(Boolean)
+);
 
 const COOKIE_OPTIONS: any = {
     httpOnly: true,
-    secure: IS_PROD, // Secure in Prod
+    secure: COOKIE_SECURE,
     sameSite: IS_PROD ? 'lax' : 'lax',
     domain: process.env.COOKIE_DOMAIN, // e.g., '.syntraeai.com'
     path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
 };
+
+function isSignupAllowed(email: string) {
+    if (!BETA_SIGNUP_ENABLED) {
+        return false;
+    }
+
+    if (BETA_SIGNUP_ALLOWLIST.size === 0) {
+        return true;
+    }
+
+    return BETA_SIGNUP_ALLOWLIST.has(email.trim().toLowerCase());
+}
 
 authRouter.post('/signup', async (req, res) => {
     try {
@@ -25,6 +49,10 @@ authRouter.post('/signup', async (req, res) => {
 
         if (!email || !password || !workspace_name) {
             return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        if (!isSignupAllowed(email)) {
+            return res.status(403).json({ error: 'Signup is closed for this beta cohort' });
         }
 
         // Bootstrap Account (Transactional)

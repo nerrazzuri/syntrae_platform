@@ -4,11 +4,53 @@ import { PrismaClient, AutomationPolicy, Prisma, PolicyStatus, PolicyMode } from
 const prisma = new PrismaClient();
 
 export class PolicyService {
+    static async assertBrandAccess(brandId: string, workspaceId: string) {
+        const brand = await prisma.brand.findFirst({
+            where: { id: brandId, workspace_id: workspaceId },
+            select: { id: true }
+        });
+
+        if (!brand) {
+            throw new Error('Brand not found or access denied');
+        }
+
+        return brand;
+    }
+
+    static async assertInstallAccess(brandId: string, installId: string) {
+        const install = await prisma.installRegistry.findFirst({
+            where: {
+                install_id: installId,
+                is_active: true,
+                account: {
+                    brands: {
+                        some: { id: brandId }
+                    }
+                }
+            },
+            select: { id: true }
+        });
+
+        if (!install) {
+            throw new Error('Install not authorized for brand');
+        }
+
+        return install;
+    }
+
     /**
      * Get the current ACTIVE policy for a brand.
      * If none exists, creates a default one.
      */
-    static async getPolicy(brandId: string): Promise<AutomationPolicy> {
+    static async getPolicy(brandId: string, workspaceId?: string, installId?: string): Promise<AutomationPolicy> {
+        if (workspaceId) {
+            await this.assertBrandAccess(brandId, workspaceId);
+        } else if (installId) {
+            await this.assertInstallAccess(brandId, installId);
+        } else {
+            throw new Error('Brand access context required');
+        }
+
         const policy = await prisma.automationPolicy.findFirst({
             where: {
                 brand_id: brandId,
@@ -26,7 +68,8 @@ export class PolicyService {
     /**
      * Get full history of policies for a brand.
      */
-    static async getHistory(brandId: string): Promise<AutomationPolicy[]> {
+    static async getHistory(brandId: string, workspaceId: string): Promise<AutomationPolicy[]> {
+        await this.assertBrandAccess(brandId, workspaceId);
         return prisma.automationPolicy.findMany({
             where: { brand_id: brandId },
             orderBy: { version: 'desc' }
@@ -70,7 +113,8 @@ export class PolicyService {
      * Update policy by creating a new version.
      * Handles status transitions (ensure only 1 ACTIVE).
      */
-    static async updatePolicy(brandId: string, updates: Partial<AutomationPolicy>, userId?: string): Promise<AutomationPolicy> {
+    static async updatePolicy(brandId: string, workspaceId: string, updates: Partial<AutomationPolicy>, userId?: string): Promise<AutomationPolicy> {
+        await this.assertBrandAccess(brandId, workspaceId);
         return prisma.$transaction(async (tx) => {
             // 1. Fetch current latest to get version
             const current = await tx.automationPolicy.findFirst({

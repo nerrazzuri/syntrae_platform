@@ -6,6 +6,7 @@ declare global {
             session?: Session;
             user?: User;
             activeWorkspaceId?: string;
+            installId?: string;
         }
     }
 }

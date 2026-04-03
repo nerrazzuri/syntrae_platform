@@ -16,7 +16,9 @@ export const requireSession = async (req: Request, res: Response, next: NextFunc
     }
 
     // Dev Admin Bypass (Testing)
-    if (process.env.NODE_ENV === 'development' && req.headers['x-dev-admin'] === '1') {
+    const env = (process.env.NODE_ENV || 'development').toLowerCase();
+    const bypassEnabled = process.env.AUTH_BYPASS_ENABLE === '1';
+    if (bypassEnabled && (env === 'local' || env === 'test') && req.headers['x-dev-admin'] === '1') {
         console.warn(`[Auth] Bypass Activated for ${req.path}`);
         return next();
     }

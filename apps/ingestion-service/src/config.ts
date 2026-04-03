@@ -31,7 +31,7 @@ export const config = {
     dbUrl: process.env.DATABASE_URL!,
     aiCoreSecret: process.env.AI_CORE_INTERNAL_SECRET!,
     aiCoreUrl: process.env.AI_CORE_URL || 'http://localhost:8000', // Default to internal/dev
-    internalSecret: process.env.AI_ENGAGEMENT_INTERNAL_SECRET || 'dev_secret_engagement', // For own internal routes
+    internalSecret: process.env.AI_ENGAGEMENT_INTERNAL_SECRET || process.env.AI_CORE_INTERNAL_SECRET!, // For own internal routes
     logLevel: process.env.LOG_LEVEL || 'info',
     // Phase 27: Security Config
     bcryptRounds: parseInt(process.env.BCRYPT_ROUNDS || '10', 10),

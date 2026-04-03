@@ -123,10 +123,11 @@ services:
       - LOG_LEVEL=info # Pilot: reduced from debug
       # - DEBUG=*  # Pilot: disabled verbose debugging
       - PORT=3005
-      - NODE_ENV=development
+      - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}?schema=core
       - AI_CORE_BASE_URL=http://ai-core:8000
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
+      - AI_ENGAGEMENT_INTERNAL_SECRET=${AI_ENGAGEMENT_INTERNAL_SECRET}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       - postgresql
@@ -145,14 +146,18 @@ services:
       - syntrae_net
     environment:
       - PORT=3001
-      - NODE_ENV=development
+      - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}?schema=core
-      - JWT_SECRET=dev_secret_operator_key_123
+      - JWT_SECRET=${JWT_SECRET}
       - AI_CORE_BASE_URL=http://ai-core:8000
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
       # NGINX is now the edge
       - TRUST_PROXY=true
       - COOKIE_DOMAIN=.syntraeai.com
+      - COOKIE_SECURE=true
+      - BETA_SIGNUP_ENABLED=${BETA_SIGNUP_ENABLED:-false}
+      - BETA_SIGNUP_ALLOWLIST=${BETA_SIGNUP_ALLOWLIST}
+      - AUTH_BYPASS_ENABLE=0
     depends_on:
       - postgresql
 

@@ -2,10 +2,57 @@
 import { Router } from 'express';
 import { prisma } from '../db';
 import { requireInternalSecret } from "../middleware/internal_auth";
-import { requireSession } from '../middleware/session_auth';
+import { requireSession, requireWorkspace } from '../middleware/session_auth';
 
 
 const router = Router();
+
+async function assertWorkspaceBrandAccess(brandId: string, workspaceId: string) {
+    const brand = await prisma.brand.findFirst({
+        where: { id: brandId, workspace_id: workspaceId },
+        select: { id: true }
+    });
+
+    if (!brand) {
+        throw new Error('Brand not found or access denied');
+    }
+
+    return brand;
+}
+
+async function assertInstallBrandAccess(brandId: string, installId: string) {
+    const install = await prisma.installRegistry.findFirst({
+        where: {
+            install_id: installId,
+            is_active: true,
+            account: {
+                brands: {
+                    some: { id: brandId }
+                }
+            }
+        },
+        select: { id: true }
+    });
+
+    if (!install) {
+        throw new Error('Install not authorized for brand');
+    }
+
+    return install;
+}
+
+async function assertRunBrandAccess(runId: string, brandId: string) {
+    const run = await prisma.automationRun.findUnique({
+        where: { id: runId },
+        select: { id: true, brand_id: true }
+    });
+
+    if (!run || run.brand_id !== brandId) {
+        throw new Error('Run not found or access denied');
+    }
+
+    return run;
+}
 
 async function findConflictingRun(brandId: string, platform: string) {
     const now = new Date();
@@ -70,24 +117,39 @@ function deriveWorkerHealth(run: any): string {
 // But duplication is safer for now to avoid breaking existing file imports blindly.
 // Queue a Run (User Trigger)
 // requireAgentAccess Middleware
-const requireAgentAccess = async (req: any, res: any, next: any) => {
-    // 1. Try Session Auth (User context) - Users probably don't create runs manually but maybe for testing.
-    if (req.user) return next();
-
-    // 2. Connector/Agent Auth
-    const installId = req.headers['x-install-id'];
+const requireBrandActorAccess = async (req: any, res: any, next: any) => {
     const brandId = req.params.brandId;
+    const sessionId = req.cookies?.['syntrae_session'];
 
-    if (installId && brandId) {
-        return next();
+    if (sessionId) {
+        return requireSession(req, res, () =>
+            requireWorkspace(req, res, async () => {
+                try {
+                    await assertWorkspaceBrandAccess(brandId, req.activeWorkspaceId!);
+                    return next();
+                } catch (error: any) {
+                    return res.status(404).json({ error: error.message });
+                }
+            })
+        );
     }
-    return res.status(401).json({ error: "Unauthorized Agent" });
+
+    const installId = String(req.headers['x-install-id'] || '').trim();
+    if (!installId || !brandId) {
+        return res.status(401).json({ error: "Unauthorized Agent" });
+    }
+
+    try {
+        await assertInstallBrandAccess(brandId, installId);
+        req.installId = installId;
+        return next();
+    } catch (error: any) {
+        return res.status(404).json({ error: error.message });
+    }
 };
 
 // Queue a Run (User Trigger)
-router.post('/brands/:brandId/runs/queue', async (req: any, res: any) => {
-    // Basic User Session Auth (Session Middleware should be here)
-    // For now assuming internal/open
+router.post('/brands/:brandId/runs/queue', requireSession, requireWorkspace, async (req: any, res: any) => {
     const { brandId } = req.params;
     const { platform = 'tiktok' } = req.body;
     console.log(`[API] Queueing run for brand ${brandId}`, {
@@ -96,6 +158,8 @@ router.post('/brands/:brandId/runs/queue', async (req: any, res: any) => {
     });
 
     try {
+        await assertWorkspaceBrandAccess(brandId, req.activeWorkspaceId!);
+
         const conflictingRun = await findConflictingRun(brandId, platform);
         if (conflictingRun) {
             return res.status(409).json({
@@ -120,12 +184,13 @@ router.post('/brands/:brandId/runs/queue', async (req: any, res: any) => {
         res.json(run);
     } catch (e: any) {
         console.error(`[API] Failed to queue run for brand ${brandId}:`, e);
-        res.status(500).json({ error: e.message });
+        const statusCode = e.message?.includes('access denied') || e.message?.includes('Brand not found') ? 404 : 500;
+        res.status(statusCode).json({ error: statusCode === 500 ? e.message : e.message });
     }
 });
 
 // List Pending Runs (For Agent Polling)
-router.get('/brands/:brandId/runs/pending', requireAgentAccess, async (req: any, res: any) => {
+router.get('/brands/:brandId/runs/pending', requireBrandActorAccess, async (req: any, res: any) => {
     return res.status(410).json({
         error: 'Deprecated endpoint. Use POST /internal/automation-runs/claim instead.'
     });
@@ -138,7 +203,7 @@ router.get('/runs/pending', async (req: any, res: any) => {
     });
 });
 
-router.post('/brands/:brandId/automation-runs', requireAgentAccess, async (req, res) => {
+router.post('/brands/:brandId/automation-runs', requireBrandActorAccess, async (req, res) => {
     const { brandId } = req.params;
     const {
         install_id,
@@ -160,7 +225,7 @@ router.post('/brands/:brandId/automation-runs', requireAgentAccess, async (req, 
         const run = await prisma.automationRun.create({
             data: {
                 brand_id: brandId,
-                install_id: install_id || req.headers['x-install-id'] || 'unknown',
+                install_id: install_id || req.installId || req.headers['x-install-id'] || 'unknown',
                 platform: platform || 'unknown',
                 status: 'RUNNING',
                 started_at: new Date(),
@@ -178,11 +243,13 @@ router.post('/brands/:brandId/automation-runs', requireAgentAccess, async (req, 
 });
 
 // Update Run (Optional, for completion)
-router.put('/brands/:brandId/automation-runs/:runId', requireAgentAccess, async (req, res) => {
-    const { runId } = req.params;
+router.put('/brands/:brandId/automation-runs/:runId', requireBrandActorAccess, async (req, res) => {
+    const { runId, brandId } = req.params;
     const { status, stats, abort_reason } = req.body;
 
     try {
+        await assertRunBrandAccess(runId, brandId);
+
         const run = await prisma.automationRun.update({
             where: { id: runId },
             data: {
@@ -193,8 +260,9 @@ router.put('/brands/:brandId/automation-runs/:runId', requireAgentAccess, async 
             }
         });
         res.json(run);
-    } catch (error) {
-        res.status(500).json({ error: "Failed to update run" });
+    } catch (error: any) {
+        const statusCode = error.message?.includes('access denied') || error.message?.includes('not found') ? 404 : 500;
+        res.status(statusCode).json({ error: statusCode === 500 ? "Failed to update run" : error.message });
     }
 });
 

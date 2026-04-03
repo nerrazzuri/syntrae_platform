@@ -20,7 +20,9 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
     // Let's support Authorization header with 'AdminBearer ' prefix?
     // Or just a header `X-Admin-Session-Token`.
 
-    if (config.env === 'development' && req.headers['x-dev-admin'] === '1') {
+    const env = (config.env || 'development').toLowerCase();
+    const bypassEnabled = process.env.AUTH_BYPASS_ENABLE === '1';
+    if (bypassEnabled && (env === 'local' || env === 'test') && req.headers['x-dev-admin'] === '1') {
         req.admin = {
             id: 'dev-admin',
             email: 'dev-admin@local',

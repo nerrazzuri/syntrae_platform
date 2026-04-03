@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { PolicyService } from '../services/policy.service';
 import { requireAuth } from '../middleware/auth';
+import { requireSession, requireWorkspace } from '../middleware/session_auth';
 
 const router = Router();
 
@@ -27,8 +28,7 @@ const getPolicyAccess = async (req: any, res: any, next: any) => {
     // 2. Check Install ID for Automation
     const installId = req.headers['x-install-id'];
     if (installId) {
-        // Verify Install ID exists? 
-        // For now allow.
+        req.installId = String(installId);
         return next();
     }
 
@@ -41,37 +41,41 @@ const getPolicyAccess = async (req: any, res: any, next: any) => {
 
 router.get('/brands/:brandId/automation-policy', getPolicyAccess, async (req, res) => {
     const { brandId } = req.params;
-    // TODO: Verify brand ownership via req.user.tenant_id/workspace_id vs Brand.workspace_id
     try {
-        const policy = await PolicyService.getPolicy(brandId);
+        const workspaceId = req.session?.active_workspace_id || req.activeWorkspaceId;
+        const installId = req.installId;
+        const policy = await PolicyService.getPolicy(brandId, workspaceId, installId);
         res.json(policy);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch policy' });
+    } catch (error: any) {
+        const status = error.message?.includes('authorized') || error.message?.includes('access denied') || error.message?.includes('Brand not found') ? 404 : 500;
+        res.status(status).json({ error: error.message || 'Failed to fetch policy' });
     }
 });
 
 // Update Policy (Create New Version)
-router.put('/brands/:brandId/automation-policy', requireAuth, async (req, res) => {
+router.put('/brands/:brandId/automation-policy', requireSession, requireWorkspace, async (req, res) => {
     const { brandId } = req.params;
     const updates = req.body;
     const userId = req.user?.id; // Assuming auth middleware populates this
 
     try {
-        const policy = await PolicyService.updatePolicy(brandId, updates, userId);
+        const policy = await PolicyService.updatePolicy(brandId, req.activeWorkspaceId!, updates, userId);
         res.json(policy);
     } catch (error: any) {
-        res.status(400).json({ error: error.message || 'Validation failed' });
+        const status = error.message?.includes('access denied') || error.message?.includes('Brand not found') ? 404 : 400;
+        res.status(status).json({ error: error.message || 'Validation failed' });
     }
 });
 
 // Get Policy History
-router.get('/brands/:brandId/automation-policy/history', requireAuth, async (req, res) => {
+router.get('/brands/:brandId/automation-policy/history', requireSession, requireWorkspace, async (req, res) => {
     const { brandId } = req.params;
     try {
-        const history = await PolicyService.getHistory(brandId);
+        const history = await PolicyService.getHistory(brandId, req.activeWorkspaceId!);
         res.json(history);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch history' });
+    } catch (error: any) {
+        const status = error.message?.includes('access denied') || error.message?.includes('Brand not found') ? 404 : 500;
+        res.status(status).json({ error: error.message || 'Failed to fetch history' });
     }
 });
 

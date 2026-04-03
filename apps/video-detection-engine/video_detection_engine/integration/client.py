@@ -25,12 +25,14 @@ class IntegrationClient:
         self.ai_core_url = self.ai_core_url.rstrip("/")
         self.ingestion_url = os.getenv("INGESTION_URL", "http://localhost:3000")
         self.operator_url = os.getenv("OPERATOR_API_URL", "http://operator-api:3001")
-        self.internal_secret = os.getenv("AI_CORE_INTERNAL_SECRET", "dev-secret")
+        self.internal_secret = os.getenv("AI_CORE_INTERNAL_SECRET")
+        if not self.internal_secret:
+            raise RuntimeError("AI_CORE_INTERNAL_SECRET is not set")
         # Ingestion requires X-Install-Secret? Or just X-Install-Id if we trust the runner?
         # The ingestion logic checks install_secret if present. 
         # For this phase, we assume the runner has the secret or we rely on IP whitelisting/network trust for internal runners.
         # But we should pass the secret if available.
-        self.install_secret = os.getenv("INSTALL_SECRET", "default-secret")
+        self.install_secret = os.getenv("INSTALL_SECRET")
 
     def set_claim_context(self, claim_token: Optional[str]):
         self.claim_token = claim_token
@@ -476,9 +478,10 @@ class IntegrationClient:
 
         headers = {
             "x-install-id": self.install_id,
-            "x-install-secret": self.install_secret,
             "Content-Type": "application/json"
         }
+        if self.install_secret:
+            headers["x-install-secret"] = self.install_secret
         
         try:
             async with httpx.AsyncClient() as client:
