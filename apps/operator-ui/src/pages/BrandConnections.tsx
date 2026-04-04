@@ -268,11 +268,6 @@ export function BrandConnectionsPage() {
         }
     }
 
-    async function copyCommand() {
-        if (!connection?.connect_command) return;
-        await navigator.clipboard.writeText(connection.connect_command);
-    }
-
     const downloads = getExtensionDownloads(browser);
     const usingStoreInstall = downloads.primaryExternal;
 
@@ -458,27 +453,6 @@ export function BrandConnectionsPage() {
                             </li>
                         ))}
                     </ol>
-
-                    <div className="mt-8 border-t border-slate-100 pt-6">
-                        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Terminal fallback</div>
-                        <h3 className="mt-2 text-lg font-bold text-slate-900">Manual worker login</h3>
-                        <p className="mt-2 text-sm text-slate-600">
-                            Use this only if the extension is unavailable. It opens the worker browser in manual-login mode and writes the
-                            session into the brand-scoped path when you press ENTER after login succeeds.
-                        </p>
-
-                        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-950 p-4 text-sm text-slate-100">
-                            <code className="break-all">{connection?.connect_command}</code>
-                        </div>
-
-                        <button
-                            onClick={copyCommand}
-                            disabled={!connection?.connect_command}
-                            className="mt-4 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700"
-                        >
-                            Copy command
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>
