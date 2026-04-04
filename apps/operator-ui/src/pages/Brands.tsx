@@ -2,10 +2,19 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 
+type RunFeedbackTone = 'success' | 'error' | 'info';
+
+interface RunFeedback {
+    tone: RunFeedbackTone;
+    message: string;
+}
+
 export function BrandsPage() {
     const [brands, setBrands] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
+    const [runLoadingBrandId, setRunLoadingBrandId] = useState<string | null>(null);
+    const [runFeedback, setRunFeedback] = useState<Record<string, RunFeedback>>({});
 
     // Create Form
     const [newName, setNewName] = useState('');
@@ -47,6 +56,46 @@ export function BrandsPage() {
         } catch (e: any) {
             alert(e.error || 'Failed to update status');
         }
+    };
+
+    const queueXhsRun = async (brandId: string) => {
+        setRunLoadingBrandId(brandId);
+        setRunFeedback((prev) => {
+            const next = { ...prev };
+            delete next[brandId];
+            return next;
+        });
+
+        try {
+            await api.post(`/brands/${brandId}/runs/queue`, { platform: 'xiaohongshu' });
+            setRunFeedback((prev) => ({
+                ...prev,
+                [brandId]: {
+                    tone: 'success',
+                    message: 'XHS discovery queued. The run will start shortly and you can monitor progress from Runs.'
+                }
+            }));
+        } catch (e: any) {
+            const rawMessage = e?.message || 'Failed to queue Xiaohongshu discovery.';
+            const message = rawMessage.includes('daily automation_runs_created limit')
+                ? `${rawMessage} Upgrade the workspace plan or wait until the quota resets before starting another run.`
+                : rawMessage;
+            setRunFeedback((prev) => ({
+                ...prev,
+                [brandId]: {
+                    tone: 'error',
+                    message
+                }
+            }));
+        } finally {
+            setRunLoadingBrandId(null);
+        }
+    };
+
+    const feedbackClasses: Record<RunFeedbackTone, string> = {
+        success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+        error: 'border-rose-200 bg-rose-50 text-rose-800',
+        info: 'border-slate-200 bg-slate-50 text-slate-700',
     };
 
     return (
@@ -133,17 +182,18 @@ export function BrandsPage() {
                                         </p>
                                     </div>
                                     <button
-                                        onClick={async () => {
-                                            if (confirm('Queue a Xiaohongshu Discovery Run?')) {
-                                                await api.post(`/brands/${brand.id}/runs/queue`, { platform: 'xiaohongshu' });
-                                                alert('Xiaohongshu Run Queued! Watch your agent console.');
-                                            }
-                                        }}
-                                        className="inline-flex min-w-[180px] items-center justify-center rounded-full bg-rose-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-rose-700"
+                                        onClick={() => queueXhsRun(brand.id)}
+                                        disabled={runLoadingBrandId === brand.id}
+                                        className="inline-flex min-w-[180px] items-center justify-center rounded-full bg-rose-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
                                     >
-                                        Run XHS Discovery
+                                        {runLoadingBrandId === brand.id ? 'Queueing...' : 'Run XHS Discovery'}
                                     </button>
                                 </div>
+                                {runFeedback[brand.id] && (
+                                    <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-medium ${feedbackClasses[runFeedback[brand.id].tone]}`}>
+                                        {runFeedback[brand.id].message}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex flex-wrap items-center gap-3">
