@@ -1,8 +1,9 @@
+const browserApi = globalThis.browser || globalThis.chrome;
 const XHS_URL = "https://www.xiaohongshu.com/";
 const POLL_INTERVAL_MS = 5000;
 const MAX_WAIT_MS = 2 * 60 * 1000;
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+browserApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || message.type !== "SYNTRAE_XHS_CAPTURE_REQUEST") {
     return false;
   }
@@ -21,7 +22,7 @@ async function handleCaptureRequest(payload) {
 
   let cookies = await getRequiredCookies(requiredCookieNames);
   if (cookies.length < requiredCookieNames.length) {
-    await chrome.tabs.create({ url: XHS_URL });
+    await browserApi.tabs.create({ url: XHS_URL });
     cookies = await waitForCookies(requiredCookieNames);
   }
 
@@ -57,7 +58,7 @@ async function waitForCookies(requiredCookieNames) {
 }
 
 async function getRequiredCookies(requiredCookieNames) {
-  const allCookies = await chrome.cookies.getAll({ domain: "xiaohongshu.com" });
+  const allCookies = await browserApi.cookies.getAll({ domain: "xiaohongshu.com" });
   return allCookies
     .filter((cookie) => requiredCookieNames.includes(cookie.name))
     .map((cookie) => ({

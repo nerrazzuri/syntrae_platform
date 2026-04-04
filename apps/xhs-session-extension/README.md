@@ -1,6 +1,6 @@
 # Syntrae XHS Connector
 
-Minimal Chrome/Chromium extension for the Syntrae XHS connection flow.
+Installable browser extension packages for the Syntrae XHS connection flow.
 
 ## What it does
 
@@ -9,15 +9,51 @@ Minimal Chrome/Chromium extension for the Syntrae XHS connection flow.
 - waits for required XHS cookies (`a1`, `web_session`)
 - uploads the captured cookie set to Syntrae's ingest endpoint using a one-time challenge
 
+## Build packages
+
+From the repo root:
+
+```bash
+cd apps/xhs-session-extension
+node scripts/build.mjs
+```
+
+This generates:
+
+```text
+apps/xhs-session-extension/dist/chromium
+apps/xhs-session-extension/dist/firefox
+```
+
+Use `dist/chromium` for:
+- Chrome
+- Edge
+
+Use `dist/firefox` for:
+- Firefox
+
 ## Install locally
+
+### Chrome / Edge
 
 1. Open `chrome://extensions`
 2. Enable `Developer mode`
 3. Click `Load unpacked`
-4. Select this folder:
+4. Select:
 
 ```text
-apps/xhs-session-extension
+apps/xhs-session-extension/dist/chromium
+```
+
+### Firefox
+
+1. Open `about:debugging`
+2. Click `This Firefox`
+3. Click `Load Temporary Add-on`
+4. Select:
+
+```text
+apps/xhs-session-extension/dist/firefox/manifest.json
 ```
 
 ## Notes

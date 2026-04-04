@@ -4,7 +4,7 @@
     if (!event.data || event.data.type !== "SYNTRAE_XHS_CAPTURE_REQUEST") return;
 
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await browser.runtime.sendMessage({
         type: "SYNTRAE_XHS_CAPTURE_REQUEST",
         payload: event.data.payload,
       });
