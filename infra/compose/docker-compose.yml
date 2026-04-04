@@ -252,7 +252,7 @@ services:
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
       - AI_CORE_BASE_URL=http://ai-core:8000
       - INGESTION_URL=http://ingestion-service:3005 # PILOT SECURITY: Internal network
-      - PROXY_ENABLED=true
+      - PROXY_ENABLED=${PROXY_ENABLED:-false}
       - PROXY_SERVER=${PROXY_SERVER}
       - PROXY_USERNAME=${PROXY_USERNAME}
       - PROXY_PASSWORD=${PROXY_PASSWORD}
@@ -295,7 +295,7 @@ services:
       - AUTOMATION_STALE_SWEEP_LIMIT=${AUTOMATION_STALE_SWEEP_LIMIT:-25}
       # Testing Overrides
       - MOCK_TIKTOK_COMMENTS=${MOCK_TIKTOK_COMMENTS:-Sample captured comment}
-      - PROXY_ENABLED=true
+      - PROXY_ENABLED=${PROXY_ENABLED:-false}
       - PROXY_SERVER=${PROXY_SERVER}
       - PROXY_USERNAME=${PROXY_USERNAME}
       - PROXY_PASSWORD=${PROXY_PASSWORD}

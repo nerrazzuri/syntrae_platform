@@ -32,16 +32,24 @@ class BrowserController:
         return f"{text[:2]}***{text[-2:]}"
 
     async def launch(self):
-        """Launches the browser via Bright Data CDP or falls back to Local Browser."""
+        """Launches via remote CDP only when proxy mode is explicitly enabled."""
         self._playwright = await async_playwright().start()
-        
-        # Bright Data CDP Configuration
-        # We rely on PROXY_USERNAME and PROXY_PASSWORD environment variables.
+
+        proxy_enabled = os.getenv("PROXY_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
         username = os.getenv("PROXY_USERNAME")
         password = os.getenv("PROXY_PASSWORD")
-        
+
+        if not proxy_enabled:
+            logger.info("PROXY_ENABLED is disabled. Launching LOCAL Chromium browser.")
+            self._browser = await self._playwright.chromium.launch(
+                headless=self.headless,
+                args=["--disable-blink-features=AutomationControlled"]
+            )
+            logger.info("Local browser launched.")
+            return
+
         if not username or not password:
-            logger.info("Missing Bright Data Proxy credentials. Launching LOCAL Chromium browser.")
+            logger.info("Proxy mode enabled but credentials are missing. Launching LOCAL Chromium browser.")
             self._browser = await self._playwright.chromium.launch(
                 headless=self.headless,
                 args=["--disable-blink-features=AutomationControlled"]
