@@ -46,7 +46,9 @@ async def run_automation(
     install_id: str,
     storage_state_path: str = None,
     existing_run_id: str | None = None,
-    claim_token: str | None = None
+    claim_token: str | None = None,
+    ingestion_install_id: str | None = None,
+    ingestion_install_secret: str | None = None,
 ) -> bool:
     """
     Main automation loop with Relevance & Integration wiring + POLICY ENFORCEMENT.
@@ -54,6 +56,7 @@ async def run_automation(
     # 1. Initialize Integration Client
     client = IntegrationClient(brand_id=brand_id, install_id=install_id)
     client.set_claim_context(claim_token)
+    client.set_ingestion_install(ingestion_install_id, ingestion_install_secret)
     logger.info(f"Initialized Automation for Brand {brand_id} (Agent: {install_id})")
 
     # 2. Fetch Policy (WF-1: Internal Auth)

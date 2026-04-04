@@ -122,7 +122,9 @@ async def global_poll_loop(install_id):
                     install_id,
                     storage_state_path=storage_path,
                     existing_run_id=run_id,
-                    claim_token=claim_token
+                    claim_token=claim_token,
+                    ingestion_install_id=ingestion_install_id,
+                    ingestion_install_secret=ingestion_install_secret,
                 )
 
                 if not success:
