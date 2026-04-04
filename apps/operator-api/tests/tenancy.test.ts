@@ -171,3 +171,14 @@ test('run update returns 404 when the run does not belong to the requested brand
     assert.equal(res.status, 404);
     assert.match(String(res.body.error), /Run not found|access denied/i);
 });
+
+test('internal automation claim uses internal secret auth instead of session auth', async () => {
+    const app = createApp();
+    const res = await request(app)
+        .post('/internal/automation-runs/claim')
+        .set('x-internal-secret', process.env.AI_CORE_INTERNAL_SECRET!)
+        .send({ worker_id: 'worker-1', lease_seconds: 120 });
+
+    assert.notEqual(res.status, 401);
+    assert.notEqual(res.body?.error, 'Unauthorized: No Session (Cookie or Token)');
+});

@@ -68,12 +68,12 @@ export function createApp() {
     app.use('/value', valueRouter);
     app.use('/leads', leadsRouter);
     app.use('/billing', billingRouter);
+    app.use('/internal', internalRouter);
     app.use('/onboarding', onboardingRouter);
     app.use('/', platformConnectionsRouter);
     app.use('/', runsRouter);
     app.use('/', policyRouter);
     app.use('/', marketProfileRouter);
-    app.use('/internal', internalRouter);
     app.use('/brands', brandRouter);
     app.use('/analytics', analyticsRouter);
     app.use('/drafts', draftsRouter);
