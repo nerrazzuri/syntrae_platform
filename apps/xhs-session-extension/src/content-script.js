@@ -1,4 +1,6 @@
 (function () {
+  const runtimeApi = globalThis.browser?.runtime || globalThis.chrome?.runtime;
+
   window.addEventListener("message", async (event) => {
     if (event.source !== window) return;
     if (!event.data) return;
@@ -16,7 +18,11 @@
     if (event.data.type !== "SYNTRAE_XHS_CAPTURE_REQUEST") return;
 
     try {
-      const response = await browser.runtime.sendMessage({
+      if (!runtimeApi?.sendMessage) {
+        throw new Error("Extension runtime API unavailable");
+      }
+
+      const response = await runtimeApi.sendMessage({
         type: "SYNTRAE_XHS_CAPTURE_REQUEST",
         payload: event.data.payload,
       });
