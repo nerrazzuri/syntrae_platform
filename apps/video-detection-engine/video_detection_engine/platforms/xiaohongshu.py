@@ -1,62 +1,67 @@
-import logging
-import subprocess
-import json as json_lib
 import hashlib
+import json as json_lib
+import logging
 from datetime import datetime, timezone
+from pathlib import Path
+
+from xhs_cli.client import XhsClient
+from xhs_cli.exceptions import XhsApiError
 
 logger = logging.getLogger(__name__)
 
+
 class XiaohongshuPlatform:
     """
-    Phase-2 Xiaohongshu Discovery Adapter.
-    
-    Strategy: Uses the external `xiaohongshu-cli` directly for search and comment extraction,
-    completely bypassing brittle in-browser React scraping.
+    Xiaohongshu discovery adapter backed by the xiaohongshu-cli Python package.
+
+    Runtime requirement:
+    - read brand-scoped captured cookies from the Syntrae-managed session payload
+    - do not rely on Playwright or an interactive browser during search/comment collection
     """
+
+    def __init__(self, session_path: str | None = None):
+        self.session_path = session_path
+
     async def run_search(self, browser_page, keyword, is_video_eligible=None):
-        # We ignore browser_page completely since we use the CLI
-        logger.info(f"Starting Xiaohongshu Discovery via CLI for keyword: {keyword}")
-        
-        # 2. Perform search via CLI
-        logger.info("Executing xhs search CLI...")
+        logger.info("Starting Xiaohongshu Discovery via XHS client for keyword: %s", keyword)
+
+        cookies = self._load_cookies()
+        if not cookies:
+            logger.error("No XHS cookies available in %s", self.session_path)
+            return []
+
         posts = []
         seen_note_ids = set()
         try:
-            res = subprocess.run(["xhs", "search", keyword, "--json"], capture_output=True, text=True, timeout=30)
-            if res.returncode == 0:
-                data = json_lib.loads(res.stdout)
-                if data.get("ok") and "data" in data and "items" in data["data"]:
-                    for item in data["data"]["items"]:
-                        note_card = item.get("note_card", {})
-                        note_id = item.get("id", note_card.get("note_id", ""))
-                        if not note_id or note_id in seen_note_ids:
-                            continue
-                        seen_note_ids.add(note_id)
-                        posts.append({
-                            "note_id": note_id,
-                            "title": note_card.get("display_title", keyword),
-                            "author": note_card.get("user", {}).get("nickname", "unknown"),
-                            "like_count": int(note_card.get("interact_info", {}).get("liked_count", 0)),
-                        })
-                else:
-                    logger.error(f"XHS CLI search error: {data.get('error', {}).get('message', 'Unknown error')}")
-            else:
-                logger.error(f"XHS CLI search failed: {res.stderr}")
-        except Exception as e:
-            logger.error(f"Failed to execute xhs search CLI: {e}")
-            
+            with XhsClient(cookies) as client:
+                data = client.search_notes(keyword)
+                items = data.get("items", []) if isinstance(data, dict) else []
+                for item in items:
+                    note_card = item.get("note_card", {})
+                    note_id = item.get("id", note_card.get("note_id", ""))
+                    if not note_id or note_id in seen_note_ids:
+                        continue
+                    seen_note_ids.add(note_id)
+                    posts.append({
+                        "note_id": note_id,
+                        "title": note_card.get("display_title", keyword),
+                        "author": note_card.get("user", {}).get("nickname", "unknown"),
+                        "like_count": int(note_card.get("interact_info", {}).get("liked_count", 0)),
+                    })
+        except Exception as exc:
+            logger.error("Failed to execute XHS search client: %s", exc)
+
         if not posts:
             logger.warning(
-                "No search results found for keyword: %s. If session expired, refresh the scoped session under /data/storage/sessions/<workspace>/<brand>/rednote/session.json.",
-                keyword
+                "No search results found for keyword: %s. If cookies are stale, reconnect the brand-scoped XHS session.",
+                keyword,
             )
             return []
-            
-        logger.info(f"Extracted {len(posts)} posts from search results via CLI")
 
-        # 3. Fetch real comments
+        logger.info("Extracted %s posts from XHS search results", len(posts))
+
         final_events = []
-        for post in posts[:20]: # Limit to 20
+        for post in posts[:20]:
             note_id = post["note_id"]
             post_url = f"https://www.xiaohongshu.com/explore/{note_id}"
             post_author = self._normalize_text(post["author"])
@@ -67,11 +72,10 @@ class XiaohongshuPlatform:
                     logger.info(
                         "Skipping XHS note %s due to cooldown until %s",
                         note_id,
-                        eligibility.get("cooldown_until")
+                        eligibility.get("cooldown_until"),
                     )
                     continue
-            
-            # Base event object
+
             now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
             base_event = {
                 "platform": "rednote",
@@ -85,32 +89,24 @@ class XiaohongshuPlatform:
                 "page_url": post_url,
                 "page_timestamp": now,
             }
-            
-            logger.info(f"Fetching real comments for video {note_id} using xhs-cli...")
+
+            logger.info("Fetching real comments for note %s using XHS client...", note_id)
             real_comments = []
             try:
-                # xhs comments <note_id> --json
-                res = subprocess.run(["xhs", "comments", note_id, "--json"], capture_output=True, text=True, timeout=15)
-                if res.returncode == 0:
-                    try:
-                        data = json_lib.loads(res.stdout)
-                        if data.get("ok") and "data" in data and "comments" in data["data"]:
-                            for c in data["data"]["comments"]:
-                                real_comments.append(c)
-                                if len(real_comments) >= 10:
-                                    break
-                    except json_lib.JSONDecodeError:
-                        logger.warning(f"Failed to parse xhs-cli JSON for {note_id}")
-                else:
-                    logger.warning(f"xhs-cli failed for {note_id}: {res.stderr}")
-            except Exception as e:
-                logger.error(f"Failed to fetch comments via xhs-cli: {e}")
-                
+                with XhsClient(cookies) as client:
+                    data = client.get_all_comments(note_id, max_pages=3)
+                    comments = data.get("comments", []) if isinstance(data, dict) else []
+                    real_comments.extend(comments[:10])
+            except XhsApiError as exc:
+                logger.warning("XHS comments failed for %s: %s", note_id, exc)
+            except Exception as exc:
+                logger.error("Failed to fetch comments via XHS client: %s", exc)
+
             if not real_comments:
-                logger.info(f"No real comments found for {note_id}; skipping emission")
+                logger.info("No real comments found for %s; skipping emission", note_id)
                 continue
 
-            logger.info(f"Successfully fetched {len(real_comments)} real comments for {note_id}")
+            logger.info("Successfully fetched %s real comments for %s", len(real_comments), note_id)
             seen_comment_ids = set()
             for cmt in real_comments:
                 raw_text = self._extract_comment_text(cmt)
@@ -127,7 +123,7 @@ class XiaohongshuPlatform:
                 seen_comment_ids.add(comment_id)
 
                 if post_author and comment_author and comment_author == post_author:
-                    logger.info(f"Skipping self-authored XHS comment {comment_id} on note {note_id}")
+                    logger.info("Skipping self-authored XHS comment %s on note %s", comment_id, note_id)
                     continue
 
                 event = base_event.copy()
@@ -137,8 +133,30 @@ class XiaohongshuPlatform:
                 event["like_count"] = int(cmt.get("like_count", 0))
                 event["referral_comment_id"] = comment_id
                 final_events.append(event)
-                    
+
         return final_events
+
+    def _load_cookies(self) -> dict[str, str]:
+        if not self.session_path:
+            return {}
+
+        try:
+            payload = json_lib.loads(Path(self.session_path).read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.error("Failed to read XHS session payload %s: %s", self.session_path, exc)
+            return {}
+
+        if isinstance(payload, dict) and isinstance(payload.get("cookies"), list):
+            return {
+                str(cookie.get("name")): str(cookie.get("value"))
+                for cookie in payload.get("cookies", [])
+                if isinstance(cookie, dict) and cookie.get("name") and cookie.get("value")
+            }
+
+        if isinstance(payload, dict):
+            return {str(key): str(value) for key, value in payload.items() if value is not None}
+
+        return {}
 
     @staticmethod
     def _normalize_text(value):

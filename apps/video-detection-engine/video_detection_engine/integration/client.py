@@ -707,8 +707,11 @@ class IntegrationClient:
         url = f"{self.operator_url}/brands/{brand_id}/automation-runs/{run_id}"
         payload = {"stats": stats}
         
-        # FIX: Use x-install-id header (requireAgentAccess expects this, not internal secret)
-        headers = {"x-install-id": self.install_id, "Content-Type": "application/json"}
+        headers = {
+            "x-internal-secret": self.internal_secret,
+            "x-install-id": self.install_id,
+            "Content-Type": "application/json"
+        }
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.put(url, json=payload, headers=headers, timeout=10.0)

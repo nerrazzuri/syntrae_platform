@@ -20,13 +20,23 @@ class DiscoveryEngine:
     1. Query Build -> 2. Search -> 3. Score -> 4. Decide -> 5. Extract -> 6. Emit
     """
     
-    def __init__(self, controller: BrowserController, client: IntegrationClient, run_id: str, brand_id: str, enforcer: PolicyEnforcer, platform: str = "tiktok"):
+    def __init__(
+        self,
+        controller: BrowserController | None,
+        client: IntegrationClient,
+        run_id: str,
+        brand_id: str,
+        enforcer: PolicyEnforcer,
+        platform: str = "tiktok",
+        xhs_session_path: str | None = None,
+    ):
         self.controller = controller
         self.client = client
         self.run_id = run_id
         self.brand_id = brand_id  # FIX: Added missing brand_id for stats persistence
         self.enforcer = enforcer
         self.platform = platform
+        self.xhs_session_path = xhs_session_path
         # WF-3.1: Track systemic failures for run integrity
         self.error_count = 0
         self.error_threshold = 5  # Abort run if 5+ ERRORs encountered
@@ -61,16 +71,16 @@ class DiscoveryEngine:
 
         logger.info(f"Generated {len(search_urls)} search queries.")
 
-        if self.platform == "xiaohongshu":
+        if self.platform in {"xiaohongshu", "rednote", "xhs"}:
             # Phase-1 Xiaohongshu Adapter Branch
             try:
-                platform_adapter = XiaohongshuPlatform()
+                platform_adapter = XiaohongshuPlatform(self.xhs_session_path)
                 # Use the first keyword for the phase 1 validation
                 keyword = market_profile.get("keywords_positive", ["acne"])[0]  
                 
                 # Execute extraction
                 results = await platform_adapter.run_search(
-                    self.controller.page,
+                    self.controller.page if self.controller else None,
                     keyword,
                     is_video_eligible=lambda note_id: self.client.check_video_eligibility(note_id, "rednote")
                 )

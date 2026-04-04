@@ -286,6 +286,8 @@ router.post('/drafts/:id/send', async (req, res) => {
             },
             body: JSON.stringify({
                 platform: draft.platform,
+                workspace_id: accountId,
+                brand_id: draft.brand_id,
                 video_id: draft.lead.video_id,
                 comment_id: draft.lead.comment_id,
                 message_text: finalText,

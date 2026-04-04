@@ -104,20 +104,33 @@ async def run_automation(
     
     logger.info(f"WF-1: Run {run_id} Started Successfully.")
 
-    # DEBUG: Force headless=False to bypass basic bot detection or solve CAPTCHA
-    controller = BrowserController(browser_type=browser_type, headless=headless, storage_state_path=storage_state_path)
+    normalized_platform = (platform or "").strip().lower()
+    use_browser_runtime = normalized_platform not in {"rednote", "xiaohongshu", "xhs"}
+    controller = BrowserController(
+        browser_type=browser_type,
+        headless=headless,
+        storage_state_path=storage_state_path,
+    ) if use_browser_runtime else None
     
     try:
-        # 5. Launch Browser
-        await controller.launch()
-        await controller.new_context()
+        if controller:
+            await controller.launch()
+            await controller.new_context()
         
         # 6. Use the Profile WE JUST FETCHED (Consistent Snapshot)
         active_profile = market_profile_data 
         # Note: Empty profile means defaults or generic behavior if handled by Builder
         
         from video_detection_engine.core.discovery_engine import DiscoveryEngine
-        engine = DiscoveryEngine(controller, client, run_id, brand_id, enforcer, platform=platform)
+        engine = DiscoveryEngine(
+            controller,
+            client,
+            run_id,
+            brand_id,
+            enforcer,
+            platform=platform,
+            xhs_session_path=storage_state_path,
+        )
 
         if url:
             # Single Video Mode (Manual Override)
@@ -201,7 +214,8 @@ async def run_automation(
         logger.error(f"Automation failed: {e}")
         return False
     finally:
-        await controller.close()
+        if controller:
+            await controller.close()
 
 async def run_manual_login(platform: str, browser_type: str, output: str, brand_id: str | None = None, workspace_id: str | None = None):
     """
