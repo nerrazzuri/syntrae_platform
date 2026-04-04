@@ -10,7 +10,7 @@ const router = Router();
 router.use(requireSession);
 router.use(requireWorkspace);
 
-router.get('/drafts', async (req, res) => {
+router.get('/', async (req, res) => {
     const accountId = req.activeWorkspaceId!;
     const statusFilter = String(req.query.status || 'PENDING').toUpperCase();
     const statuses = statusFilter === 'PENDING'
@@ -60,7 +60,7 @@ router.get('/drafts', async (req, res) => {
 });
 
 // Edit Draft
-router.post('/drafts/:id/edit', async (req, res) => {
+router.post('/:id/edit', async (req, res) => {
     const { id } = req.params;
     const { edited_text } = req.body;
     const userId = req.session!.user_id;
@@ -106,7 +106,7 @@ router.post('/drafts/:id/edit', async (req, res) => {
 });
 
 // Approve Draft
-router.post('/drafts/:id/approve', async (req, res) => {
+router.post('/:id/approve', async (req, res) => {
     const { id } = req.params;
     const userId = req.session!.user_id;
     const accountId = req.activeWorkspaceId!;
@@ -143,7 +143,7 @@ router.post('/drafts/:id/approve', async (req, res) => {
 });
 
 // Reject Draft
-router.post('/drafts/:id/reject', async (req, res) => {
+router.post('/:id/reject', async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
     const userId = req.session!.user_id;
@@ -179,7 +179,7 @@ router.post('/drafts/:id/reject', async (req, res) => {
 });
 
 // Mark Sent
-router.post('/drafts/:id/mark-sent', async (req, res) => {
+router.post('/:id/mark-sent', async (req, res) => {
     const { id } = req.params;
     const { send_mode, confirmation_ack, notes } = req.body;
     const userId = req.session!.user_id;
@@ -244,7 +244,7 @@ router.post('/drafts/:id/mark-sent', async (req, res) => {
     }
 });
 
-router.post('/drafts/:id/send', async (req, res) => {
+router.post('/:id/send', async (req, res) => {
     const { id } = req.params;
     const userId = req.session!.user_id;
     const accountId = req.activeWorkspaceId!;
