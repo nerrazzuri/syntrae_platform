@@ -5,6 +5,7 @@ import {
     evaluateUsage,
     LIMIT_PERIODS,
     PLAN_REASON_CODES,
+    type PlanReasonCode,
     USAGE_METRICS,
 } from '@syntrae/commercial-plans';
 import { prisma } from '../../db';
@@ -18,7 +19,7 @@ export class ProductLimitError extends Error {
     code: string;
     details?: Record<string, unknown>;
 
-    constructor(message: string, code = PLAN_REASON_CODES.PLAN_LIMIT_REACHED, details?: Record<string, unknown>) {
+    constructor(message: string, code: PlanReasonCode | string = PLAN_REASON_CODES.PLAN_LIMIT_REACHED, details?: Record<string, unknown>) {
         super(message);
         this.name = 'ProductLimitError';
         this.code = code;
