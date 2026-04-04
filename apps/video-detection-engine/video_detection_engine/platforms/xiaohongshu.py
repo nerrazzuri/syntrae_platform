@@ -42,11 +42,23 @@ class XiaohongshuPlatform:
                     if not note_id or note_id in seen_note_ids:
                         continue
                     seen_note_ids.add(note_id)
+                    xsec_token = self._normalize_text(
+                        item.get("xsec_token")
+                        or note_card.get("xsec_token")
+                        or note_card.get("xsecToken")
+                    )
+                    xsec_source = self._normalize_text(
+                        item.get("xsec_source")
+                        or note_card.get("xsec_source")
+                        or note_card.get("xsecSource")
+                    )
                     posts.append({
                         "note_id": note_id,
                         "title": note_card.get("display_title", keyword),
                         "author": note_card.get("user", {}).get("nickname", "unknown"),
                         "like_count": int(note_card.get("interact_info", {}).get("liked_count", 0)),
+                        "xsec_token": xsec_token,
+                        "xsec_source": xsec_source,
                     })
         except Exception as exc:
             logger.error("Failed to execute XHS search client: %s", exc)
@@ -63,7 +75,7 @@ class XiaohongshuPlatform:
         final_events = []
         for post in posts[:20]:
             note_id = post["note_id"]
-            post_url = f"https://www.xiaohongshu.com/explore/{note_id}"
+            post_url = self._build_note_url(note_id, post.get("xsec_token"), post.get("xsec_source"))
             post_author = self._normalize_text(post["author"])
 
             if is_video_eligible:
@@ -94,7 +106,8 @@ class XiaohongshuPlatform:
             real_comments = []
             try:
                 with XhsClient(cookies) as client:
-                    data = client.get_all_comments(note_id, max_pages=3)
+                    comment_target = post_url if post.get("xsec_token") else note_id
+                    data = client.get_all_comments(comment_target, max_pages=3)
                     comments = data.get("comments", []) if isinstance(data, dict) else []
                     real_comments.extend(comments[:10])
             except XhsApiError as exc:
@@ -174,6 +187,16 @@ class XiaohongshuPlatform:
         cookies["a1"] = hashlib.sha1(f"syntrae-xhs-a1|{seed}".encode("utf-8")).hexdigest()
         logger.info("Synthesized fallback XHS a1 cookie from captured session payload")
         return cookies
+
+    @staticmethod
+    def _build_note_url(note_id: str, xsec_token: str | None = None, xsec_source: str | None = None) -> str:
+        base_url = f"https://www.xiaohongshu.com/explore/{note_id}"
+        token = XiaohongshuPlatform._normalize_text(xsec_token)
+        if not token:
+            return base_url
+
+        source = XiaohongshuPlatform._normalize_text(xsec_source) or "search"
+        return f"{base_url}?xsec_token={token}&xsec_source={source}"
 
     @staticmethod
     def _normalize_text(value):
