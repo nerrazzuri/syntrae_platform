@@ -1,14 +1,17 @@
 # syntax=docker/dockerfile:1
 # ---- Base -------------------------------------------------
-# Use a newer official Playwright image with current Ubuntu keyrings.
-FROM mcr.microsoft.com/playwright/python:v1.55.0-noble
+FROM python:3.11-slim
 
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 # ---- System deps ------------------------------------------
-# ffmpeg is still required for video processing
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    ca-certificates \
     curl \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
