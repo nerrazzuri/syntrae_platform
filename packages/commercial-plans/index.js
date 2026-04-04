@@ -135,7 +135,7 @@ const PLAN_DEFINITIONS = {
     status: "ACTIVE",
     limits: {
       maxPlatforms: 4,
-      maxBrands: 1,
+      maxBrands: 3,
       maxWorkspaces: 1,
       maxUsers: 5,
       maxCampaigns: 10,
@@ -156,7 +156,7 @@ const PLAN_DEFINITIONS = {
       assistedReplyDrafts: true,
       leadPrioritization: true,
       teamMemberInvites: true,
-      multiBrand: false,
+      multiBrand: true,
       multiClientIsolation: false,
     },
   },
