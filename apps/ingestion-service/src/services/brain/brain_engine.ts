@@ -75,27 +75,41 @@ const HeuristicScorer = {
 const PromptComposer = {
     compose(strategy: Strategy, input: BrainInput): string {
         const tone = input.tenant.tone;
+        const brandName = input.tenant.brand_name || 'our shop';
+        const brandDomain = input.tenant.brand_domain || 'our store';
+        const redirectTarget = input.tenant.reply_redirect_target || 'STORE';
+        const ctaStyle = input.tenant.reply_cta_style || 'SOFT';
+        const redirectPhrase = redirectTarget === 'PROFILE'
+            ? `visit ${brandName}'s profile`
+            : redirectTarget === 'CUSTOMER_SERVICE'
+                ? `message ${brandName} directly`
+                : redirectTarget === 'PINNED_POST'
+                    ? `check ${brandName}'s pinned post`
+                    : `visit ${brandDomain}`;
+        const ctaSuffix = ctaStyle === 'DIRECT'
+            ? ` Please ${redirectPhrase} for the best fit.`
+            : ` If helpful, you can ${redirectPhrase} for details.`;
         let template = '';
 
         switch (strategy.type) {
             case 'ANSWER':
                 template = tone === 'PROFESSIONAL'
-                    ? "Thank you for the question. [Answer details]."
-                    : "Hey! Great question. [Answer details].";
+                    ? `Thanks for asking. Based on what ${brandName} offers, [answer details].${ctaSuffix}`
+                    : `Great question. For ${brandName}, [answer details].${ctaSuffix}`;
                 break;
             case 'ACKNOWLEDGE':
                 template = tone === 'PROFESSIONAL'
-                    ? "We appreciate your feedback."
-                    : "Thanks for watching! Glad you liked it.";
+                    ? `Thanks for the feedback. ${brandName} appreciates it.${ctaSuffix}`
+                    : `Thanks for sharing. ${brandName} is glad this was helpful.${ctaSuffix}`;
                 break;
             case 'DE_ESCALATE':
-                template = "We hear your concerns. Let's discuss this constructively.";
+                template = `We hear your concern. ${brandName} wants to help clearly and directly.${ctaSuffix}`;
                 break;
             case 'IGNORE':
                 template = "[NO_REPLY]";
                 break;
             default:
-                template = "Thanks!";
+                template = `Thanks from ${brandName}.${ctaSuffix}`;
         }
 
         // Append Version info for "Differentiation"
@@ -256,6 +270,11 @@ export const BrainEngine = {
                 author_name: input.event.author_name || 'Unknown',
                 content_text: input.event.content_text,
                 length_limit: 200,
+                brand_name: input.tenant.brand_name || 'our shop',
+                brand_domain: input.tenant.brand_domain || 'our store',
+                brand_context: input.tenant.brand_context || '',
+                reply_redirect_target: input.tenant.reply_redirect_target || 'STORE',
+                reply_cta_style: input.tenant.reply_cta_style || 'SOFT',
                 // RAG Context (only used if V3)
                 context_snippets: ragResult ? ragResult.snippets.join('\n- ') : ''
             };

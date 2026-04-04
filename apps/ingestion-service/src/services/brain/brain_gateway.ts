@@ -4,6 +4,7 @@ import { BrainInput, StrategyType } from './types';
 import { BrainEngine } from './brain_engine';
 import { EngagementDomainFilter } from './intent/domain_filter';
 import { SafetyService } from '../safety/safety_service';
+import { prisma } from '../../db';
 
 // ==========================================
 // Phase 17: Brain Gateway (Boundary)
@@ -59,7 +60,12 @@ function mapCapabilityToBrainInput(request: CapabilityRequest): BrainInput {
             tenant_id: request.tenant_id ?? 'unknown',
             tone: 'PROFESSIONAL',
             avg_reply_length: 'MEDIUM',
-            prohibited_keywords: []
+            prohibited_keywords: [],
+            brand_name: null,
+            brand_domain: null,
+            brand_context: null,
+            reply_redirect_target: null,
+            reply_cta_style: null
         },
         history: {
             total_suggestions: 0,
@@ -120,6 +126,39 @@ export const BrainGateway = {
             const { OwnerSettingsService } = require('../owner/owner_settings_service');
             ownerSettings = await OwnerSettingsService.getSettings(workspaceId);
             brainInput.ownerSettings = ownerSettings;
+            brainInput.tenant.tone = (ownerSettings.tone as any) || brainInput.tenant.tone;
+            brainInput.tenant.reply_redirect_target = ownerSettings.reply_redirect_target || 'STORE';
+            brainInput.tenant.reply_cta_style = ownerSettings.reply_cta_style || 'SOFT';
+            brainInput.tenant.avg_reply_length = ownerSettings.aggressiveness === 'ASSERTIVE'
+                ? 'LONG'
+                : ownerSettings.aggressiveness === 'BALANCED'
+                    ? 'MEDIUM'
+                    : 'SHORT';
+        }
+
+        if (workspaceId && brainInput.event.brand_id) {
+            const brand = await prisma.brand.findFirst({
+                where: {
+                    id: brainInput.event.brand_id,
+                    workspace_id: workspaceId
+                },
+                select: {
+                    name: true,
+                    domain: true,
+                    domain_context: true
+                }
+            });
+
+            if (brand) {
+                brainInput.tenant.brand_name = brand.name;
+                brainInput.tenant.brand_domain = brand.domain;
+
+                const domainContext =
+                    typeof brand.domain_context === 'string'
+                        ? brand.domain_context
+                        : JSON.stringify(brand.domain_context ?? {});
+                brainInput.tenant.brand_context = domainContext === '{}' ? null : domainContext;
+            }
         }
 
         if (ownerSettings) {

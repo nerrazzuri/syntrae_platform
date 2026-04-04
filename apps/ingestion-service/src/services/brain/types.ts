@@ -28,6 +28,11 @@ export interface TenantContext {
     tone: 'PROFESSIONAL' | 'CASUAL' | 'FRIENDLY' | 'URGENT';
     avg_reply_length: 'SHORT' | 'MEDIUM' | 'LONG';
     prohibited_keywords: string[];
+    brand_name?: string | null;
+    brand_domain?: string | null;
+    brand_context?: string | null;
+    reply_redirect_target?: string | null;
+    reply_cta_style?: string | null;
 }
 
 export interface HistoricalSignals {
