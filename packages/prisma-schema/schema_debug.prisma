@@ -29,6 +29,7 @@ model Account {
   active_sessions    Session[]
   owner_settings     OwnerSettings?
   platform_connections BrandPlatformConnection[]
+  platform_connection_challenges PlatformConnectionChallenge[]
 
   suggestions        Suggestion[]
   decisions          SuggestionDecision[]
@@ -55,6 +56,7 @@ model Brand {
   leads           LeadOpportunity[]
   drafts          OutreachDraft[]
   platform_connections BrandPlatformConnection[]
+  platform_connection_challenges PlatformConnectionChallenge[]
 
   @@index([workspace_id])
   @@schema("core")
@@ -282,6 +284,7 @@ model User {
   sessions    Session[]
   decisions   SuggestionDecision[]
   action_tokens UserActionToken[]
+  platform_connection_challenges PlatformConnectionChallenge[]
 
   @@schema("core")
 }
