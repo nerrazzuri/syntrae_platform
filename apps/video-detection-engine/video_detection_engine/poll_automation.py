@@ -153,7 +153,7 @@ if __name__ == "__main__":
     parser.add_argument("--install-id", default="system-worker-1")
     parser.add_argument("--mode", default="single", choices=["single", "global"])
     parser.add_argument("--brand-id", help="Required for single mode")
-    parser.add_argument("--platform", default="tiktok")
+    parser.add_argument("--platform", default="xiaohongshu")
     
     args = parser.parse_args()
     

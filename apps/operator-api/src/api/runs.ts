@@ -156,7 +156,7 @@ const requireBrandActorAccess = async (req: any, res: any, next: any) => {
 // Queue a Run (User Trigger)
 router.post('/brands/:brandId/runs/queue', requireSession, requireWorkspace, async (req: any, res: any) => {
     const { brandId } = req.params;
-    const { platform = 'tiktok' } = req.body;
+    const { platform = 'xiaohongshu' } = req.body;
     console.log(`[API] Queueing run for brand ${brandId}`, {
         platform,
         body: req.body

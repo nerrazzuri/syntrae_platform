@@ -43,7 +43,6 @@ const CATEGORY_OPTIONS = [
 
 const PLATFORM_OPTIONS = [
     { value: 'rednote', label: 'Xiaohongshu (Recommended)' },
-    { value: 'tiktok', label: 'TikTok' },
 ];
 
 const CHECKLIST_LABELS: Record<ChecklistKey, string> = {
@@ -335,9 +334,7 @@ export function OnboardingPage() {
                                 <span>
                                     <span className="block text-sm font-semibold text-slate-900">{option.label}</span>
                                     <span className="block text-sm text-slate-500">
-                                        {option.value === 'rednote'
-                                            ? 'Recommended for this beta. This enables Xiaohongshu-first discovery and lead targeting.'
-                                            : 'Optional secondary channel if you also want TikTok discovery in the same workspace.'}
+                                        Recommended for this beta. This enables Xiaohongshu-first discovery and lead targeting.
                                     </span>
                                 </span>
                             </label>

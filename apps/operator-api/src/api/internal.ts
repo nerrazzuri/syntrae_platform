@@ -115,7 +115,7 @@ router.post('/automation-run', async (req: Request, res: Response) => {
             data: {
                 brand_id,
                 install_id,
-                platform: platform || 'tiktok',
+                platform: platform || 'xiaohongshu',
                 discovery_mode: discovery_mode || 'MANUAL_URL',
                 status: 'RUNNING',
                 policy_snapshot: policy_snapshot,
@@ -151,7 +151,7 @@ router.post('/automation-run/:runId/start', async (req: Request, res: Response) 
             },
             data: {
                 install_id: worker_id,
-                platform: platform || 'tiktok',
+                platform: platform || 'xiaohongshu',
                 discovery_mode: discovery_mode || 'MANUAL_URL',
                 policy_snapshot,
                 market_profile_snapshot: market_profile_snapshot || null,
