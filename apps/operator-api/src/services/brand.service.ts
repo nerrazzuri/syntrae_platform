@@ -61,4 +61,29 @@ export class BrandService {
             data: { status }
         });
     }
+
+    static async updateBrandBasics(accountId: string, brandId: string, updates: { name?: string; domain?: string }) {
+        const brand = await prisma.brand.findFirst({
+            where: { id: brandId, workspace_id: accountId }
+        });
+
+        if (!brand) throw new Error('Brand not found or access denied');
+
+        const data: Record<string, unknown> = {};
+        if (typeof updates.name === 'string' && updates.name.trim()) {
+            data.name = updates.name.trim();
+        }
+        if (typeof updates.domain === 'string' && updates.domain.trim()) {
+            data.domain = updates.domain.trim();
+        }
+
+        if (Object.keys(data).length === 0) {
+            throw new Error('No brand updates provided');
+        }
+
+        return prisma.brand.update({
+            where: { id: brandId },
+            data,
+        });
+    }
 }

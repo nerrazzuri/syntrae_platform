@@ -1,4 +1,5 @@
 import { prisma } from '../db';
+import { OwnerSettingsService } from './owner/owner_settings_service';
 
 export interface LeadFilters {
     buyer_stage?: 'AWARENESS' | 'EVALUATING' | 'READY';
@@ -156,11 +157,25 @@ export class LeadService {
 
     static async requestDraft(accountId: string, leadId: string, force: boolean = false) {
         const lead = await prisma.leadOpportunity.findFirst({
-            where: { id: leadId, account_id: accountId }
+            where: { id: leadId, account_id: accountId },
+            include: {
+                event: {
+                    select: {
+                        content_text: true
+                    }
+                },
+                brand: {
+                    select: {
+                        name: true,
+                        domain: true,
+                    }
+                }
+            }
         });
         if (!lead) throw new Error("Lead not found or access denied");
 
         const PROMPT_VERSION = 'v1';
+        const ownerSettings = await OwnerSettingsService.getSettings(accountId);
 
         // 1. Idempotency Check (Operator Logic)
         if (!force) {
@@ -180,8 +195,6 @@ export class LeadService {
         // 2. Call AI Core (Pure Generation)
         const aiCoreUrl = process.env.AI_CORE_BASE_URL || 'http://ai-core:8000';
         const secret = process.env.AI_CORE_INTERNAL_SECRET;
-        const ownerSettings = {};
-
         // @ts-ignore
         const response = await fetch(`${aiCoreUrl}/v1/internal/drafts/generate`, {
             method: 'POST',
@@ -194,7 +207,21 @@ export class LeadService {
                 lead_id: leadId,
                 account_id: accountId,
                 force: force, // passed but might be ignored by service
-                owner_settings: ownerSettings
+                owner_settings: {
+                    tone: ownerSettings.tone,
+                    preferred_language: ownerSettings.preferred_language,
+                    reply_redirect_target: (ownerSettings as any).reply_redirect_target,
+                    reply_cta_style: (ownerSettings as any).reply_cta_style,
+                    reply_qualified_mode: (ownerSettings as any).reply_qualified_mode,
+                    reply_require_human_review_high_risk: (ownerSettings as any).reply_require_human_review_high_risk,
+                    auto_reply_confidence_threshold: (ownerSettings as any).auto_reply_confidence_threshold,
+                },
+                comment_text: lead.event?.content_text || '',
+                brand_name: lead.brand?.name || '',
+                brand_domain: lead.brand?.domain || '',
+                platform: lead.platform,
+                buyer_stage: lead.buyer_stage,
+                intent: lead.intent,
             })
         });
 
@@ -216,10 +243,22 @@ export class LeadService {
                 draft_text: result.draft_text,
                 tone: result.tone || 'professional',
                 language: result.language || 'English',
+                source_language: result.source_language || result.language || 'English',
+                draft_kind: 'PUBLIC_REPLY',
+                reply_channel: 'THREAD_REPLY',
+                cta_target: result.cta_target || (ownerSettings as any).reply_redirect_target || 'STORE',
+                cta_label: result.cta_label || null,
+                risk_flags: result.risk_flags || [],
+                status: (ownerSettings as any).reply_qualified_mode === 'DIRECT_SEND_AI' ? 'APPROVED' : 'DRAFT',
+                approved_at: (ownerSettings as any).reply_qualified_mode === 'DIRECT_SEND_AI' ? new Date() : null,
                 generation_meta: {
                     prompt_version: result.prompt_version,
                     model: result.model,
-                    latency: result.latency
+                    latency: result.latency,
+                    reply_strategy: result.reply_strategy,
+                    human_review_required: result.human_review_required ?? true,
+                    reply_redirect_target: result.cta_target || (ownerSettings as any).reply_redirect_target || 'STORE',
+                    original_comment: lead.event?.content_text || null,
                 }
             }
         });

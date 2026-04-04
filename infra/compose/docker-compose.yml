@@ -142,6 +142,8 @@ services:
     # PORTS REMOVED: Exposed only internally via network
     # ports:
     #   - "3001:3001"
+    volumes:
+      - /mnt/data/docker/video:/data/storage
     networks:
       - syntrae_net
     environment:
@@ -184,6 +186,8 @@ services:
       - STRIPE_PRICE_AGENCY_MONTHLY=${STRIPE_PRICE_AGENCY_MONTHLY}
       - STRIPE_PRICE_AGENCY_YEARLY=${STRIPE_PRICE_AGENCY_YEARLY}
       - BILLING_MANUAL_PLAN_CHANGES=${BILLING_MANUAL_PLAN_CHANGES:-0}
+      - AUTOMATION_STORAGE_ROOT=/data/storage
+      - AUTOMATION_API_URL=http://video-detection-engine:8000
     depends_on:
       - postgresql
 

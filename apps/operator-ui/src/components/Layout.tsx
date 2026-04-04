@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Client } from '../lib/api';
 import {
     LayoutDashboard,
@@ -21,13 +21,16 @@ export function Layout() {
     const [workspaces, setWorkspaces] = useState<any[]>([]);
     const [activeWorkspace, setActiveWorkspace] = useState<string>('');
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
+    const [loadingSession, setLoadingSession] = useState(true);
     const location = useLocation();
+    const navigate = useNavigate();
 
     useEffect(() => {
         loadSession();
-    }, []);
+    }, [location.pathname]);
 
     const loadSession = async () => {
+        setLoadingSession(true);
         try {
             const me = await Client.get('/auth/me');
             setUser(me.user);
@@ -37,10 +40,25 @@ export function Layout() {
                     workspace_id: me.active_workspace.id,
                     account: me.active_workspace
                 }]);
+
+                const needsOnboarding = me.active_workspace.onboarding_state !== 'ONBOARDED';
+                const onOnboardingRoute = location.pathname === '/onboarding';
+
+                if (needsOnboarding && !onOnboardingRoute) {
+                    navigate('/onboarding', { replace: true });
+                    return;
+                }
+
+                if (!needsOnboarding && onOnboardingRoute) {
+                    navigate('/', { replace: true });
+                    return;
+                }
             }
         } catch (e) {
             console.error(e);
             window.location.href = '/login';
+        } finally {
+            setLoadingSession(false);
         }
     };
 
@@ -65,7 +83,7 @@ export function Layout() {
         window.location.href = '/login';
     };
 
-    if (!user) {
+    if (loadingSession || !user) {
         return <div className="flex h-screen items-center justify-center text-slate-600">Loading...</div>;
     }
 
@@ -143,6 +161,10 @@ export function Layout() {
                                 <Link to="/leads" className={navClass('/leads')} onClick={closeMobileNav}>
                                     <Target className="h-5 w-5" />
                                     Leads
+                                </Link>
+                                <Link to="/replies" className={navClass('/replies')} onClick={closeMobileNav}>
+                                    <MessageSquare className="h-5 w-5" />
+                                    Pending Replies
                                 </Link>
                                 <Link to="/runs" className={navClass('/runs')} onClick={closeMobileNav}>
                                     <Play className="h-5 w-5" />

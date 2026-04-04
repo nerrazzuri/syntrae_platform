@@ -190,6 +190,12 @@ class GenerateDraftRequest(BaseModel):
     account_id: str
     force: bool = False
     owner_settings: Optional[Dict[str, Any]] = None
+    comment_text: Optional[str] = None
+    brand_name: Optional[str] = None
+    brand_domain: Optional[str] = None
+    platform: Optional[str] = None
+    buyer_stage: Optional[str] = None
+    intent: Optional[str] = None
 
 
 @router.post("/drafts/generate")
@@ -223,7 +229,15 @@ def generate_draft(
             lead_id=payload.lead_id,
             account_id=payload.account_id,
             force=payload.force,
-            owner_settings=payload.owner_settings
+            owner_settings={
+                **(payload.owner_settings or {}),
+                "comment_text": payload.comment_text,
+                "brand_name": payload.brand_name,
+                "brand_domain": payload.brand_domain,
+                "platform": payload.platform,
+                "buyer_stage": payload.buyer_stage,
+                "intent": payload.intent,
+            }
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

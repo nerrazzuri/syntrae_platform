@@ -28,6 +28,7 @@ model Account {
   memberships        WorkspaceMembership[]
   active_sessions    Session[]
   owner_settings     OwnerSettings?
+  platform_connections BrandPlatformConnection[]
 
   suggestions        Suggestion[]
   decisions          SuggestionDecision[]
@@ -53,8 +54,33 @@ model Brand {
   events          EngagementEvent[]
   leads           LeadOpportunity[]
   drafts          OutreachDraft[]
+  platform_connections BrandPlatformConnection[]
 
   @@index([workspace_id])
+  @@schema("core")
+}
+
+model BrandPlatformConnection {
+  id                 String   @id @default(uuid())
+  workspace_id       String
+  brand_id           String
+  platform           String
+  provider           String   @default("MANUAL_SESSION")
+  status             String   @default("DISCONNECTED")
+  session_path       String?
+  session_updated_at DateTime?
+  connected_at       DateTime?
+  last_checked_at    DateTime?
+  last_error         String?
+  metadata           Json     @default("{}")
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  account Account @relation(fields: [workspace_id], references: [id])
+  brand   Brand   @relation(fields: [brand_id], references: [id])
+
+  @@unique([brand_id, platform])
+  @@index([workspace_id, platform, status])
   @@schema("core")
 }
 
@@ -118,6 +144,11 @@ model OwnerSettings {
   automation_opt_in         Boolean  @default(false)
   max_suggestions_per_video Int      @default(2)
   cooldown_hours            Int      @default(24)
+  reply_qualified_mode      String   @default("MANUAL_REVIEW")
+  reply_redirect_target     String   @default("STORE")
+  reply_cta_style           String   @default("SOFT")
+  reply_require_human_review_high_risk Boolean @default(true)
+  auto_reply_confidence_threshold Float @default(0.9)
   preferred_language        String?
   tone                      String?
   created_at                DateTime @default(now())
@@ -375,9 +406,26 @@ model OutreachDraft {
   buyer_stage      BuyerStage
   tone             String
   language         String
+  source_language  String?
   draft_text       String
+  edited_text      String?
   generation_meta  Json
+  draft_kind       String   @default("PUBLIC_REPLY")
+  reply_channel    String   @default("THREAD_REPLY")
+  cta_target       String?
+  cta_label        String?
+  risk_flags       Json     @default("[]")
+  delivery_error   String?
+  status           String   @default("DRAFT")
+  generated_by     String   @default("AI_CORE")
+  confidence       Float?
+  normalization_version String?
+  intent_score     Float?
+  approved_by_user_id String?
+  approved_at      DateTime?
+  sent_at          DateTime?
   created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt @default(now())
 
   lead LeadOpportunity @relation(fields: [lead_id], references: [id])
 

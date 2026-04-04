@@ -108,6 +108,68 @@ export function Settings() {
                     />
                 </div>
 
+                <div className="border-t pt-6">
+                    <h3 className="text-lg font-bold mb-4">Reply Workflow</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Qualified Reply Mode</label>
+                            <select
+                                className="w-full p-2 border rounded"
+                                value={settings.reply_qualified_mode || 'MANUAL_REVIEW'}
+                                onChange={e => handleChange('reply_qualified_mode', e.target.value)}
+                            >
+                                <option value="MANUAL_REVIEW">Manual Review Required</option>
+                                <option value="DIRECT_SEND_AI">Direct Send AI Reply</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Redirect Target</label>
+                            <select
+                                className="w-full p-2 border rounded"
+                                value={settings.reply_redirect_target || 'STORE'}
+                                onChange={e => handleChange('reply_redirect_target', e.target.value)}
+                            >
+                                <option value="STORE">Store</option>
+                                <option value="PROFILE">Profile</option>
+                                <option value="PINNED_POST">Pinned Post</option>
+                                <option value="CUSTOMER_SERVICE">Customer Service</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">CTA Style</label>
+                            <select
+                                className="w-full p-2 border rounded"
+                                value={settings.reply_cta_style || 'SOFT'}
+                                onChange={e => handleChange('reply_cta_style', e.target.value)}
+                            >
+                                <option value="SOFT">Soft</option>
+                                <option value="DIRECT">Direct</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Auto Reply Confidence Threshold</label>
+                            <input
+                                type="number"
+                                min="0"
+                                max="1"
+                                step="0.05"
+                                className="w-full p-2 border rounded"
+                                value={settings.auto_reply_confidence_threshold ?? 0.9}
+                                onChange={e => handleChange('auto_reply_confidence_threshold', parseFloat(e.target.value))}
+                            />
+                        </div>
+                    </div>
+
+                    <label className="mt-4 flex items-center gap-3 text-sm text-gray-700">
+                        <input
+                            type="checkbox"
+                            checked={Boolean(settings.reply_require_human_review_high_risk)}
+                            onChange={e => handleChange('reply_require_human_review_high_risk', e.target.checked)}
+                        />
+                        High-risk replies still require human review
+                    </label>
+                </div>
+
                 <div className="pt-4 border-t">
                     <button
                         onClick={handleSave}

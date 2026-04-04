@@ -4,6 +4,7 @@ from ai_core.pipeline.llm.llm_client import LLMClient
 from src.shared.database.models import LeadOpportunity, BuyerStage, RecommendedAction
 import json
 import uuid
+import re
 
 PROMPT_VERSION = "v1"
 
@@ -18,6 +19,18 @@ class DraftGenerationService:
         if lead.recommended_action == RecommendedAction.SILENT_CAPTURE:
             return False
         return True
+
+    def _detect_language(self, comment_text: str, preferred_language: Optional[str]) -> str:
+        if preferred_language:
+            normalized = preferred_language.lower()
+            if normalized in {"zh", "zh-cn", "chinese", "mandarin", "simplified chinese"}:
+                return "Mandarin Chinese (Simplified)"
+            if normalized in {"en", "english"}:
+                return "English"
+
+        if re.search(r"[\u4e00-\u9fff]", comment_text or ""):
+            return "Mandarin Chinese (Simplified)"
+        return "English"
 
 
 
@@ -37,29 +50,52 @@ class DraftGenerationService:
 
         # Tone/Language Resolution
         # Precedence: OwnerSettings -> Inferred (TODO) -> Default
-        tone = (owner_settings or {}).get("tone", "professional")
-        language = (owner_settings or {}).get("preferred_language", "English")
+        owner_settings = owner_settings or {}
+        tone = owner_settings.get("tone", "professional")
+        comment_text = owner_settings.get("comment_text") or ""
+        language = self._detect_language(comment_text, owner_settings.get("preferred_language"))
+        reply_redirect_target = owner_settings.get("reply_redirect_target", "STORE")
+        reply_cta_style = owner_settings.get("reply_cta_style", "SOFT")
+        brand_name = owner_settings.get("brand_name") or "the brand"
+        brand_domain = owner_settings.get("brand_domain") or ""
+
+        cta_map = {
+            "STORE": "the brand's store",
+            "PROFILE": "the brand's profile",
+            "PINNED_POST": "the brand's pinned post",
+            "CUSTOMER_SERVICE": "the brand's customer service entrypoint",
+        }
+        cta_target_human = cta_map.get(reply_redirect_target, "the brand's store")
 
         # Prompt Construction
         prompt = f"""
-        Generate a short, helpful outreach message for a potential customer.
+        Generate a short, human-sounding PUBLIC comment reply for a potential customer.
         
         CONTEXT:
         Platform: {lead.platform}
         Intent: {lead.intent}
         Buyer Stage: {lead.buyer_stage.name}
         User Context: {lead.preferences or "N/A"}
+        Original Comment: {comment_text or "N/A"}
+        Brand Name: {brand_name}
+        Brand Domain: {brand_domain or "N/A"}
         
         TONE: {tone}
         LANGUAGE: {language}
+        REDIRECT TARGET: {reply_redirect_target}
+        CTA STYLE: {reply_cta_style}
         
         STRICT RULES:
-        1. NO pricing numbers (unless explicitly in context).
-        2. NO impersonating platform staff.
-        3. NO absolute guarantees ("best", "cheapest").
-        4. NEUTRAL Call-to-Action ONLY (e.g., "Feel free to reach out", "Happy to share more info").
-        5. DO NOT say "Click the link" or "DM me".
-        6. Keep it under 50 words.
+        1. Reply in the SAME LANGUAGE as the original comment. English comment -> English reply. Mandarin comment -> Mandarin reply.
+        2. This is the FIRST and ideally ONLY public reply. Keep it concise and conversion-oriented.
+        3. The reply must feel like a real human typed it, not a template or chatbot.
+        4. Reference the user's actual comment naturally before redirecting.
+        5. Redirect as close as possible to {cta_target_human}, but do it naturally and not aggressively.
+        6. NO cold DM invitation. NO "please DM us". NO robotic customer-service phrasing.
+        7. NO pricing numbers unless explicitly present in the comment/context.
+        8. NO absolute guarantees ("best", "cheapest", "guaranteed").
+        9. Keep it under 45 words unless Mandarin requires slightly more natural phrasing.
+        10. Output must be only the reply text, with no quotation marks or explanation.
         
         Draft:
         """
@@ -99,8 +135,14 @@ class DraftGenerationService:
                 "draft_text": draft_text,
                 "tone": tone,
                 "language": language,
+                "source_language": language,
                 "prompt_version": PROMPT_VERSION,
-                "cached": False
+                "cached": False,
+                "cta_target": reply_redirect_target,
+                "cta_label": cta_target_human,
+                "reply_strategy": "single_shot_public_redirect",
+                "risk_flags": [],
+                "human_review_required": True,
             }
 
         except Exception as e:

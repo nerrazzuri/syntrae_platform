@@ -149,6 +149,12 @@ export function BrandsPage() {
                                 Automation Policy
                             </Link>
                             <Link
+                                to={`/brands/${brand.id}/connections`}
+                                className="text-sm font-medium text-amber-700 hover:text-amber-900"
+                            >
+                                Connect XHS
+                            </Link>
+                            <Link
                                 to={`/brands/${brand.id}/market-profiles`}
                                 className="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 font-bold uppercase tracking-wide"
                             >

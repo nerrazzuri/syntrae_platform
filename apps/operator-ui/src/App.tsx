@@ -9,10 +9,13 @@ import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { Suggestions } from './pages/Suggestions';
 import { Leads } from './pages/Leads';
+import { RepliesPage } from './pages/Replies';
 import { Runs } from './pages/Runs';
 import { Settings } from './pages/Settings';
 import { BillingPage } from './pages/Billing';
 import { BrandsPage } from './pages/Brands';
+import { OnboardingPage } from './pages/Onboarding';
+import { BrandConnectionsPage } from './pages/BrandConnections';
 import { BrandsAnalytics } from './pages/analytics/BrandsAnalytics';
 import { UsageAnalytics } from './pages/analytics/UsageAnalytics';
 import { AutomationPolicySettings } from './pages/settings/AutomationPolicy';
@@ -31,11 +34,14 @@ function App() {
                     <Route index element={<Dashboard />} />
                     <Route path="suggestions" element={<Suggestions />} />
                     <Route path="leads" element={<Leads />} />
+                    <Route path="replies" element={<RepliesPage />} />
                     <Route path="runs" element={<Runs />} />
                     <Route path="brands" element={<BrandsPage />} />
+                    <Route path="brands/:brandId/connections" element={<BrandConnectionsPage />} />
                     <Route path="brands/:brandId/policy" element={<AutomationPolicySettings />} />
                     <Route path="brands/:brandId/market-profiles" element={<MarketProfiles />} />
                     <Route path="billing" element={<BillingPage />} />
+                    <Route path="onboarding" element={<OnboardingPage />} />
                     <Route path="settings" element={<Settings />} />
 
                     {/* Analytics */}

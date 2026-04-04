@@ -693,9 +693,16 @@ class OutreachDraft(Base):
     buyer_stage = Column(String(50), nullable=False)
     tone = Column(String(50), nullable=False)
     language = Column(String(50), nullable=False)
+    source_language = Column(String(50), nullable=True)
     draft_text = Column(String, nullable=False)
     edited_text = Column(String, nullable=True) # Phase 37.4
     generation_meta = Column(JSON, nullable=False)
+    draft_kind = Column(String(50), default="PUBLIC_REPLY", nullable=False)
+    reply_channel = Column(String(50), default="THREAD_REPLY", nullable=False)
+    cta_target = Column(String(50), nullable=True)
+    cta_label = Column(String(255), nullable=True)
+    risk_flags = Column(JSON, nullable=False, default=list)
+    delivery_error = Column(String, nullable=True)
     
     # Phase 37.4 Lifecycle
     status = Column(String(50), default="DRAFT", nullable=False)

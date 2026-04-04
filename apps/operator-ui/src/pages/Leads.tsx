@@ -8,6 +8,7 @@ export function Leads() {
     const [loading, setLoading] = useState(true);
     const [total, setTotal] = useState(0);
     const [selectedLead, setSelectedLead] = useState<any | null>(null);
+    const [draftGenerationLoadingId, setDraftGenerationLoadingId] = useState<string | null>(null);
 
     const loadData = async () => {
         try {
@@ -47,6 +48,18 @@ export function Leads() {
     };
 
     const readyCount = leads.filter(lead => lead.buyer_stage === 'READY').length;
+
+    const generateReply = async (leadId: string) => {
+        setDraftGenerationLoadingId(leadId);
+        try {
+            await Client.post(`/leads/${leadId}/draft`, {});
+            window.location.href = '/replies';
+        } catch (e: any) {
+            alert(e.message || 'Failed to generate reply');
+        } finally {
+            setDraftGenerationLoadingId(null);
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -200,6 +213,16 @@ export function Leads() {
                             </div>
 
                             <DetailField label="Source Event" value={<div className="font-mono text-sm text-slate-600">{selectedLead.source_event_id}</div>} />
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => generateReply(selectedLead.id)}
+                                    disabled={draftGenerationLoadingId === selectedLead.id}
+                                    className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
+                                >
+                                    {draftGenerationLoadingId === selectedLead.id ? 'Generating...' : 'Generate Reply'}
+                                </button>
+                            </div>
                         </div>
                         <div className="border-t border-slate-200 p-6 text-right">
                             <button

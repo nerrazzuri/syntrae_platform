@@ -1,6 +1,6 @@
 import logging
 from fastapi import FastAPI
-from .routers import ingest, inference
+from .routers import ingest, inference, delivery
 
 logging.basicConfig(level=logging.INFO)
 
@@ -8,6 +8,7 @@ app = FastAPI(title="Video Detection Engine API", version="1.0.0")
 
 app.include_router(ingest.router, prefix="/api/v1/ingest", tags=["Ingest"])
 app.include_router(inference.router, prefix="/api/v1/inference", tags=["Inference"])
+app.include_router(delivery.router, prefix="/api/v1/delivery", tags=["Delivery"])
 
 @app.get("/health")
 def health_check():

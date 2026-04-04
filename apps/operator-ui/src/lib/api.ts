@@ -58,6 +58,12 @@ export class Client {
             body: JSON.stringify(body)
         });
     }
+
+    static delete(endpoint: string) {
+        return this.request(endpoint, {
+            method: 'DELETE',
+        });
+    }
 }
 
 export class Api extends Client {

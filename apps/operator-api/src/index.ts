@@ -20,6 +20,8 @@ import { runsRouter } from './api/runs';
 import { draftsRouter } from './api/drafts';
 import marketProfileRouter from './api/market_profile';
 import { internalRouter } from './api/internal';
+import { onboardingRouter } from './api/onboarding';
+import { platformConnectionsRouter } from './api/platform_connections';
 
 dotenv.config();
 
@@ -66,6 +68,8 @@ export function createApp() {
     app.use('/value', valueRouter);
     app.use('/leads', leadsRouter);
     app.use('/billing', billingRouter);
+    app.use('/onboarding', onboardingRouter);
+    app.use('/', platformConnectionsRouter);
     app.use('/', runsRouter);
     app.use('/', policyRouter);
     app.use('/', marketProfileRouter);

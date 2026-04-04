@@ -24,6 +24,11 @@ const DEFAULT_SETTINGS = {
     max_suggestions_per_day: 20,
     max_suggestions_per_video: 2,
     cooldown_hours: 24,
+    reply_qualified_mode: 'MANUAL_REVIEW',
+    reply_redirect_target: 'STORE',
+    reply_cta_style: 'SOFT',
+    reply_require_human_review_high_risk: true,
+    auto_reply_confidence_threshold: 0.9,
     preferred_language: null,
     tone: null
 };
@@ -74,6 +79,21 @@ export class OwnerSettingsService {
         }
         if (updates.max_suggestions_per_day !== undefined && updates.max_suggestions_per_day < 0) {
             throw new Error('max_suggestions_per_day must be >= 0');
+        }
+        if (updates.reply_qualified_mode && !['MANUAL_REVIEW', 'DIRECT_SEND_AI'].includes(String(updates.reply_qualified_mode))) {
+            throw new Error(`Invalid reply_qualified_mode: ${updates.reply_qualified_mode}`);
+        }
+        if (updates.reply_redirect_target && !['STORE', 'PROFILE', 'PINNED_POST', 'CUSTOMER_SERVICE'].includes(String(updates.reply_redirect_target))) {
+            throw new Error(`Invalid reply_redirect_target: ${updates.reply_redirect_target}`);
+        }
+        if (updates.reply_cta_style && !['SOFT', 'DIRECT'].includes(String(updates.reply_cta_style))) {
+            throw new Error(`Invalid reply_cta_style: ${updates.reply_cta_style}`);
+        }
+        if (updates.auto_reply_confidence_threshold !== undefined) {
+            const threshold = Number(updates.auto_reply_confidence_threshold);
+            if (Number.isNaN(threshold) || threshold < 0 || threshold > 1) {
+                throw new Error('auto_reply_confidence_threshold must be between 0 and 1');
+            }
         }
 
         // Apply

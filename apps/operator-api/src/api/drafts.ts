@@ -10,6 +10,55 @@ const router = Router();
 router.use(requireSession);
 router.use(requireWorkspace);
 
+router.get('/drafts', async (req, res) => {
+    const accountId = req.activeWorkspaceId!;
+    const statusFilter = String(req.query.status || 'PENDING').toUpperCase();
+    const statuses = statusFilter === 'PENDING'
+        ? ['DRAFT', 'EDITED', 'APPROVED']
+        : statusFilter.split(',').map((value) => value.trim()).filter(Boolean);
+
+    try {
+        const drafts = await prisma.outreachDraft.findMany({
+            where: {
+                account_id: accountId,
+                status: { in: statuses },
+                draft_kind: 'PUBLIC_REPLY',
+            },
+            orderBy: { created_at: 'desc' },
+            include: {
+                lead: {
+                    select: {
+                        id: true,
+                        intent: true,
+                        buyer_stage: true,
+                        confidence: true,
+                        comment_id: true,
+                        platform: true,
+                        event: {
+                            select: {
+                                content_text: true,
+                            }
+                        }
+                    }
+                },
+                brand: {
+                    select: {
+                        id: true,
+                        name: true,
+                    }
+                }
+            }
+        });
+
+        res.json(drafts.map((draft) => ({
+            ...draft,
+            original_comment: draft.lead?.event?.content_text || null,
+        })));
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Edit Draft
 router.post('/drafts/:id/edit', async (req, res) => {
     const { id } = req.params;
@@ -192,6 +241,105 @@ router.post('/drafts/:id/mark-sent', async (req, res) => {
 
     } catch (error: any) {
         res.status(500).json({ error: error.message });
+    }
+});
+
+router.post('/drafts/:id/send', async (req, res) => {
+    const { id } = req.params;
+    const userId = req.session!.user_id;
+    const accountId = req.activeWorkspaceId!;
+
+    try {
+        const draft = await prisma.outreachDraft.findUnique({
+            where: { id },
+            include: {
+                lead: {
+                    select: {
+                        comment_id: true,
+                        video_id: true,
+                    }
+                }
+            }
+        });
+
+        if (!draft || draft.account_id !== accountId) {
+            return res.status(404).json({ error: 'Draft not found' });
+        }
+
+        if (draft.status !== 'APPROVED') {
+            return res.status(400).json({ error: 'Draft must be APPROVED before sending' });
+        }
+
+        if (draft.reply_channel !== 'THREAD_REPLY') {
+            return res.status(400).json({ error: `Unsupported reply channel ${draft.reply_channel}` });
+        }
+
+        const finalText = draft.edited_text || draft.draft_text;
+        const automationApiUrl = process.env.AUTOMATION_API_URL || 'http://video-detection-engine:8000';
+        const internalSecret = process.env.AI_CORE_INTERNAL_SECRET;
+
+        const response = await fetch(`${automationApiUrl}/api/v1/delivery/thread-reply`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-internal-secret': internalSecret || '',
+            },
+            body: JSON.stringify({
+                platform: draft.platform,
+                video_id: draft.lead.video_id,
+                comment_id: draft.lead.comment_id,
+                message_text: finalText,
+            })
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            await prisma.outreachDraft.update({
+                where: { id },
+                data: {
+                    delivery_error: payload?.detail || payload?.error || `HTTP ${response.status}`,
+                    updated_at: new Date(),
+                }
+            });
+            return res.status(response.status).json({
+                error: payload?.detail || payload?.error || 'Failed to send thread reply',
+                code: 'PLATFORM_DELIVERY_FAILED',
+            });
+        }
+
+        const updated = await prisma.$transaction(async (tx) => {
+            const nextDraft = await tx.outreachDraft.update({
+                where: { id },
+                data: {
+                    status: 'SENT',
+                    sent_at: new Date(),
+                    delivery_error: null,
+                    updated_at: new Date(),
+                }
+            });
+
+            await tx.manualSendEvent.create({
+                data: {
+                    draft_id: id,
+                    lead_id: draft.lead_id,
+                    brand_id: draft.brand_id,
+                    sent_text: finalText,
+                    sent_by_user_id: userId,
+                    platform: draft.platform,
+                    send_mode: 'PLATFORM_API',
+                    confirmation_ack: true,
+                    notes: JSON.stringify(payload),
+                }
+            });
+
+            return nextDraft;
+        });
+
+        await FeedbackService.logFeedback(id, FeedbackAction.MANUAL_SENT, userId, { automated_delivery: true });
+        res.json({ draft: updated, delivery: payload });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message || 'Failed to send reply' });
     }
 });
 

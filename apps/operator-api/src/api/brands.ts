@@ -67,6 +67,22 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     }
 });
 
+// PATCH /brands/:id
+router.patch('/:id', async (req: Request, res: Response) => {
+    try {
+        const brandId = req.params.id;
+        const workspaceId = req.session?.active_workspace_id!;
+        const updated = await BrandService.updateBrandBasics(workspaceId, brandId, {
+            name: req.body?.name,
+            domain: req.body?.domain,
+        });
+        res.json(updated);
+    } catch (err: any) {
+        console.warn('[Brands] Update Failed:', err.message);
+        res.status(400).json({ error: err.message });
+    }
+});
+
 // GET /brands/:brandId/leads (Phase 37.4)
 router.get('/:brandId/leads', async (req: Request, res: Response) => {
     try {
