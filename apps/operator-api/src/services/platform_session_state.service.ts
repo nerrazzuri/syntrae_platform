@@ -14,9 +14,11 @@ export interface BrowserCookieInput {
     expirationDate?: number | null;
 }
 
-const REQUIRED_COOKIE_NAMES = ['a1', 'web_session'];
+const REQUIRED_COOKIE_NAMES = ['web_session'];
+const AUTH_COOKIE_NAMES = ['a1', 'id_token'];
 const ALLOWED_COOKIE_NAMES = new Set([
     'a1',
+    'id_token',
     'web_session',
     'web_session_sig',
     'gid',
@@ -69,6 +71,10 @@ export class PlatformSessionStateService {
         const sanitized = this.sanitizeCookies(cookies);
         const presentNames = new Set(sanitized.map((cookie) => cookie.name));
         const missing = REQUIRED_COOKIE_NAMES.filter((name) => !presentNames.has(name));
+        const hasAuthCookie = AUTH_COOKIE_NAMES.some((name) => presentNames.has(name));
+        if (!hasAuthCookie) {
+            missing.push('a1|id_token');
+        }
 
         return {
             ok: missing.length === 0,

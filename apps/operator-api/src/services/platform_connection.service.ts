@@ -141,7 +141,7 @@ export class PlatformConnectionService {
             active_session_path: detectedPath ?? null,
             connect_command: this.buildLoginCommand(workspaceId, brandId, platform),
             extension_supported: true,
-            extension_required_cookie_names: ['a1', 'web_session'],
+            extension_required_cookie_names: ['web_session', 'id_token'],
             extension_instructions: [
                 'Prepare a connection challenge from this page.',
                 'Use the Syntrae XHS browser extension to capture your logged-in Xiaohongshu cookies.',

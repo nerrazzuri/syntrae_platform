@@ -3,6 +3,7 @@ const XHS_URL = "https://www.xiaohongshu.com/";
 const POLL_INTERVAL_MS = 5000;
 const MAX_WAIT_MS = 2 * 60 * 1000;
 const POST_LOGIN_RELOAD_DELAY_MS = 8000;
+const CAPTURE_COOKIE_NAMES = ["a1", "id_token", "web_session", "web_session_sig", "gid", "abRequestId", "xsecappid", "webBuild", "unread"];
 
 browserApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || message.type !== "SYNTRAE_XHS_CAPTURE_REQUEST") {
@@ -19,10 +20,10 @@ browserApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function handleCaptureRequest(payload) {
   const requiredCookieNames = Array.isArray(payload?.requiredCookieNames) && payload.requiredCookieNames.length > 0
     ? payload.requiredCookieNames
-    : ["a1", "web_session"];
+    : ["web_session", "id_token"];
 
-  let cookies = await getRequiredCookies(requiredCookieNames);
-  if (cookies.length < requiredCookieNames.length) {
+  let cookies = await getCapturedCookies();
+  if (!hasRequiredCookies(cookies, requiredCookieNames)) {
     const tab = await browserApi.tabs.create({ url: XHS_URL, active: true });
     scheduleTabReload(tab?.id);
     cookies = await waitForCookies(requiredCookieNames);
@@ -50,20 +51,23 @@ async function handleCaptureRequest(payload) {
 async function waitForCookies(requiredCookieNames) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < MAX_WAIT_MS) {
-    const cookies = await getRequiredCookies(requiredCookieNames);
-    if (cookies.length >= requiredCookieNames.length) {
+    const cookies = await getCapturedCookies();
+    if (hasRequiredCookies(cookies, requiredCookieNames)) {
       return cookies;
     }
     await sleep(POLL_INTERVAL_MS);
   }
 
-  const finalCookies = await getRequiredCookies(requiredCookieNames);
+  const finalCookies = await getCapturedCookies();
   const foundNames = new Set(finalCookies.map((cookie) => cookie.name));
   const missingNames = requiredCookieNames.filter((name) => !foundNames.has(name));
-  throw new Error(`Timed out waiting for XHS login cookies. Missing: ${missingNames.join(", ")}. Finish login on the Xiaohongshu tab, wait for the page to fully load, then try again.`);
+  if (!foundNames.has("a1") && !foundNames.has("id_token")) {
+    missingNames.push("a1|id_token");
+  }
+  throw new Error(`Timed out waiting for XHS login cookies. Missing: ${Array.from(new Set(missingNames)).join(", ")}. Finish login on the Xiaohongshu tab, wait for the page to fully load, then try again.`);
 }
 
-async function getRequiredCookies(requiredCookieNames) {
+async function getCapturedCookies() {
   const cookieSets = await Promise.allSettled([
     browserApi.cookies.getAll({ domain: "xiaohongshu.com" }),
     browserApi.cookies.getAll({ domain: ".xiaohongshu.com" }),
@@ -78,7 +82,7 @@ async function getRequiredCookies(requiredCookieNames) {
   }
 
   return Array.from(new Map(allCookies.map((cookie) => [`${cookie.name}:${cookie.domain}:${cookie.path}`, cookie])).values())
-    .filter((cookie) => requiredCookieNames.includes(cookie.name))
+    .filter((cookie) => CAPTURE_COOKIE_NAMES.includes(cookie.name))
     .map((cookie) => ({
       name: cookie.name,
       value: cookie.value,
@@ -89,6 +93,13 @@ async function getRequiredCookies(requiredCookieNames) {
       sameSite: normalizeSameSite(cookie.sameSite),
       expirationDate: cookie.expirationDate ?? null,
     }));
+}
+
+function hasRequiredCookies(cookies, requiredCookieNames) {
+  const names = new Set(cookies.map((cookie) => cookie.name));
+  const hasRequiredNames = requiredCookieNames.every((name) => names.has(name));
+  const hasAuthCookie = names.has("a1") || names.has("id_token");
+  return hasRequiredNames && hasAuthCookie;
 }
 
 function normalizeSameSite(value) {
