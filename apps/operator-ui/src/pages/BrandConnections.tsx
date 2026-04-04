@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, API_BASE } from '../lib/api';
 
 interface PlatformConnection {
     brand_name: string;
     platform: string;
     provider: string;
+    auth_type: string;
     status: string;
     session_present: boolean;
     session_path: string | null;
@@ -13,8 +14,29 @@ interface PlatformConnection {
     active_session_path: string | null;
     session_updated_at: string | null;
     last_checked_at: string | null;
+    last_verified_at?: string | null;
+    verification_error?: string | null;
     connect_command: string;
     instructions: string[];
+    extension_supported?: boolean;
+    extension_required_cookie_names?: string[];
+    extension_instructions?: string[];
+}
+
+interface ConnectionChallenge {
+    challenge_id: string;
+    nonce: string;
+    expires_at: string;
+    brand_id: string;
+    workspace_id: string;
+    platform: string;
+    ingest_path: string;
+}
+
+declare global {
+    interface WindowEventMap {
+        SYNTRAE_XHS_CAPTURE_RESULT: CustomEvent<{ success: boolean; error?: string }>;
+    }
 }
 
 export function BrandConnectionsPage() {
@@ -23,12 +45,31 @@ export function BrandConnectionsPage() {
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [challenge, setChallenge] = useState<ConnectionChallenge | null>(null);
 
     useEffect(() => {
         if (brandId) {
             loadConnection();
         }
     }, [brandId]);
+
+    useEffect(() => {
+        function handleCaptureResult(event: WindowEventMap['SYNTRAE_XHS_CAPTURE_RESULT']) {
+            const detail = event.detail;
+            if (detail?.success) {
+                setBusy(null);
+                setChallenge(null);
+                loadConnection();
+                return;
+            }
+
+            setBusy(null);
+            setError(detail?.error || 'XHS extension capture failed');
+        }
+
+        window.addEventListener('SYNTRAE_XHS_CAPTURE_RESULT', handleCaptureResult as EventListener);
+        return () => window.removeEventListener('SYNTRAE_XHS_CAPTURE_RESULT', handleCaptureResult as EventListener);
+    }, []);
 
     async function loadConnection() {
         setLoading(true);
@@ -56,6 +97,29 @@ export function BrandConnectionsPage() {
         }
     }
 
+    async function createChallenge() {
+        setBusy('challenge');
+        setError(null);
+        try {
+            const data = await api.post(`/brands/${brandId}/platform-connections/rednote/challenge`, {}) as ConnectionChallenge;
+            setChallenge(data);
+            const ingestBase = API_BASE.startsWith('http') ? API_BASE : `${window.location.origin}${API_BASE}`;
+
+            window.postMessage({
+                type: 'SYNTRAE_XHS_CAPTURE_REQUEST',
+                payload: {
+                    challengeId: data.challenge_id,
+                    nonce: data.nonce,
+                    ingestUrl: `${ingestBase}${data.ingest_path}`,
+                    requiredCookieNames: connection?.extension_required_cookie_names || ['a1', 'web_session'],
+                }
+            }, window.location.origin);
+        } catch (err: any) {
+            setError(err.message || 'Failed to create XHS connection challenge');
+            setBusy(null);
+        }
+    }
+
     async function refreshConnection() {
         setBusy('refresh');
         setError(null);
@@ -64,6 +128,19 @@ export function BrandConnectionsPage() {
             setConnection(data);
         } catch (err: any) {
             setError(err.message || 'Failed to refresh connection');
+        } finally {
+            setBusy(null);
+        }
+    }
+
+    async function verifyConnection() {
+        setBusy('verify');
+        setError(null);
+        try {
+            const data = await api.post(`/brands/${brandId}/platform-connections/rednote/verify`, {}) as PlatformConnection;
+            setConnection(data);
+        } catch (err: any) {
+            setError(err.message || 'Failed to verify connection');
         } finally {
             setBusy(null);
         }
@@ -139,6 +216,16 @@ export function BrandConnectionsPage() {
                             <dt className="font-semibold text-slate-700">Session updated</dt>
                             <dd className="mt-1 text-slate-600">{connection?.session_updated_at ? new Date(connection.session_updated_at).toLocaleString() : 'No session file yet'}</dd>
                         </div>
+                        <div>
+                            <dt className="font-semibold text-slate-700">Last verified</dt>
+                            <dd className="mt-1 text-slate-600">{connection?.last_verified_at ? new Date(connection.last_verified_at).toLocaleString() : 'Not verified yet'}</dd>
+                        </div>
+                        {connection?.verification_error && (
+                            <div>
+                                <dt className="font-semibold text-rose-700">Verification issue</dt>
+                                <dd className="mt-1 text-rose-600">{connection.verification_error}</dd>
+                            </div>
+                        )}
                     </dl>
 
                     <div className="mt-6 flex flex-wrap gap-3">
@@ -150,11 +237,25 @@ export function BrandConnectionsPage() {
                             {busy === 'request' ? 'Preparing...' : 'Prepare connection'}
                         </button>
                         <button
+                            onClick={createChallenge}
+                            disabled={busy !== null}
+                            className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white"
+                        >
+                            {busy === 'challenge' ? 'Waiting for extension...' : 'Connect with extension'}
+                        </button>
+                        <button
                             onClick={refreshConnection}
                             disabled={busy !== null}
                             className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700"
                         >
                             {busy === 'refresh' ? 'Refreshing...' : 'Refresh status'}
+                        </button>
+                        <button
+                            onClick={verifyConnection}
+                            disabled={busy !== null}
+                            className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700"
+                        >
+                            {busy === 'verify' ? 'Verifying...' : 'Verify session'}
                         </button>
                         <button
                             onClick={disconnectConnection}
@@ -167,33 +268,48 @@ export function BrandConnectionsPage() {
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-white p-6">
-                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Manual login flow</div>
-                    <h2 className="mt-2 text-xl font-bold text-slate-900">Capture the XHS session</h2>
+                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Extension capture</div>
+                    <h2 className="mt-2 text-xl font-bold text-slate-900">Capture the XHS session locally</h2>
                     <p className="mt-2 text-sm text-slate-600">
-                        Run this command on the VPS from the `infra/compose` directory. It opens the worker browser in manual-login mode and
-                        writes the session into the brand-scoped path when you press ENTER after login succeeds.
+                        The recommended commercial flow is the Syntrae browser extension. It opens Xiaohongshu login in your own browser,
+                        captures the required cookies locally after you sign in, and uploads the brand-scoped session to Syntrae.
                     </p>
 
-                    <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-950 p-4 text-sm text-slate-100">
-                        <code className="break-all">{connection?.connect_command}</code>
-                    </div>
-
-                    <button
-                        onClick={copyCommand}
-                        disabled={!connection?.connect_command}
-                        className="mt-4 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700"
-                    >
-                        Copy command
-                    </button>
+                    {challenge && (
+                        <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                            Extension challenge created. Complete the login/capture flow in the extension, then use refresh or verify.
+                        </div>
+                    )}
 
                     <ol className="mt-6 space-y-3 text-sm text-slate-600">
-                        {connection?.instructions?.map((instruction, index) => (
+                        {(connection?.extension_instructions || []).map((instruction, index) => (
                             <li key={instruction} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
                                 <span className="mr-2 font-semibold text-slate-900">{index + 1}.</span>
                                 {instruction}
                             </li>
                         ))}
                     </ol>
+
+                    <div className="mt-8 border-t border-slate-100 pt-6">
+                        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Terminal fallback</div>
+                        <h3 className="mt-2 text-lg font-bold text-slate-900">Manual worker login</h3>
+                        <p className="mt-2 text-sm text-slate-600">
+                            Use this only if the extension is unavailable. It opens the worker browser in manual-login mode and writes the
+                            session into the brand-scoped path when you press ENTER after login succeeds.
+                        </p>
+
+                        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-950 p-4 text-sm text-slate-100">
+                            <code className="break-all">{connection?.connect_command}</code>
+                        </div>
+
+                        <button
+                            onClick={copyCommand}
+                            disabled={!connection?.connect_command}
+                            className="mt-4 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700"
+                        >
+                            Copy command
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

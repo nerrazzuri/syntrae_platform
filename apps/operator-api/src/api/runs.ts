@@ -120,6 +120,10 @@ function deriveWorkerHealth(run: any): string {
 // requireAgentAccess Middleware
 const requireBrandActorAccess = async (req: any, res: any, next: any) => {
     const brandId = req.params.brandId;
+    const internalSecret = String(req.headers['x-internal-secret'] || req.headers['x_internal_secret'] || '').trim();
+    if (internalSecret && process.env.AI_CORE_INTERNAL_SECRET && internalSecret === process.env.AI_CORE_INTERNAL_SECRET) {
+        return next();
+    }
     const sessionId = req.cookies?.['syntrae_session'];
 
     if (sessionId) {

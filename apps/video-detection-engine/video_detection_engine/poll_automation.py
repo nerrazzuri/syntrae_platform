@@ -18,13 +18,20 @@ STALE_MAX_ATTEMPTS = int(os.getenv("AUTOMATION_STALE_MAX_ATTEMPTS", "3"))
 STALE_SWEEP_LIMIT = int(os.getenv("AUTOMATION_STALE_SWEEP_LIMIT", "25"))
 STORAGE_ROOT = Path(os.getenv("AUTOMATION_STORAGE_ROOT", "/data/storage"))
 
+def normalize_session_platform(platform: str) -> str:
+    normalized = (platform or "").strip().lower()
+    if normalized in {"rednote", "xiaohongshu", "xhs"}:
+        return "rednote"
+    return normalized or platform
+
 async def poll_loop(platform, brand_id, install_id):
     # ... (Keep existing logic if needed, or deprecate)
     pass 
 
 def resolve_storage_state_path(workspace_id: str | None, brand_id: str, platform: str) -> str | None:
-    workspace_brand_session = STORAGE_ROOT / "sessions" / (workspace_id or "unknown-workspace") / brand_id / platform / "session.json"
-    brand_session = STORAGE_ROOT / "sessions" / brand_id / platform / "session.json"
+    normalized_platform = normalize_session_platform(platform)
+    workspace_brand_session = STORAGE_ROOT / "sessions" / (workspace_id or "unknown-workspace") / brand_id / normalized_platform / "session.json"
+    brand_session = STORAGE_ROOT / "sessions" / brand_id / normalized_platform / "session.json"
     legacy_session = STORAGE_ROOT / "session.json"
 
     if workspace_id and workspace_brand_session.exists():

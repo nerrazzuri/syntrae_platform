@@ -11,6 +11,7 @@ process.env.AUTOMATION_STORAGE_ROOT = storageRoot;
 import { createApp } from '../src/index';
 import { prisma } from '../src/db';
 import { SessionStore } from '../src/services/auth/session_store';
+import { PlatformConnectionService } from '../src/services/platform_connection.service';
 
 type RestoreFn = () => void;
 
@@ -80,4 +81,33 @@ test('platform connection status reports CONNECTED when the brand-scoped session
     assert.equal(res.body.session_present, true);
     assert.equal(res.body.active_session_path, sessionPath);
     assert.match(String(res.body.connect_command), /main_automation\.py login/);
+});
+
+test('platform connection ingest accepts a valid challenge and returns connected status', async (t) => {
+    const restores: RestoreFn[] = [];
+    t.after(() => restores.reverse().forEach((restore) => restore()));
+
+    restores.push(stubMethod(PlatformConnectionService, 'ingestCookies', (async () => ({
+        id: 'conn-1',
+        platform: 'rednote',
+        status: 'CONNECTED',
+        active_session_path: '/tmp/session.json',
+        session_present: true,
+    })) as any));
+
+    const app = createApp();
+    const res = await request(app)
+        .post('/platform-connections/rednote/ingest')
+        .send({
+            challenge_id: 'challenge-1',
+            nonce: 'nonce-1',
+            cookies: [
+                { name: 'a1', value: 'cookie-a1' },
+                { name: 'web_session', value: 'cookie-session' },
+            ],
+        });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.status, 'CONNECTED');
+    assert.equal(res.body.platform, 'rednote');
 });

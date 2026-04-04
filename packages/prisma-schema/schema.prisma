@@ -124,11 +124,17 @@ model BrandPlatformConnection {
   brand_id           String
   platform           String
   provider           String   @default("MANUAL_SESSION")
+  auth_type          String   @default("MANUAL_SESSION_FILE")
   status             String   @default("DISCONNECTED")
   session_path       String?
+  encrypted_session_payload String?
+  session_version    Int      @default(1)
   session_updated_at DateTime?
   connected_at       DateTime?
   last_checked_at    DateTime?
+  last_verified_at   DateTime?
+  verification_error String?
+  expires_at         DateTime?
   last_error         String?
   metadata           Json     @default("{}")
   created_at         DateTime @default(now())
@@ -139,6 +145,26 @@ model BrandPlatformConnection {
 
   @@unique([brand_id, platform])
   @@index([workspace_id, platform, status])
+  @@schema("core")
+}
+
+model PlatformConnectionChallenge {
+  id              String   @id @default(uuid())
+  workspace_id    String
+  brand_id        String
+  platform        String
+  nonce_hash      String
+  expires_at      DateTime
+  used_at         DateTime?
+  created_by_user_id String
+  created_at      DateTime @default(now())
+
+  account Account @relation(fields: [workspace_id], references: [id])
+  brand   Brand   @relation(fields: [brand_id], references: [id])
+  user    User    @relation(fields: [created_by_user_id], references: [id])
+
+  @@index([workspace_id, brand_id, platform])
+  @@index([expires_at, used_at])
   @@schema("core")
 }
 
