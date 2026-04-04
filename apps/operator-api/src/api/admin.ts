@@ -71,16 +71,15 @@ router.get('/dashboard', requireAdmin, async (_req, res) => {
         prisma.outreachDraft.count(),
         prisma.automationRun.findMany({
             take: 8,
-            orderBy: { created_at: 'desc' },
+            orderBy: { started_at: 'desc' },
             select: {
                 id: true,
                 brand_id: true,
                 install_id: true,
                 status: true,
-                created_at: true,
                 started_at: true,
-                completed_at: true,
-                stats_snapshot: true,
+                ended_at: true,
+                stats: true,
             }
         }),
         prisma.account.findMany({
@@ -187,15 +186,24 @@ router.get('/runs', requireAdmin, async (req, res) => {
     const runs = await prisma.automationRun.findMany({
         where: {
             ...(status ? { status: status as any } : {}),
-            ...(workspaceId ? { account_id: workspaceId } : {}),
+            ...(workspaceId ? { brand: { workspace_id: workspaceId } } : {}),
         },
         take: 100,
-        orderBy: { created_at: 'desc' },
-        include: {
-            brand: { select: { id: true, name: true, domain: true } },
-        }
+        orderBy: { started_at: 'desc' },
     });
-    res.json({ items: runs });
+    const brandIds = Array.from(new Set(runs.map((run) => run.brand_id)));
+    const brands = brandIds.length
+        ? await prisma.brand.findMany({
+            where: { id: { in: brandIds } },
+            select: { id: true, name: true, domain: true, workspace_id: true }
+        })
+        : [];
+    const brandMap = new Map(brands.map((brand) => [brand.id, brand]));
+    const items = runs.map((run) => ({
+        ...run,
+        brand: brandMap.get(run.brand_id) ?? null,
+    }));
+    res.json({ items });
 });
 
 router.get('/leads', requireAdmin, async (req, res) => {
