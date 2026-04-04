@@ -104,6 +104,7 @@ export function RepliesPage() {
                             <thead className="table-head border-b border-slate-200">
                                 <tr>
                                     <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Brand</th>
+                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Thread</th>
                                     <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Original Comment</th>
                                     <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Suggested Reply</th>
                                     <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Status</th>
@@ -117,6 +118,11 @@ export function RepliesPage() {
                                         onClick={() => openDraft(draft)}
                                     >
                                         <td className="px-4 py-4 text-sm font-semibold text-slate-800">{draft.brand?.name || 'Unknown Brand'}</td>
+                                        <td className="px-4 py-4 text-xs text-slate-600">
+                                            <div className="font-semibold uppercase">{draft.thread_reference?.platform || draft.platform}</div>
+                                            <div className="mt-1 font-mono">video: {draft.thread_reference?.video_id || 'unknown'}</div>
+                                            <div className="mt-1 font-mono">comment: {draft.thread_reference?.comment_id || 'unknown'}</div>
+                                        </td>
                                         <td className="px-4 py-4 max-w-md text-sm text-slate-700">
                                             <div className="line-clamp-2">{draft.original_comment || 'No comment text available'}</div>
                                         </td>
@@ -151,6 +157,40 @@ export function RepliesPage() {
                                 <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600">
                                     <div className="font-semibold text-slate-900">CTA Target</div>
                                     <div className="mt-1">{selectedDraft.cta_target || 'STORE'}</div>
+                                </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Thread Target</div>
+                                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <div className="font-semibold text-slate-900">Platform</div>
+                                        <div className="mt-1">{selectedDraft.thread_reference?.platform || selectedDraft.platform}</div>
+                                    </div>
+                                    <div>
+                                        <div className="font-semibold text-slate-900">User</div>
+                                        <div className="mt-1">
+                                            {selectedDraft.thread_reference?.user_handle ? `@${selectedDraft.thread_reference.user_handle}` : 'Unknown'}
+                                            {selectedDraft.thread_reference?.user_profile_url && (
+                                                <a
+                                                    href={selectedDraft.thread_reference.user_profile_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="ml-2 font-semibold text-teal-700"
+                                                >
+                                                    Open profile
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="font-semibold text-slate-900">Video ID</div>
+                                        <div className="mt-1 break-all font-mono text-xs">{selectedDraft.thread_reference?.video_id || 'Unknown'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="font-semibold text-slate-900">Comment ID</div>
+                                        <div className="mt-1 break-all font-mono text-xs">{selectedDraft.thread_reference?.comment_id || 'Unknown'}</div>
+                                    </div>
                                 </div>
                             </div>
 

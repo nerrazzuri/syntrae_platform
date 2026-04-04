@@ -32,7 +32,10 @@ router.get('/', async (req, res) => {
                         intent: true,
                         buyer_stage: true,
                         confidence: true,
+                        video_id: true,
                         comment_id: true,
+                        user_handle: true,
+                        user_profile_url: true,
                         platform: true,
                         event: {
                             select: {
@@ -53,6 +56,13 @@ router.get('/', async (req, res) => {
         res.json(drafts.map((draft) => ({
             ...draft,
             original_comment: draft.lead?.event?.content_text || null,
+            thread_reference: draft.lead ? {
+                platform: draft.lead.platform,
+                video_id: draft.lead.video_id,
+                comment_id: draft.lead.comment_id,
+                user_handle: draft.lead.user_handle || null,
+                user_profile_url: draft.lead.user_profile_url || null,
+            } : null,
         })));
     } catch (error: any) {
         res.status(500).json({ error: error.message });
