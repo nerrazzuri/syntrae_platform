@@ -37,6 +37,7 @@ export class StripeBillingError extends Error {
 }
 
 const CHECKOUT_PLAN_CODES: PlanCode[] = [PLAN_CODES.STARTER, PLAN_CODES.GROWTH, PLAN_CODES.PRO, PLAN_CODES.AGENCY];
+type PriceEntry = { planCode: PlanCode; billingInterval: BillingInterval; priceId: string };
 
 export class StripeBillingService {
     private static stripeClient: Stripe | null = null;
@@ -55,7 +56,7 @@ export class StripeBillingService {
     }
 
     static getPlanCatalog() {
-        return Object.values(PLAN_DEFINITIONS)
+        return (Object.values(PLAN_DEFINITIONS) as Array<(typeof PLAN_DEFINITIONS)[PlanCode]>)
             .sort((left, right) => left.rank - right.rank)
             .map((plan) => ({
                 plan_code: plan.code,
@@ -241,10 +242,13 @@ export class StripeBillingService {
     }
 
     private static async handleInvoiceEvent(invoice: Stripe.Invoice) {
+        const stripeInvoice = invoice as Stripe.Invoice & {
+            subscription?: string | Stripe.Subscription | null;
+        };
         const subscriptionId =
-            typeof invoice.subscription === 'string'
-                ? invoice.subscription
-                : invoice.subscription?.id;
+            typeof stripeInvoice.subscription === 'string'
+                ? stripeInvoice.subscription
+                : stripeInvoice.subscription?.id;
         if (!subscriptionId) return;
 
         const subscription = await this.getStripe().subscriptions.retrieve(subscriptionId, {
@@ -271,6 +275,12 @@ export class StripeBillingService {
                 ? PLAN_CODES.STARTER
                 : mappedPlanCode;
         const targetPlan = getPlanDefinition(targetPlanCode);
+        const stripeSubscription = subscription as Stripe.Subscription & {
+            current_period_start?: number | null;
+            current_period_end?: number | null;
+        };
+        const currentPeriodStart = stripeSubscription.current_period_start ? new Date(stripeSubscription.current_period_start * 1000) : null;
+        const currentPeriodEnd = stripeSubscription.current_period_end ? new Date(stripeSubscription.current_period_end * 1000) : null;
 
         await prisma.$transaction(async (tx) => {
             await tx.account.update({
@@ -291,8 +301,8 @@ export class StripeBillingService {
                     billing_interval: billingInterval,
                     is_trial: subscription.status === 'trialing',
                     trial_ends_at: subscription.trial_end ? new Date(subscription.trial_end * 1000) : null,
-                    current_period_start: subscription.current_period_start ? new Date(subscription.current_period_start * 1000) : null,
-                    current_period_end: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : null,
+                    current_period_start: currentPeriodStart,
+                    current_period_end: currentPeriodEnd,
                     cancel_at_period_end: subscription.cancel_at_period_end,
                     scheduled_plan_code: subscription.cancel_at_period_end ? PLAN_CODES.STARTER : null,
                     stripe_customer_id: typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id,
@@ -312,8 +322,8 @@ export class StripeBillingService {
                     billing_interval: billingInterval,
                     is_trial: subscription.status === 'trialing',
                     trial_ends_at: subscription.trial_end ? new Date(subscription.trial_end * 1000) : null,
-                    current_period_start: subscription.current_period_start ? new Date(subscription.current_period_start * 1000) : null,
-                    current_period_end: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : null,
+                    current_period_start: currentPeriodStart,
+                    current_period_end: currentPeriodEnd,
                     cancel_at_period_end: subscription.cancel_at_period_end,
                     scheduled_plan_code: subscription.cancel_at_period_end ? PLAN_CODES.STARTER : null,
                     stripe_customer_id: typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id,
@@ -418,14 +428,14 @@ export class StripeBillingService {
     }
 
     private static getConfiguredPriceEntries() {
-        return Object.values(PLAN_DEFINITIONS).flatMap((plan) =>
+        return (Object.values(PLAN_DEFINITIONS) as Array<(typeof PLAN_DEFINITIONS)[PlanCode]>).flatMap((plan) =>
             plan.availableBillingIntervals
                 .map((interval) => ({
                     planCode: plan.code,
                     billingInterval: interval,
                     priceId: this.getConfiguredPriceId(plan.code, interval),
                 }))
-                .filter((entry): entry is { planCode: PlanCode; billingInterval: BillingInterval; priceId: string } => Boolean(entry.priceId))
+                .filter((entry): entry is PriceEntry => Boolean(entry.priceId))
         );
     }
 

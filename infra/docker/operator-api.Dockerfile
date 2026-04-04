@@ -7,6 +7,7 @@ RUN corepack enable
 # 1) Copy manifests
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/operator-api/package.json apps/operator-api/package.json
+COPY packages/commercial-plans/package.json packages/commercial-plans/package.json
 COPY packages/prisma-schema/package.json packages/prisma-schema/package.json
 COPY packages/intent-taxonomy/package.json packages/intent-taxonomy/package.json
 COPY packages/llm-contracts/package.json packages/llm-contracts/package.json
@@ -17,6 +18,7 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
 
 # 2) Copy all source
 COPY apps/operator-api apps/operator-api
+COPY packages/commercial-plans packages/commercial-plans
 COPY packages/prisma-schema packages/prisma-schema
 COPY packages/intent-taxonomy packages/intent-taxonomy
 COPY packages/llm-contracts packages/llm-contracts

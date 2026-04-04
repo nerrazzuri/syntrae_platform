@@ -10,6 +10,7 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 
 # Copy packages config
 COPY packages/domain-models/package.json packages/domain-models/
+COPY packages/commercial-plans/package.json packages/commercial-plans/
 COPY packages/prisma-schema/package.json packages/prisma-schema/
 COPY packages/shared-config/package.json packages/shared-config/
 COPY packages/intent-taxonomy/package.json packages/intent-taxonomy/
