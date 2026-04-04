@@ -272,6 +272,8 @@ model User {
   password_hash String
   status         String   @default("ACTIVE")
   created_at     DateTime @default(now())
+  email_verified_at DateTime?
+  verification_email_sent_at DateTime?
 
   login_attempts Int      @default(0)
   locked_until   DateTime?
@@ -280,7 +282,24 @@ model User {
   memberships WorkspaceMembership[]
   sessions    Session[]
   decisions   SuggestionDecision[]
+  action_tokens UserActionToken[]
 
+  @@schema("core")
+}
+
+model UserActionToken {
+  id          String   @id @default(uuid())
+  user_id     String
+  token_hash  String   @unique
+  token_type  String
+  expires_at  DateTime
+  consumed_at DateTime?
+  created_at  DateTime @default(now())
+  metadata    Json     @default("{}")
+
+  user User @relation(fields: [user_id], references: [id])
+
+  @@index([user_id, token_type, expires_at])
   @@schema("core")
 }
 

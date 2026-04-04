@@ -12,8 +12,9 @@ export class BootstrapService {
     static async bootstrapAccount(
         email: string,
         passwordPlain: string,
-        workspaceName: string
-    ): Promise<{ session: Session, user: User, account: Account, brand: Brand }> {
+        workspaceName: string,
+        options?: { createSession?: boolean }
+    ): Promise<{ session: Session | null, user: User, account: Account, brand: Brand }> {
 
         const normalizedEmail = email.trim().toLowerCase();
 
@@ -42,7 +43,7 @@ export class BootstrapService {
                     name: workspaceName,
                     status: 'ACTIVE',
                     plan_id: PLAN_CODES.STARTER,
-                    onboarding_state: 'COMPLETED' // or BOOTSTRAPPED
+                    onboarding_state: 'CREATED'
                 }
             });
 
@@ -95,17 +96,19 @@ export class BootstrapService {
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + 7); // 7 Days
 
-            const session = await tx.session.create({
-                data: {
-                    user_id: user.id,
-                    active_workspace_id: account.id,
-                    expires_at: expiresAt
-                },
-                include: {
-                    user: true,
-                    active_workspace: true
-                }
-            });
+            const session = options?.createSession === false
+                ? null
+                : await tx.session.create({
+                    data: {
+                        user_id: user.id,
+                        active_workspace_id: account.id,
+                        expires_at: expiresAt
+                    },
+                    include: {
+                        user: true,
+                        active_workspace: true
+                    }
+                });
 
             return { session, user, account, brand };
         });

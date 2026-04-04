@@ -1,12 +1,13 @@
 import { Router } from 'express';
+import { prisma } from '../db';
 import { AuthService } from '../services/auth.service';
 import { BootstrapService } from '../services/bootstrap.service';
 import { requireAuth } from '../middleware/auth';
-import { prisma } from '../db';
+import { AuthTokenService, AUTH_TOKEN_TYPES } from '../services/auth_token.service';
+import { EmailService } from '../services/email.service';
 
 export const authRouter = Router();
 
-// Cookie Configuration
 const COOKIE_NAME = 'syntrae_session';
 const IS_PROD = process.env.NODE_ENV === 'production';
 const COOKIE_SECURE = (process.env.COOKIE_SECURE || '').toLowerCase() === 'true'
@@ -21,27 +22,34 @@ const BETA_SIGNUP_ALLOWLIST = new Set(
         .map(email => email.trim().toLowerCase())
         .filter(Boolean)
 );
+const EMAIL_VERIFICATION_EXPIRY_MINUTES = Number(process.env.EMAIL_VERIFICATION_EXPIRY_MINUTES || 24 * 60);
+const PASSWORD_RESET_EXPIRY_MINUTES = Number(process.env.PASSWORD_RESET_EXPIRY_MINUTES || 60);
 
 const COOKIE_OPTIONS: any = {
     httpOnly: true,
     secure: COOKIE_SECURE,
     sameSite: IS_PROD ? 'lax' : 'lax',
-    domain: process.env.COOKIE_DOMAIN, // e.g., '.syntraeai.com'
+    domain: process.env.COOKIE_DOMAIN,
     path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
 function isSignupAllowed(email: string) {
-    if (!BETA_SIGNUP_ENABLED) {
-        return false;
-    }
-
-    if (BETA_SIGNUP_ALLOWLIST.size === 0) {
-        return true;
-    }
-
+    if (!BETA_SIGNUP_ENABLED) return false;
+    if (BETA_SIGNUP_ALLOWLIST.size === 0) return true;
     return BETA_SIGNUP_ALLOWLIST.has(email.trim().toLowerCase());
 }
+
+function authContextPayload(user: { email_verified_at: Date | null }) {
+    return {
+        email_verified: Boolean(user.email_verified_at),
+        ...EmailService.getTrustLinks(),
+    };
+}
+
+authRouter.get('/trust-links', (_req, res) => {
+    res.json(EmailService.getTrustLinks());
+});
 
 authRouter.post('/signup', async (req, res) => {
     try {
@@ -55,28 +63,186 @@ authRouter.post('/signup', async (req, res) => {
             return res.status(403).json({ error: 'Signup is closed for this beta cohort' });
         }
 
-        // Bootstrap Account (Transactional)
-        const { session, user, account, brand } = await BootstrapService.bootstrapAccount(
+        const { user, account } = await BootstrapService.bootstrapAccount(
             email,
             password,
-            workspace_name
+            workspace_name,
+            { createSession: false }
         );
 
-        // Set Cookie
-        res.cookie(COOKIE_NAME, session.id, COOKIE_OPTIONS);
+        const verification = await AuthTokenService.issue(
+            user.id,
+            AUTH_TOKEN_TYPES.EMAIL_VERIFICATION,
+            EMAIL_VERIFICATION_EXPIRY_MINUTES,
+            { workspace_id: account.id }
+        );
 
-        // Return Context
-        return res.json({
-            user: { id: user.id, email: user.email },
-            workspace: { id: account.id, name: account.name, plan_id: account.plan_id },
-            active_brand: { id: brand.id, name: brand.name }
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { verification_email_sent_at: new Date() },
         });
 
+        const delivery = await EmailService.sendVerificationEmail(user.email, verification.token, account.name);
+
+        return res.json({
+            status: 'verification_required',
+            message: 'Check your inbox to verify your email before signing in.',
+            email: user.email,
+            delivery,
+            ...EmailService.getTrustLinks(),
+        });
     } catch (error: any) {
         console.error('Signup Error:', error);
         if (error.message === 'User already exists') {
             return res.status(409).json({ error: 'User already exists' });
         }
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+authRouter.post('/resend-verification', async (req, res) => {
+    try {
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { email },
+            include: {
+                memberships: {
+                    where: { status: 'ACTIVE' },
+                    include: { account: true },
+                    take: 1,
+                },
+            },
+        });
+
+        if (!user) {
+            return res.json({
+                status: 'ok',
+                message: 'If that email exists, a verification email has been sent.',
+            });
+        }
+
+        if (user.email_verified_at) {
+            return res.status(409).json({ error: 'Email is already verified', code: 'EMAIL_ALREADY_VERIFIED' });
+        }
+
+        const workspaceName = user.memberships[0]?.account?.name || 'Syntrae';
+        const verification = await AuthTokenService.issue(
+            user.id,
+            AUTH_TOKEN_TYPES.EMAIL_VERIFICATION,
+            EMAIL_VERIFICATION_EXPIRY_MINUTES
+        );
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { verification_email_sent_at: new Date() },
+        });
+
+        const delivery = await EmailService.sendVerificationEmail(user.email, verification.token, workspaceName);
+
+        return res.json({
+            status: 'verification_required',
+            message: 'Verification email sent.',
+            delivery,
+            ...EmailService.getTrustLinks(),
+        });
+    } catch (error) {
+        console.error('Resend Verification Error:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+authRouter.post('/verify-email', async (req, res) => {
+    try {
+        const token = String(req.body?.token || '').trim();
+        if (!token) {
+            return res.status(400).json({ error: 'Verification token is required' });
+        }
+
+        const record = await AuthTokenService.consume(token, AUTH_TOKEN_TYPES.EMAIL_VERIFICATION);
+        if (!record) {
+            return res.status(400).json({ error: 'Verification link is invalid or expired', code: 'INVALID_TOKEN' });
+        }
+
+        await prisma.user.update({
+            where: { id: record.user_id },
+            data: {
+                email_verified_at: new Date(),
+                verification_email_sent_at: new Date(),
+                status: 'ACTIVE',
+            },
+        });
+
+        return res.json({
+            status: 'verified',
+            message: 'Email verified. You can now sign in.',
+        });
+    } catch (error) {
+        console.error('Verify Email Error:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+authRouter.post('/forgot-password', async (req, res) => {
+    try {
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (user?.email_verified_at) {
+            const reset = await AuthTokenService.issue(user.id, AUTH_TOKEN_TYPES.PASSWORD_RESET, PASSWORD_RESET_EXPIRY_MINUTES);
+            await EmailService.sendPasswordResetEmail(user.email, reset.token);
+        }
+
+        return res.json({
+            status: 'ok',
+            message: 'If that account exists, a password reset email has been sent.',
+        });
+    } catch (error) {
+        console.error('Forgot Password Error:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+authRouter.post('/reset-password', async (req, res) => {
+    try {
+        const token = String(req.body?.token || '').trim();
+        const password = String(req.body?.password || '');
+        if (!token || !password) {
+            return res.status(400).json({ error: 'Token and password are required' });
+        }
+        if (password.length < 8) {
+            return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+        }
+
+        const record = await AuthTokenService.consume(token, AUTH_TOKEN_TYPES.PASSWORD_RESET);
+        if (!record) {
+            return res.status(400).json({ error: 'Password reset link is invalid or expired', code: 'INVALID_TOKEN' });
+        }
+
+        const passwordHash = await AuthService.hashPassword(password);
+        await prisma.user.update({
+            where: { id: record.user_id },
+            data: {
+                password_hash: passwordHash,
+                login_attempts: 0,
+                locked_until: null,
+            },
+        });
+
+        await prisma.session.deleteMany({ where: { user_id: record.user_id } });
+
+        return res.json({
+            status: 'password_reset',
+            message: 'Password updated. You can now sign in.',
+        });
+    } catch (error) {
+        console.error('Reset Password Error:', error);
         return res.status(500).json({ error: 'Internal Server Error' });
     }
 });
@@ -91,22 +257,25 @@ authRouter.post('/login', async (req, res) => {
 
         const normalizedEmail = email.trim().toLowerCase();
 
-        // 1. Check Lockout
         if (await AuthService.isLocked(normalizedEmail)) {
             return res.status(429).json({ error: 'Account temporarily locked due to failed attempts.' });
         }
 
-        // 2. Find User
         const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
         if (!user) {
-            // Fake Verify to prevent timing attacks (optional but good practice)
-            // await AuthService.verifyPassword('dummy', 'dummyhash');
-            await AuthService.recordLoginAttempt(normalizedEmail, false); // This might create a phantom record? No, recordLogin checks existence safely. 
-            // Actually AuthService.recordLoginAttempt checks user existence internally.
+            await AuthService.recordLoginAttempt(normalizedEmail, false);
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        // 3. Verify Password
+        if (!user.email_verified_at) {
+            return res.status(403).json({
+                error: 'Email verification required before login.',
+                code: 'EMAIL_VERIFICATION_REQUIRED',
+                email: user.email,
+                ...authContextPayload(user),
+            });
+        }
+
         const isValid = await AuthService.verifyPassword(password, user.password_hash);
         await AuthService.recordLoginAttempt(normalizedEmail, isValid);
 
@@ -114,8 +283,6 @@ authRouter.post('/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        // 4. Create Session
-        // Resolve active workspace - find last one or first membership
         let workspaceId = '';
         const lastSession = await prisma.session.findFirst({
             where: { user_id: user.id },
@@ -125,30 +292,24 @@ authRouter.post('/login', async (req, res) => {
         if (lastSession?.active_workspace_id) {
             workspaceId = lastSession.active_workspace_id;
         } else {
-            // Fallback to first membership
             const membership = await prisma.workspaceMembership.findFirst({
                 where: { user_id: user.id, status: 'ACTIVE' }
             });
             if (membership) workspaceId = membership.workspace_id;
         }
 
-        // If still no workspace, create one? No, user has no workspace. Should not happen for Bootstrapped users.
-        // But for invited users, they should have membership.
         if (!workspaceId) {
             return res.status(403).json({ error: 'No active workspace found for user.' });
         }
 
         const session = await AuthService.createSession(user.id, workspaceId);
-
-        // 5. Fetch Data for Response
         const account = await prisma.account.findUnique({ where: { id: workspaceId } });
-        const defaultBrand = await prisma.brand.findFirst({ where: { workspace_id: workspaceId } }); // Simplification for MVP
+        const defaultBrand = await prisma.brand.findFirst({ where: { workspace_id: workspaceId } });
 
-        // Set Cookie
         res.cookie(COOKIE_NAME, session.id, COOKIE_OPTIONS);
 
         return res.json({
-            user: { id: user.id, email: user.email },
+            user: { id: user.id, email: user.email, email_verified: true },
             workspace: account ? { id: account.id, name: account.name, plan_id: account.plan_id } : null,
             active_brand: defaultBrand ? { id: defaultBrand.id, name: defaultBrand.name } : null
         });
@@ -172,20 +333,13 @@ authRouter.get('/me', requireAuth, async (req, res) => {
     try {
         const user = req.user!;
         const session = req.session!;
-
-        // Fetch full context needed for Bootstrap
-        // - Active Workspace
-        // - All User Memberships? (Maybe later)
-        // - Brands of Active Workspace
-        // - Owner Settings of Active Workspace
-
         const workspace = await prisma.account.findUnique({ where: { id: session.active_workspace_id! } });
 
         if (!workspace) return res.status(404).json({ error: 'Active workspace not found' });
 
         const brands = await prisma.brand.findMany({
             where: { workspace_id: workspace.id, status: 'ACTIVE' },
-            select: { id: true, name: true, domain: true } // Minimal fields
+            select: { id: true, name: true, domain: true }
         });
 
         const ownerSettings = await prisma.ownerSettings.findUnique({
@@ -202,11 +356,16 @@ authRouter.get('/me', requireAuth, async (req, res) => {
         });
 
         res.json({
-            user: { id: user.id, email: user.email },
+            user: {
+                id: user.id,
+                email: user.email,
+                email_verified: Boolean((user as any).email_verified_at),
+            },
             active_workspace: workspace,
-            brands: brands,
+            brands,
             owner_settings: ownerSettings,
-            role: membership?.role
+            role: membership?.role,
+            ...EmailService.getTrustLinks(),
         });
 
     } catch (error) {
