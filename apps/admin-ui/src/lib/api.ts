@@ -1,4 +1,9 @@
-const API_BASE = import.meta.env.VITE_ADMIN_API_BASE_URL || 'https://api.syntraeai.com/admin';
+function resolveAdminApiBase() {
+  const raw = (import.meta.env.VITE_ADMIN_API_BASE_URL || 'https://api.syntraeai.com/admin').trim().replace(/\/+$/, '');
+  return raw.endsWith('/admin') ? raw : `${raw}/admin`;
+}
+
+const API_BASE = resolveAdminApiBase();
 const TOKEN_KEY = 'syntrae_admin_token';
 
 export function getAdminToken() {

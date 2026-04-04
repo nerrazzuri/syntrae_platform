@@ -219,6 +219,8 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/admin-ui.Dockerfile
+      args:
+        VITE_ADMIN_API_BASE_URL: https://api.syntraeai.com/admin
     container_name: admin-ui
     restart: unless-stopped
     networks:
