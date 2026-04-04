@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "clean": "node scripts/build.mjs --clean"
+    "clean": "node scripts/build.mjs --clean",
+    "package:store": "powershell.exe -ExecutionPolicy Bypass -File scripts/package-store.ps1"
   }
 }

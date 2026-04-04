@@ -23,6 +23,8 @@ This generates:
 ```text
 apps/xhs-session-extension/dist/chromium
 apps/xhs-session-extension/dist/firefox
+apps/xhs-session-extension/dist/store-chromium
+apps/xhs-session-extension/dist/store-firefox
 ```
 
 Use `dist/chromium` for:
@@ -31,6 +33,8 @@ Use `dist/chromium` for:
 
 Use `dist/firefox` for:
 - Firefox
+
+Use `dist/store-chromium` and `dist/store-firefox` for browser-store submission.
 
 ## Install locally
 
@@ -61,3 +65,4 @@ apps/xhs-session-extension/dist/firefox/manifest.json
 - This extension does not store XHS passwords.
 - It only reads the whitelisted Xiaohongshu cookies needed for Syntrae session capture.
 - The uploaded session is bound to the workspace/brand challenge created by the Syntrae app.
+- Browser-store submission steps are documented in `SUBMISSION.md`.
