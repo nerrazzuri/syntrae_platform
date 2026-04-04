@@ -75,29 +75,37 @@ class DiscoveryEngine:
             # Phase-1 Xiaohongshu Adapter Branch
             try:
                 platform_adapter = XiaohongshuPlatform(self.xhs_session_path)
-                # Use the first keyword for the phase 1 validation
-                keyword = market_profile.get("keywords_positive", ["acne"])[0]  
-                
-                # Execute extraction
-                results = await platform_adapter.run_search(
-                    self.controller.page if self.controller else None,
-                    keyword,
-                    is_video_eligible=lambda note_id: self.client.check_video_eligibility(note_id, "rednote")
-                )
-                
+                keywords = qb.build_queries(limit=3)
+                all_results = []
+                seen_pairs = set()
+
+                for keyword in keywords:
+                    results = await platform_adapter.run_search(
+                        self.controller.page if self.controller else None,
+                        keyword,
+                        is_video_eligible=lambda note_id: self.client.check_video_eligibility(note_id, "rednote")
+                    )
+
+                    for item in results or []:
+                        dedup_key = (item.get("video_id"), item.get("referral_comment_id"))
+                        if dedup_key in seen_pairs:
+                            continue
+                        seen_pairs.add(dedup_key)
+                        all_results.append(item)
+
                 # Emit to pipeline
-                if results:
-                    self.total_captured = len(results)
-                    self.search_valid_decisions = len(results)
+                if all_results:
+                    self.total_captured = len(all_results)
+                    self.search_valid_decisions = len(all_results)
                     self.url_accepted = True
-                    
-                    success_count, failed_count, error_classes, ingest_status_counts = await self.client.emit_batch(results, self.run_id)
-                    
+
+                    success_count, failed_count, error_classes, ingest_status_counts = await self.client.emit_batch(all_results, self.run_id)
+
                     self.total_emitted_success += success_count
                     self.total_emitted_failed += failed_count
                     self.duplicate_suppressed += ingest_status_counts.get("DUPLICATE_SUPPRESSED", 0)
                     self.video_cooldown_suppressed += ingest_status_counts.get("VIDEO_COOLDOWN_SUPPRESSED", 0)
-                    
+
                     logger.info(
                         f"Xiaohongshu Emission: "
                         f"{success_count} success, {failed_count} failed "
