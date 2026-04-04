@@ -113,8 +113,11 @@ class XiaohongshuPlatform:
             real_comments = []
             try:
                 with XhsClient(cookies) as client:
-                    comment_target = post_url if post.get("xsec_token") else note_id
-                    data = client.get_all_comments(comment_target, max_pages=3)
+                    comment_kwargs = {"max_pages": 3}
+                    if post.get("xsec_token"):
+                        comment_kwargs["xsec_token"] = post["xsec_token"]
+                        comment_kwargs["xsec_source"] = post.get("xsec_source") or "pc_search"
+                    data = client.get_all_comments(note_id, **comment_kwargs)
                     comments = data.get("comments", []) if isinstance(data, dict) else []
                     real_comments.extend(comments[:10])
             except XhsApiError as exc:
