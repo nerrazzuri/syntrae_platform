@@ -412,6 +412,21 @@ h1 {
   line-height: 1.1;
 }
 
+.plan-price span {
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--muted);
+  margin-left: 6px;
+}
+
+.plan-billing-note {
+  margin: -2px 0 0;
+  font-size: 0.92rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .plan-subtext {
   margin: 0;
   color: var(--muted);
