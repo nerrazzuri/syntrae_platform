@@ -1,0 +1,15 @@
+{
+  "name": "Syntrae",
+  "short_name": "Syntrae",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5efe5",
+  "theme_color": "#0d8f74",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

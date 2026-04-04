@@ -1,0 +1,440 @@
+:root {
+  --bg: #f5efe5;
+  --bg-deep: #10241f;
+  --panel: rgba(255, 253, 248, 0.88);
+  --ink: #152026;
+  --muted: #5d6974;
+  --line: rgba(21, 32, 38, 0.1);
+  --accent: #0d8f74;
+  --accent-deep: #0c6e67;
+  --accent-soft: rgba(13, 143, 116, 0.14);
+  --warm: #cb7b36;
+  --shadow: 0 24px 60px rgba(27, 40, 48, 0.08);
+  --radius: 28px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(13, 143, 116, 0.14), transparent 24%),
+    radial-gradient(circle at top right, rgba(203, 123, 54, 0.12), transparent 26%),
+    linear-gradient(180deg, #fcf8f1 0%, var(--bg) 46%, #f0e8dc 100%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+}
+
+.container {
+  width: min(1160px, calc(100% - 32px));
+  margin: 0 auto;
+}
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(14px);
+  background: rgba(252, 248, 241, 0.78);
+  border-bottom: 1px solid rgba(21, 32, 38, 0.06);
+}
+
+.nav-shell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 0;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.brand-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent), var(--warm));
+  box-shadow: 0 0 0 7px rgba(13, 143, 116, 0.12);
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.nav-cta,
+.primary-button,
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 13px 20px;
+  font-weight: 800;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.nav-cta,
+.primary-button {
+  background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+  color: #fff;
+  box-shadow: 0 14px 30px rgba(13, 143, 116, 0.2);
+}
+
+.secondary-button {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.nav-cta:hover,
+.primary-button:hover,
+.secondary-button:hover {
+  transform: translateY(-1px);
+}
+
+.hero-section {
+  padding: 72px 0 48px;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.95fr);
+  gap: 28px;
+  align-items: center;
+}
+
+.eyebrow {
+  margin: 0 0 14px;
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: var(--accent-deep);
+}
+
+h1,
+h2,
+h3,
+summary {
+  font-family: "Fraunces", Georgia, serif;
+  letter-spacing: -0.03em;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(3rem, 5vw, 5.2rem);
+  line-height: 0.96;
+  max-width: 12ch;
+}
+
+.hero-text,
+.section-intro p,
+.problem-card p,
+.workflow-card p,
+.feature-card p,
+.pricing-shell p,
+.faq-list p,
+.site-footer p {
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.signal-list {
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+
+.signal-list li {
+  position: relative;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.signal-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 11px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.hero-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.hero-panel-card,
+.problem-card,
+.workflow-card,
+.feature-card,
+.pricing-shell,
+.faq-list details {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.hero-panel-card {
+  padding: 24px;
+}
+
+.hero-panel-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 1.25rem;
+}
+
+.hero-panel-card span,
+.panel-kicker {
+  color: var(--muted);
+}
+
+.panel-kicker {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 800;
+}
+
+.card-accent {
+  background:
+    radial-gradient(circle at top right, rgba(13, 143, 116, 0.18), transparent 24%),
+    rgba(255, 253, 248, 0.92);
+}
+
+.proof-strip {
+  padding: 14px 0 40px;
+}
+
+.proof-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.proof-grid div {
+  border-top: 1px solid rgba(21, 32, 38, 0.12);
+  padding-top: 16px;
+}
+
+.proof-grid span {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--muted);
+}
+
+.proof-grid strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1rem;
+}
+
+.content-section {
+  padding: 72px 0;
+}
+
+.section-shell,
+.feature-layout,
+.pricing-shell,
+.footer-shell {
+  display: grid;
+  gap: 28px;
+}
+
+.section-intro {
+  max-width: 760px;
+}
+
+.section-intro.centered {
+  text-align: center;
+  margin: 0 auto 28px;
+}
+
+.section-intro h2 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+}
+
+.problem-grid,
+.workflow-grid,
+.feature-stack,
+.faq-list {
+  display: grid;
+  gap: 18px;
+}
+
+.problem-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.problem-card,
+.feature-card {
+  padding: 26px;
+}
+
+.workflow-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.workflow-card {
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #eef5f3;
+}
+
+.workflow-card span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 800;
+}
+
+.workflow-card p {
+  color: rgba(238, 245, 243, 0.72);
+}
+
+.tone-deep {
+  background:
+    radial-gradient(circle at top left, rgba(203, 123, 54, 0.16), transparent 18%),
+    linear-gradient(180deg, #0f231f 0%, #132a25 100%);
+}
+
+.tone-deep .eyebrow,
+.tone-deep h2,
+.tone-deep h3 {
+  color: #f5fbf9;
+}
+
+.feature-layout {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: start;
+}
+
+.pricing-band {
+  padding-top: 16px;
+}
+
+.pricing-shell {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 30px;
+  background:
+    radial-gradient(circle at top right, rgba(13, 143, 116, 0.16), transparent 24%),
+    rgba(255, 253, 248, 0.95);
+}
+
+.pricing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.faq-list details {
+  padding: 20px 22px;
+}
+
+.faq-list summary {
+  cursor: pointer;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.faq-list p {
+  margin: 12px 0 0;
+}
+
+.site-footer {
+  padding: 28px 0 42px;
+}
+
+.footer-shell {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  border-top: 1px solid rgba(21, 32, 38, 0.1);
+  padding-top: 22px;
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+@media (max-width: 980px) {
+  .hero-grid,
+  .feature-layout,
+  .pricing-shell,
+  .footer-shell,
+  .problem-grid,
+  .workflow-grid,
+  .proof-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .nav-shell {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .nav-links {
+    flex-wrap: wrap;
+  }
+
+  .hero-section,
+  .content-section {
+    padding: 52px 0;
+  }
+
+  h1 {
+    max-width: none;
+  }
+}
