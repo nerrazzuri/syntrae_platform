@@ -215,6 +215,15 @@ services:
     networks:
       - syntrae_net
 
+  admin-ui:
+    build:
+      context: ../..
+      dockerfile: infra/docker/admin-ui.Dockerfile
+    container_name: admin-ui
+    restart: unless-stopped
+    networks:
+      - syntrae_net
+
   # =========================
   # EDGE & PROXY
   # =========================
@@ -238,6 +247,7 @@ services:
       - operator-api
       - operator-ui
       - marketing-ui
+      - admin-ui
       # Ensure config valid before start? NGINX handles it.
 
   certbot:

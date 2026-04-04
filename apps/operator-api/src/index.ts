@@ -22,6 +22,8 @@ import marketProfileRouter from './api/market_profile';
 import { internalRouter } from './api/internal';
 import { onboardingRouter } from './api/onboarding';
 import { platformConnectionsRouter } from './api/platform_connections';
+import { adminRouter } from './api/admin';
+import { AdminAuthService } from './services/admin_auth.service';
 
 dotenv.config();
 
@@ -43,6 +45,7 @@ export function createApp() {
     app.use(cors({
         origin: [
             'https://app.syntraeai.com',
+            'https://admin.syntraeai.com',
             'https://syntraeai.com',
             'http://localhost:5173', // Dev
             'http://localhost:3000'
@@ -77,6 +80,7 @@ export function createApp() {
     app.use('/brands', brandRouter);
     app.use('/analytics', analyticsRouter);
     app.use('/drafts', draftsRouter);
+    app.use('/admin', adminRouter);
 
     return app;
 }
@@ -84,9 +88,13 @@ export function createApp() {
 const app = createApp();
 
 if (require.main === module) {
-    app.listen(port, () => {
-        console.log(`[OperatorAPI] Server running on port ${port}`);
-    });
+    AdminAuthService.ensureBootstrapAdmin()
+        .catch((error) => console.error('[AdminAuth] Bootstrap failed:', error))
+        .finally(() => {
+            app.listen(port, () => {
+                console.log(`[OperatorAPI] Server running on port ${port}`);
+            });
+        });
 }
 
 export default app;
