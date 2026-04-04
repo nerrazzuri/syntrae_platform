@@ -7,8 +7,16 @@ import { FeedbackService, FeedbackAction } from '../services/feedback.service';
 const router = Router();
 
 function buildThreadUrl(platform: string, videoId?: string | null, metadata?: any): string | null {
-    const pageUrl = typeof metadata?.page_url === 'string' ? metadata.page_url : null;
-    const videoUrl = typeof metadata?.video_url === 'string' ? metadata.video_url : null;
+    const pageUrl = typeof metadata?.page?.url === 'string'
+        ? metadata.page.url
+        : typeof metadata?.page_url === 'string'
+            ? metadata.page_url
+            : null;
+    const videoUrl = typeof metadata?.video?.video_url === 'string'
+        ? metadata.video.video_url
+        : typeof metadata?.video_url === 'string'
+            ? metadata.video_url
+            : null;
 
     if (pageUrl) return pageUrl;
     if (videoUrl) return videoUrl;
