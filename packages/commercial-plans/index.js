@@ -55,6 +55,11 @@ const LEGACY_PLAN_ALIASES = {
   DEV: PLAN_CODES.PRO,
 };
 
+const PLATFORM_ALIASES = {
+  xiaohongshu: "rednote",
+  xhs: "rednote",
+};
+
 const PLAN_DEFINITIONS = {
   [PLAN_CODES.STARTER]: {
     code: PLAN_CODES.STARTER,
@@ -72,12 +77,12 @@ const PLAN_DEFINITIONS = {
       monthlyProcessedEvents: 4500,
       dailySuggestions: 20,
       monthlyLeadExports: 0,
-      dailyAutomationRuns: 0,
+      dailyAutomationRuns: 3,
     },
-    includedPlatforms: ["tiktok"],
+    includedPlatforms: ["tiktok", "rednote"],
     capabilities: {
       manualWorkflow: true,
-      automationEnabled: false,
+      automationEnabled: true,
       automationRuleReady: false,
       exportEnabled: false,
       advancedScoringEnabled: false,
@@ -230,7 +235,8 @@ function getUsageLimit(planCode, metric, period) {
 
 function canUsePlatform(planCode, platform) {
   const plan = getPlanDefinition(planCode);
-  const normalized = String(platform || "").trim().toLowerCase();
+  const raw = String(platform || "").trim().toLowerCase();
+  const normalized = PLATFORM_ALIASES[raw] || raw;
   if (!normalized || plan.includedPlatforms.includes(normalized)) {
     return makeDecision(true);
   }

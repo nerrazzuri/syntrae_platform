@@ -66,8 +66,9 @@ test('legacy plan ids normalize into the commercial package set', () => {
 
 test('starter restrictions and growth/pro/agency capabilities resolve correctly', () => {
     assert.equal(canUsePlatform(PLAN_CODES.STARTER, 'tiktok').allowed, true);
-    assert.equal(canUsePlatform(PLAN_CODES.STARTER, 'rednote').allowed, false);
-    assert.equal(canCreateAutomationRun(PLAN_CODES.STARTER).allowed, false);
+    assert.equal(canUsePlatform(PLAN_CODES.STARTER, 'rednote').allowed, true);
+    assert.equal(canUsePlatform(PLAN_CODES.STARTER, 'xiaohongshu').allowed, true);
+    assert.equal(canCreateAutomationRun(PLAN_CODES.STARTER).allowed, true);
     assert.equal(canExportLeads(PLAN_CODES.STARTER).allowed, false);
     assert.equal(canAccessAdvancedScoring(PLAN_CODES.GROWTH).allowed, true);
     assert.equal(canCreateAutomationRun(PLAN_CODES.GROWTH).allowed, false);
