@@ -73,6 +73,7 @@ export function createApp() {
     app.use('/billing', billingRouter);
     app.use('/internal', internalRouter);
     app.use('/onboarding', onboardingRouter);
+    app.use('/admin', adminRouter);
     app.use('/', platformConnectionsRouter);
     app.use('/', runsRouter);
     app.use('/', policyRouter);
@@ -80,7 +81,6 @@ export function createApp() {
     app.use('/brands', brandRouter);
     app.use('/analytics', analyticsRouter);
     app.use('/drafts', draftsRouter);
-    app.use('/admin', adminRouter);
 
     return app;
 }
