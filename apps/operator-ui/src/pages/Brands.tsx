@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { CheckCircle2 } from 'lucide-react';
 import { api } from '../lib/api';
 
 type RunFeedbackTone = 'success' | 'error' | 'info';
@@ -7,6 +8,7 @@ type RunFeedbackTone = 'success' | 'error' | 'info';
 interface RunFeedback {
     tone: RunFeedbackTone;
     message: string;
+    autoDismiss?: boolean;
 }
 
 export function BrandsPage() {
@@ -33,6 +35,23 @@ export function BrandsPage() {
     };
 
     useEffect(() => { loadBrands(); }, []);
+
+    useEffect(() => {
+        const timers = Object.entries(runFeedback)
+            .filter(([, feedback]) => feedback.tone === 'success' && feedback.autoDismiss)
+            .map(([brandId]) => window.setTimeout(() => {
+                setRunFeedback((prev) => {
+                    if (!prev[brandId] || prev[brandId].tone !== 'success') return prev;
+                    const next = { ...prev };
+                    delete next[brandId];
+                    return next;
+                });
+            }, 5000));
+
+        return () => {
+            timers.forEach((timer) => window.clearTimeout(timer));
+        };
+    }, [runFeedback]);
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -72,7 +91,8 @@ export function BrandsPage() {
                 ...prev,
                 [brandId]: {
                     tone: 'success',
-                    message: 'XHS discovery queued. The run will start shortly and you can monitor progress from Runs.'
+                    message: 'XHS discovery queued. The run will start shortly and you can monitor progress from Runs.',
+                    autoDismiss: true,
                 }
             }));
         } catch (e: any) {
@@ -192,6 +212,20 @@ export function BrandsPage() {
                                 {runFeedback[brand.id] && (
                                     <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-medium ${feedbackClasses[runFeedback[brand.id].tone]}`}>
                                         {runFeedback[brand.id].message}
+                                    </div>
+                                )}
+                                {runFeedback[brand.id]?.tone === 'success' && (
+                                    <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+                                        <div className="inline-flex items-center gap-2 font-semibold text-emerald-700">
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            Discovery accepted
+                                        </div>
+                                        <Link
+                                            to="/runs"
+                                            className="inline-flex items-center justify-center rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50"
+                                        >
+                                            View Runs
+                                        </Link>
                                     </div>
                                 )}
                             </div>
