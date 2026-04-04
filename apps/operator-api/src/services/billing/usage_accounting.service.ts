@@ -86,7 +86,7 @@ export class UsageAccountingService {
             };
         }
 
-        const limit = limitDecision.limit;
+        const limit = limitDecision.limit ?? null;
         const rows = await db.$queryRaw<{ current_value: number }[]>(Prisma.sql`
             INSERT INTO "core"."WorkspaceUsageCounter" (
                 "id",
