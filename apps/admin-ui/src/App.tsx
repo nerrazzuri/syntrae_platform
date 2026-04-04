@@ -51,7 +51,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      let payload;
+      let payload: unknown = null;
       if (target === 'dashboard') payload = await adminRequest('/dashboard');
       if (target === 'workspaces') payload = await adminRequest(`/workspaces${workspaceQuery ? `?q=${encodeURIComponent(workspaceQuery)}` : ''}`);
       if (target === 'users') payload = await adminRequest(`/users${userQuery ? `?q=${encodeURIComponent(userQuery)}` : ''}`);
