@@ -14,6 +14,11 @@ from video_detection_engine.utils.validators import VideoPageValidator
 
 logger = logging.getLogger(__name__)
 
+XHS_KEYWORD_LIMIT = 3
+XHS_MAX_SOURCE_POSTS_PER_RUN = 60
+XHS_MAX_POSTS_PER_KEYWORD = 20
+XHS_MAX_COMMENTS_PER_POST = 10
+
 class DiscoveryEngine:
     """
     Orchestrates the Search-Driven Discovery Pipeline.
@@ -43,6 +48,7 @@ class DiscoveryEngine:
         self.search_candidates = 0
         self.search_valid_decisions = 0
         self.url_accepted = False
+        self.videos_processed_total = 0
         
         # P1-B: Emission accounting (per-run totals)
         self.total_captured = 0
@@ -61,7 +67,7 @@ class DiscoveryEngine:
         
         # 1. Build Queries
         qb = SearchQueryBuilder(market_profile)
-        search_urls = qb.build_search_urls(limit=3) # Configurable limit
+        search_urls = qb.build_search_urls(limit=XHS_KEYWORD_LIMIT) # Configurable limit
         
         if not search_urls:
             self.search_candidates = 0
@@ -75,28 +81,46 @@ class DiscoveryEngine:
             # Phase-1 Xiaohongshu Adapter Branch
             try:
                 platform_adapter = XiaohongshuPlatform(self.xhs_session_path)
-                keywords = qb.build_queries(limit=3)
+                keywords = qb.build_queries(limit=XHS_KEYWORD_LIMIT)
                 all_results = []
                 seen_pairs = set()
+                processed_source_posts = 0
+                unique_video_ids = set()
 
                 for keyword in keywords:
-                    results = await platform_adapter.run_search(
+                    remaining_posts = XHS_MAX_SOURCE_POSTS_PER_RUN - processed_source_posts
+                    if remaining_posts <= 0:
+                        logger.info(
+                            "Reached XHS source post cap for run %s (%s posts).",
+                            self.run_id,
+                            XHS_MAX_SOURCE_POSTS_PER_RUN,
+                        )
+                        break
+
+                    payload = await platform_adapter.run_search(
                         self.controller.page if self.controller else None,
                         keyword,
-                        is_video_eligible=lambda note_id: self.client.check_video_eligibility(note_id, "rednote")
+                        is_video_eligible=lambda note_id: self.client.check_video_eligibility(note_id, "rednote"),
+                        max_posts=min(XHS_MAX_POSTS_PER_KEYWORD, remaining_posts),
+                        max_comments_per_post=XHS_MAX_COMMENTS_PER_POST,
                     )
+                    processed_source_posts += int(payload.get("source_posts_processed", 0))
+                    results = payload.get("events", [])
 
                     for item in results or []:
                         dedup_key = (item.get("video_id"), item.get("referral_comment_id"))
                         if dedup_key in seen_pairs:
                             continue
                         seen_pairs.add(dedup_key)
+                        if item.get("video_id"):
+                            unique_video_ids.add(item["video_id"])
                         all_results.append(item)
 
                 # Emit to pipeline
                 if all_results:
                     self.total_captured = len(all_results)
-                    self.search_valid_decisions = len(all_results)
+                    self.search_valid_decisions = len(unique_video_ids)
+                    self.videos_processed_total = len(unique_video_ids)
                     self.url_accepted = True
 
                     success_count, failed_count, error_classes, ingest_status_counts = await self.client.emit_batch(all_results, self.run_id)
@@ -109,6 +133,7 @@ class DiscoveryEngine:
                     logger.info(
                         f"Xiaohongshu Emission: "
                         f"{success_count} success, {failed_count} failed "
+                        f"across {self.videos_processed_total} source posts"
                     )
                 
             except Exception as e:
@@ -238,6 +263,7 @@ class DiscoveryEngine:
                     await self._process_accepted_video(cand)
                     # Track usage
                     self.enforcer.track_video()
+                    self.videos_processed_total += 1
                     
                 elif decision == "REJECT":
                     # WF-3.1: REJECT increments reject stats
@@ -435,7 +461,7 @@ class DiscoveryEngine:
     
     async def finalize_run(self):
         stats = {
-            "videos_processed": self.search_valid_decisions + (1 if self.url_accepted else 0),
+            "videos_processed": self.videos_processed_total or (self.search_valid_decisions + (1 if self.url_accepted else 0)),
             "comments_captured": self.total_captured,
             "comments_emitted_success": self.total_emitted_success,
             "comments_emitted_failed": self.total_emitted_failed,

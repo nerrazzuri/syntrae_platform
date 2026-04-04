@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 class XiaohongshuPlatform:
+    DEFAULT_POSTS_PER_KEYWORD = 20
+    DEFAULT_COMMENTS_PER_POST = 10
+    DEFAULT_COMMENT_PAGES = 3
     """
     Xiaohongshu discovery adapter backed by the xiaohongshu-cli Python package.
 
@@ -22,13 +25,24 @@ class XiaohongshuPlatform:
     def __init__(self, session_path: str | None = None):
         self.session_path = session_path
 
-    async def run_search(self, browser_page, keyword, is_video_eligible=None):
+    async def run_search(
+        self,
+        browser_page,
+        keyword,
+        is_video_eligible=None,
+        max_posts: int | None = None,
+        max_comments_per_post: int | None = None,
+        max_comment_pages: int | None = None,
+    ):
         logger.info("Starting Xiaohongshu Discovery via XHS client for keyword: %s", keyword)
+        posts_limit = max(1, int(max_posts or self.DEFAULT_POSTS_PER_KEYWORD))
+        comments_limit = max(1, int(max_comments_per_post or self.DEFAULT_COMMENTS_PER_POST))
+        comment_pages = max(1, int(max_comment_pages or self.DEFAULT_COMMENT_PAGES))
 
         cookies = self._load_cookies()
         if not cookies:
             logger.error("No XHS cookies available in %s", self.session_path)
-            return []
+            return {"events": [], "source_posts_processed": 0}
 
         posts = []
         seen_note_ids = set()
@@ -70,12 +84,13 @@ class XiaohongshuPlatform:
                 "No search results found for keyword: %s. If cookies are stale, reconnect the brand-scoped XHS session.",
                 keyword,
             )
-            return []
+            return {"events": [], "source_posts_processed": 0}
 
         logger.info("Extracted %s posts from XHS search results", len(posts))
 
         final_events = []
-        for post in posts[:20]:
+        processed_note_ids = set()
+        for post in posts[:posts_limit]:
             note_id = post["note_id"]
             post_url = self._build_note_url(
                 post.get("note_ref") or note_id,
@@ -95,6 +110,7 @@ class XiaohongshuPlatform:
                     )
                     continue
 
+            processed_note_ids.add(note_id)
             now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
             base_event = {
                 "platform": "rednote",
@@ -113,13 +129,13 @@ class XiaohongshuPlatform:
             real_comments = []
             try:
                 with XhsClient(cookies) as client:
-                    comment_kwargs = {"max_pages": 3}
+                    comment_kwargs = {"max_pages": comment_pages}
                     if post.get("xsec_token"):
                         comment_kwargs["xsec_token"] = post["xsec_token"]
                         comment_kwargs["xsec_source"] = post.get("xsec_source") or "pc_search"
                     data = client.get_all_comments(note_id, **comment_kwargs)
                     comments = data.get("comments", []) if isinstance(data, dict) else []
-                    real_comments.extend(comments[:10])
+                    real_comments.extend(comments[:comments_limit])
             except XhsApiError as exc:
                 logger.warning("XHS comments failed for %s: %s", note_id, exc)
             except Exception as exc:
@@ -157,7 +173,10 @@ class XiaohongshuPlatform:
                 event["referral_comment_id"] = comment_id
                 final_events.append(event)
 
-        return final_events
+        return {
+            "events": final_events,
+            "source_posts_processed": len(processed_note_ids),
+        }
 
     def _load_cookies(self) -> dict[str, str]:
         if not self.session_path:
