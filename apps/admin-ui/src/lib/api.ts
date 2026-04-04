@@ -17,14 +17,15 @@ export async function adminRequest(path: string, options: RequestInit = {}) {
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
   const token = getAdminToken();
-  if (token) headers.set('x-admin-token', token);
+  const isAuthLogin = path === '/auth/login';
+  if (token && !isAuthLogin) headers.set('x-admin-token', token);
 
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
   });
 
-  if (res.status === 401) {
+  if (res.status === 401 && !isAuthLogin) {
     clearAdminToken();
     throw new Error('Admin session expired');
   }
