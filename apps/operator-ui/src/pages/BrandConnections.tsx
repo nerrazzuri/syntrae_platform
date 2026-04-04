@@ -42,6 +42,12 @@ declare global {
 
 type SupportedBrowser = 'chrome' | 'edge' | 'firefox' | 'unknown';
 
+const EXTENSION_STORE_URLS = {
+    chrome: import.meta.env.VITE_XHS_EXTENSION_CHROME_URL?.trim() || '',
+    edge: import.meta.env.VITE_XHS_EXTENSION_EDGE_URL?.trim() || '',
+    firefox: import.meta.env.VITE_XHS_EXTENSION_FIREFOX_URL?.trim() || '',
+} as const;
+
 function detectBrowser(userAgent: string): SupportedBrowser {
     const ua = userAgent.toLowerCase();
     if (ua.includes('firefox')) return 'firefox';
@@ -51,12 +57,47 @@ function detectBrowser(userAgent: string): SupportedBrowser {
 }
 
 function getExtensionDownloads(browser: SupportedBrowser) {
+    if (browser === 'firefox' && EXTENSION_STORE_URLS.firefox) {
+        return {
+            primaryLabel: 'Add to Firefox',
+            primaryHref: EXTENSION_STORE_URLS.firefox,
+            primaryExternal: true,
+            secondaryLabel: null,
+            secondaryHref: null,
+            secondaryExternal: false,
+        };
+    }
+
+    if (browser === 'edge' && EXTENSION_STORE_URLS.edge) {
+        return {
+            primaryLabel: 'Add to Edge',
+            primaryHref: EXTENSION_STORE_URLS.edge,
+            primaryExternal: true,
+            secondaryLabel: EXTENSION_STORE_URLS.chrome ? 'Use Chrome Web Store link instead' : null,
+            secondaryHref: EXTENSION_STORE_URLS.chrome || null,
+            secondaryExternal: Boolean(EXTENSION_STORE_URLS.chrome),
+        };
+    }
+
+    if (browser === 'chrome' && EXTENSION_STORE_URLS.chrome) {
+        return {
+            primaryLabel: 'Add to Chrome',
+            primaryHref: EXTENSION_STORE_URLS.chrome,
+            primaryExternal: true,
+            secondaryLabel: EXTENSION_STORE_URLS.edge ? 'Use Edge Add-ons link instead' : null,
+            secondaryHref: EXTENSION_STORE_URLS.edge || null,
+            secondaryExternal: Boolean(EXTENSION_STORE_URLS.edge),
+        };
+    }
+
     if (browser === 'firefox') {
         return {
             primaryLabel: 'Download Firefox Extension',
             primaryHref: '/extensions/syntrae-xhs-connector-firefox.zip',
+            primaryExternal: false,
             secondaryLabel: null,
             secondaryHref: null,
+            secondaryExternal: false,
         };
     }
 
@@ -64,8 +105,10 @@ function getExtensionDownloads(browser: SupportedBrowser) {
     return {
         primaryLabel: browser === 'edge' ? 'Download Edge Extension' : 'Download Chrome Extension',
         primaryHref: chromiumPackage,
+        primaryExternal: false,
         secondaryLabel: browser === 'chrome' ? 'Use this package for Edge too' : 'Use this package for Chrome too',
         secondaryHref: chromiumPackage,
+        secondaryExternal: false,
     };
 }
 
@@ -231,6 +274,7 @@ export function BrandConnectionsPage() {
     }
 
     const downloads = getExtensionDownloads(browser);
+    const usingStoreInstall = downloads.primaryExternal;
 
     if (loading && !connection) {
         return <div className="p-8 text-slate-600">Loading XHS connection...</div>;
@@ -261,7 +305,7 @@ export function BrandConnectionsPage() {
                     <div className="mt-5 flex flex-wrap gap-3">
                         <a
                             href={downloads.primaryHref}
-                            download
+                            {...(downloads.primaryExternal ? { target: '_blank', rel: 'noreferrer' } : { download: true })}
                             className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
                         >
                             {downloads.primaryLabel}
@@ -269,7 +313,7 @@ export function BrandConnectionsPage() {
                         {downloads.secondaryLabel && downloads.secondaryHref && (
                             <a
                                 href={downloads.secondaryHref}
-                                download
+                                {...(downloads.secondaryExternal ? { target: '_blank', rel: 'noreferrer' } : { download: true })}
                                 className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700"
                             >
                                 {downloads.secondaryLabel}
@@ -286,12 +330,14 @@ export function BrandConnectionsPage() {
                     <ol className="mt-5 space-y-3 text-sm text-slate-700">
                         <li className="rounded-2xl border border-amber-100 bg-white px-4 py-3">
                             <span className="mr-2 font-semibold text-slate-900">1.</span>
-                            Download the extension package for your browser.
+                            {usingStoreInstall ? 'Open the browser store listing and install the Syntrae XHS Connector.' : 'Download the extension package for your browser.'}
                         </li>
                         <li className="rounded-2xl border border-amber-100 bg-white px-4 py-3">
                             <span className="mr-2 font-semibold text-slate-900">2.</span>
-                            Chrome / Edge: unzip it and use <span className="font-mono">Load unpacked</span>. Firefox: load the package from
-                            <span className="font-mono"> about:debugging</span>.
+                            {usingStoreInstall
+                                ? 'After installation, return to this tab and click Connect with extension again.'
+                                : <>Chrome / Edge: unzip it and use <span className="font-mono">Load unpacked</span>. Firefox: load the package from
+                                    <span className="font-mono"> about:debugging</span>.</>}
                         </li>
                         <li className="rounded-2xl border border-amber-100 bg-white px-4 py-3">
                             <span className="mr-2 font-semibold text-slate-900">3.</span>
