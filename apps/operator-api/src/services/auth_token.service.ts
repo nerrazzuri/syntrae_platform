@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { prisma } from '../db';
+import type { Prisma } from '@syntrae/prisma-schema';
 
 export const AUTH_TOKEN_TYPES = {
     EMAIL_VERIFICATION: 'EMAIL_VERIFICATION',
@@ -9,7 +10,7 @@ export const AUTH_TOKEN_TYPES = {
 type AuthTokenType = (typeof AUTH_TOKEN_TYPES)[keyof typeof AUTH_TOKEN_TYPES];
 
 export class AuthTokenService {
-    static async issue(userId: string, tokenType: AuthTokenType, expiresInMinutes: number, metadata?: Record<string, unknown>) {
+    static async issue(userId: string, tokenType: AuthTokenType, expiresInMinutes: number, metadata?: Prisma.InputJsonValue) {
         await prisma.userActionToken.updateMany({
             where: {
                 user_id: userId,
