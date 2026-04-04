@@ -38,7 +38,8 @@ class XiaohongshuPlatform:
                 items = data.get("items", []) if isinstance(data, dict) else []
                 for item in items:
                     note_card = item.get("note_card", {})
-                    note_id = item.get("id", note_card.get("note_id", ""))
+                    note_ref = self._normalize_text(item.get("id", note_card.get("note_id", "")))
+                    note_id = self._extract_note_id(note_ref)
                     if not note_id or note_id in seen_note_ids:
                         continue
                     seen_note_ids.add(note_id)
@@ -54,6 +55,7 @@ class XiaohongshuPlatform:
                     )
                     posts.append({
                         "note_id": note_id,
+                        "note_ref": note_ref,
                         "title": note_card.get("display_title", keyword),
                         "author": note_card.get("user", {}).get("nickname", "unknown"),
                         "like_count": int(note_card.get("interact_info", {}).get("liked_count", 0)),
@@ -75,7 +77,12 @@ class XiaohongshuPlatform:
         final_events = []
         for post in posts[:20]:
             note_id = post["note_id"]
-            post_url = self._build_note_url(note_id, post.get("xsec_token"), post.get("xsec_source"))
+            post_url = self._build_note_url(
+                post.get("note_ref") or note_id,
+                note_id,
+                post.get("xsec_token"),
+                post.get("xsec_source"),
+            )
             post_author = self._normalize_text(post["author"])
 
             if is_video_eligible:
@@ -189,14 +196,34 @@ class XiaohongshuPlatform:
         return cookies
 
     @staticmethod
-    def _build_note_url(note_id: str, xsec_token: str | None = None, xsec_source: str | None = None) -> str:
-        base_url = f"https://www.xiaohongshu.com/explore/{note_id}"
+    def _build_note_url(note_ref: str, note_id: str, xsec_token: str | None = None, xsec_source: str | None = None) -> str:
+        base_ref = XiaohongshuPlatform._normalize_text(note_ref)
+        if base_ref.startswith("http://") or base_ref.startswith("https://"):
+            base_url = base_ref
+        else:
+            base_url = f"https://www.xiaohongshu.com/explore/{note_id}"
+
         token = XiaohongshuPlatform._normalize_text(xsec_token)
         if not token:
             return base_url
 
         source = XiaohongshuPlatform._normalize_text(xsec_source) or "search"
+        if "xsec_token=" in base_url:
+            return base_url
         return f"{base_url}?xsec_token={token}&xsec_source={source}"
+
+    @staticmethod
+    def _extract_note_id(note_ref: str) -> str:
+        value = XiaohongshuPlatform._normalize_text(note_ref)
+        if not value:
+            return ""
+        if value.startswith("http://") or value.startswith("https://"):
+            marker = "/explore/"
+            if marker in value:
+                tail = value.split(marker, 1)[1]
+                return tail.split("?", 1)[0].strip()
+            return ""
+        return value
 
     @staticmethod
     def _normalize_text(value):
