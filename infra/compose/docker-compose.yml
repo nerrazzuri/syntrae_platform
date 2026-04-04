@@ -189,6 +189,8 @@ services:
       - BILLING_MANUAL_PLAN_CHANGES=${BILLING_MANUAL_PLAN_CHANGES:-0}
       - AUTOMATION_STORAGE_ROOT=/data/storage
       - AUTOMATION_API_URL=http://video-detection-engine:8000
+      - ADMIN_BOOTSTRAP_EMAIL=${ADMIN_BOOTSTRAP_EMAIL}
+      - ADMIN_BOOTSTRAP_PASSWORD=${ADMIN_BOOTSTRAP_PASSWORD}
     depends_on:
       - postgresql
 
