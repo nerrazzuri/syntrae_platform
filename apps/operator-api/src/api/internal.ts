@@ -518,6 +518,46 @@ router.patch('/automation-run/:runId/status', async (req: Request, res: Response
     }
 });
 
+router.patch('/automation-run/:runId/stats', async (req: Request, res: Response) => {
+    const { runId } = req.params;
+    const { claim_token, worker_id, stats } = req.body;
+
+    if (!stats || typeof stats !== 'object') {
+        return res.status(400).json({ error: 'Missing stats payload' });
+    }
+
+    try {
+        const updateWhere: any = { id: runId };
+        if (claim_token) {
+            updateWhere.claim_token = claim_token;
+        }
+        if (worker_id) {
+            updateWhere.claimed_by = worker_id;
+        }
+
+        const updateResult = await prisma.automationRun.updateMany({
+            where: updateWhere,
+            data: {
+                stats,
+                heartbeat_at: new Date()
+            }
+        });
+
+        if (updateResult.count === 0) {
+            return res.status(409).json({ error: 'Run claim is not owned by this worker', runId });
+        }
+
+        const run = await prisma.automationRun.findUnique({ where: { id: runId } });
+        return res.json(run);
+    } catch (e: any) {
+        console.error(`Failed to update run stats ${runId}:`, e);
+        if (e.code === 'P2025') {
+            return res.status(404).json({ error: 'Run not found', runId });
+        }
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // POST /internal/automation-run/:runId/heartbeat
 // Extends the current lease for a claimed queue item.
 router.post('/automation-run/:runId/heartbeat', async (req: Request, res: Response) => {

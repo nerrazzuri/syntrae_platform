@@ -147,16 +147,33 @@ class XiaohongshuPlatform:
             return {}
 
         if isinstance(payload, dict) and isinstance(payload.get("cookies"), list):
-            return {
+            cookies = {
                 str(cookie.get("name")): str(cookie.get("value"))
                 for cookie in payload.get("cookies", [])
                 if isinstance(cookie, dict) and cookie.get("name") and cookie.get("value")
             }
+            return self._ensure_cli_cookie_requirements(cookies)
 
         if isinstance(payload, dict):
-            return {str(key): str(value) for key, value in payload.items() if value is not None}
+            cookies = {str(key): str(value) for key, value in payload.items() if value is not None}
+            return self._ensure_cli_cookie_requirements(cookies)
 
         return {}
+
+    def _ensure_cli_cookie_requirements(self, cookies: dict[str, str]) -> dict[str, str]:
+        if cookies.get("a1"):
+            return cookies
+
+        seed = self._normalize_text(cookies.get("web_session") or cookies.get("id_token"))
+        if not seed:
+            return cookies
+
+        # xiaohongshu-cli/xhshow signatures still require an a1 token. Some newer
+        # web logins only surface web_session + id_token, so synthesize a stable
+        # per-session fallback to keep signing and cookie headers aligned.
+        cookies["a1"] = hashlib.sha1(f"syntrae-xhs-a1|{seed}".encode("utf-8")).hexdigest()
+        logger.info("Synthesized fallback XHS a1 cookie from captured session payload")
+        return cookies
 
     @staticmethod
     def _normalize_text(value):

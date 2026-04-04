@@ -1,6 +1,7 @@
 import os
 import json as json_lib
 import logging
+import hashlib
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -38,14 +39,29 @@ def _load_xhs_cookies(session_path: Path) -> dict[str, str]:
 
     payload = json_lib.loads(session_path.read_text(encoding="utf-8"))
     if isinstance(payload, dict) and isinstance(payload.get("cookies"), list):
-        return {
+        cookies = {
             str(cookie.get("name")): str(cookie.get("value"))
             for cookie in payload.get("cookies", [])
             if isinstance(cookie, dict) and cookie.get("name") and cookie.get("value")
         }
+        return _ensure_cli_cookie_requirements(cookies)
     if isinstance(payload, dict):
-        return {str(key): str(value) for key, value in payload.items() if value is not None}
+        cookies = {str(key): str(value) for key, value in payload.items() if value is not None}
+        return _ensure_cli_cookie_requirements(cookies)
     raise HTTPException(status_code=400, detail="Unsupported XHS session payload")
+
+
+def _ensure_cli_cookie_requirements(cookies: dict[str, str]) -> dict[str, str]:
+    if cookies.get("a1"):
+        return cookies
+
+    seed = str(cookies.get("web_session") or cookies.get("id_token") or "").strip()
+    if not seed:
+        return cookies
+
+    cookies["a1"] = hashlib.sha1(f"syntrae-xhs-a1|{seed}".encode("utf-8")).hexdigest()
+    logger.info("Synthesized fallback XHS a1 cookie for reply delivery")
+    return cookies
 
 
 @router.post("/thread-reply")

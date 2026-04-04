@@ -704,17 +704,20 @@ class IntegrationClient:
         Update automation run execution stats (videos, comments, emissions).
         Called from finalize_run to persist counted outcomes.
         """
-        url = f"{self.operator_url}/brands/{brand_id}/automation-runs/{run_id}"
-        payload = {"stats": stats}
-        
+        url = f"{self.operator_url}/internal/automation-run/{run_id}/stats"
+        payload = {
+            "stats": stats,
+            "worker_id": self.install_id,
+            "claim_token": self.claim_token,
+        }
+
         headers = {
             "x-internal-secret": self.internal_secret,
-            "x-install-id": self.install_id,
             "Content-Type": "application/json"
         }
         try:
             async with httpx.AsyncClient() as client:
-                resp = await client.put(url, json=payload, headers=headers, timeout=10.0)
+                resp = await client.patch(url, json=payload, headers=headers, timeout=10.0)
                 if resp.status_code not in (200, 204):
                     logger.error(f"Failed to update run stats: {resp.status_code} {resp.text}")
                 else:
