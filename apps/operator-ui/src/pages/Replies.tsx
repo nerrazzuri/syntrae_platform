@@ -122,6 +122,16 @@ export function RepliesPage() {
                                             <div className="font-semibold uppercase">{draft.thread_reference?.platform || draft.platform}</div>
                                             <div className="mt-1 font-mono">video: {draft.thread_reference?.video_id || 'unknown'}</div>
                                             <div className="mt-1 font-mono">comment: {draft.thread_reference?.comment_id || 'unknown'}</div>
+                                            {draft.thread_reference?.thread_url && (
+                                                <a
+                                                    href={draft.thread_reference.thread_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="mt-2 inline-block font-semibold text-teal-700"
+                                                >
+                                                    Open source post
+                                                </a>
+                                            )}
                                         </td>
                                         <td className="px-4 py-4 max-w-md text-sm text-slate-700">
                                             <div className="line-clamp-2">{draft.original_comment || 'No comment text available'}</div>
@@ -192,6 +202,18 @@ export function RepliesPage() {
                                         <div className="mt-1 break-all font-mono text-xs">{selectedDraft.thread_reference?.comment_id || 'Unknown'}</div>
                                     </div>
                                 </div>
+                                {selectedDraft.thread_reference?.thread_url && (
+                                    <div className="mt-4">
+                                        <a
+                                            href={selectedDraft.thread_reference.thread_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="font-semibold text-teal-700"
+                                        >
+                                            Open live post/thread context
+                                        </a>
+                                    </div>
+                                )}
                             </div>
 
                             <div>

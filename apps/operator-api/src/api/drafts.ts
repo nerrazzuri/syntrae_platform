@@ -6,6 +6,22 @@ import { FeedbackService, FeedbackAction } from '../services/feedback.service';
 
 const router = Router();
 
+function buildThreadUrl(platform: string, videoId?: string | null, metadata?: any): string | null {
+    const pageUrl = typeof metadata?.page_url === 'string' ? metadata.page_url : null;
+    const videoUrl = typeof metadata?.video_url === 'string' ? metadata.video_url : null;
+
+    if (pageUrl) return pageUrl;
+    if (videoUrl) return videoUrl;
+
+    if (!videoId) return null;
+
+    if (platform === 'rednote' || platform === 'xiaohongshu') {
+        return `https://www.xiaohongshu.com/explore/${videoId}`;
+    }
+
+    return null;
+}
+
 // Global Auth & Scoping
 router.use(requireSession);
 router.use(requireWorkspace);
@@ -40,6 +56,7 @@ router.get('/', async (req, res) => {
                         event: {
                             select: {
                                 content_text: true,
+                                metadata: true,
                             }
                         }
                     }
@@ -62,6 +79,7 @@ router.get('/', async (req, res) => {
                 comment_id: draft.lead.comment_id,
                 user_handle: draft.lead.user_handle || null,
                 user_profile_url: draft.lead.user_profile_url || null,
+                thread_url: buildThreadUrl(draft.lead.platform, draft.lead.video_id, draft.lead.event?.metadata),
             } : null,
         })));
     } catch (error: any) {
