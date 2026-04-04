@@ -3,6 +3,8 @@ import { requireInternalSecret } from '../middleware/internal_auth';
 import { prisma } from '../db';
 import { randomUUID } from 'crypto';
 import { OwnerSettingsService } from '../services/owner/owner_settings_service';
+import { MarketProfileService } from '../services/market_profile.service';
+import { PolicyService } from '../services/policy.service';
 
 const router = Router();
 const DEFAULT_LEASE_SECONDS = 120;
@@ -40,12 +42,14 @@ router.get('/automation-policy/latest', async (req: Request, res: Response) => {
         const brandId = req.query.brand_id as string;
         if (!brandId) return res.status(400).json({ error: "Missing brand_id" });
 
-        const policy = await prisma.automationPolicy.findFirst({
+        let policy = await prisma.automationPolicy.findFirst({
             where: { brand_id: brandId, status: 'ACTIVE' },
             orderBy: { version: 'desc' }
         });
 
-        if (!policy) return res.status(404).json({ error: "No active automation policy found" });
+        if (!policy) {
+            policy = await PolicyService.createDefaultPolicy(brandId);
+        }
         return res.json(policy);
     } catch (e: any) {
         return res.status(500).json({ error: e.message });
@@ -58,12 +62,7 @@ router.get('/market-profile/latest', async (req: Request, res: Response) => {
         const brandId = req.query.brand_id as string;
         if (!brandId) return res.status(400).json({ error: "Missing brand_id" });
 
-        const profile = await prisma.marketProfile.findFirst({
-            where: { brand_id: brandId, is_active: true }, // Assuming is_active maps to ACTIVE equivalent
-            orderBy: { version: 'desc' }
-        });
-
-        if (!profile) return res.status(404).json({ error: "No active market profile found" });
+        const profile = await MarketProfileService.getOrCreateActiveProfile(brandId);
         return res.json(profile);
     } catch (e: any) {
         return res.status(500).json({ error: e.message });

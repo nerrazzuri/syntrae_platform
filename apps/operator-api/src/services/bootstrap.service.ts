@@ -2,6 +2,7 @@ import { prisma, Prisma } from '../db';
 import { AuthService } from './auth.service';
 import { User, Account, Session, Brand } from '@syntrae/prisma-schema';
 import { PLAN_CODES } from '@syntrae/commercial-plans';
+import { BrandDefaultsService } from './brand_defaults.service';
 
 export class BootstrapService {
 
@@ -88,6 +89,14 @@ export class BootstrapService {
                     domain_context: {}, // Empty JSON
                     status: 'ACTIVE'
                 }
+            });
+
+            await tx.automationPolicy.create({
+                data: BrandDefaultsService.buildDefaultPolicyInput(brand.id, 1)
+            });
+
+            await tx.marketProfile.create({
+                data: BrandDefaultsService.buildDefaultMarketProfileInput(brand.id, brand.name, brand.domain)
             });
 
             // F. Create Session

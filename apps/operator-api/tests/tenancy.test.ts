@@ -7,6 +7,8 @@ process.env.AI_CORE_INTERNAL_SECRET = process.env.AI_CORE_INTERNAL_SECRET || 'te
 import { createApp } from '../src/index';
 import { prisma } from '../src/db';
 import { SessionStore } from '../src/services/auth/session_store';
+import { PolicyService } from '../src/services/policy.service';
+import { MarketProfileService } from '../src/services/market_profile.service';
 
 type RestoreFn = () => void;
 
@@ -181,4 +183,45 @@ test('internal automation claim uses internal secret auth instead of session aut
 
     assert.notEqual(res.status, 401);
     assert.notEqual(res.body?.error, 'Unauthorized: No Session (Cookie or Token)');
+});
+
+test('internal automation policy endpoint auto-creates a default policy when none exists', async (t) => {
+    const restores: RestoreFn[] = [];
+    t.after(() => restores.reverse().forEach((restore) => restore()));
+
+    restores.push(stubMethod(prisma.automationPolicy, 'findFirst', (async () => null) as any));
+    restores.push(stubMethod(PolicyService, 'createDefaultPolicy', (async () => ({
+        id: 'policy-1',
+        brand_id: 'brand-1',
+        status: 'ACTIVE',
+        version: 1,
+    })) as any));
+
+    const app = createApp();
+    const res = await request(app)
+        .get('/internal/automation-policy/latest?brand_id=brand-1')
+        .set('x-internal-secret', process.env.AI_CORE_INTERNAL_SECRET!);
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.id, 'policy-1');
+});
+
+test('internal market profile endpoint auto-creates a default active profile when none exists', async (t) => {
+    const restores: RestoreFn[] = [];
+    t.after(() => restores.reverse().forEach((restore) => restore()));
+
+    restores.push(stubMethod(MarketProfileService, 'getOrCreateActiveProfile', (async () => ({
+        id: 'profile-1',
+        brand_id: 'brand-1',
+        status: 'ACTIVE',
+        is_active: true,
+    })) as any));
+
+    const app = createApp();
+    const res = await request(app)
+        .get('/internal/market-profile/latest?brand_id=brand-1')
+        .set('x-internal-secret', process.env.AI_CORE_INTERNAL_SECRET!);
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.id, 'profile-1');
 });

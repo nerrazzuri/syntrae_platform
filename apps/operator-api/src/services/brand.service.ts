@@ -1,18 +1,31 @@
 import { prisma } from '../db';
 import { SubscriptionPolicyService } from './billing/subscription_policy.service';
+import { BrandDefaultsService } from './brand_defaults.service';
 
 export class BrandService {
     static async createBrand(accountId: string, name: string, domain: string) {
         await SubscriptionPolicyService.assertCanCreateAdditionalBrand(accountId);
 
-        return prisma.brand.create({
-            data: {
-                workspace_id: accountId,
-                name,
-                domain,
-                domain_context: {}, // Empty init
-                status: 'ACTIVE'
-            }
+        return prisma.$transaction(async (tx) => {
+            const brand = await tx.brand.create({
+                data: {
+                    workspace_id: accountId,
+                    name,
+                    domain,
+                    domain_context: {},
+                    status: 'ACTIVE'
+                }
+            });
+
+            await tx.automationPolicy.create({
+                data: BrandDefaultsService.buildDefaultPolicyInput(brand.id, 1)
+            });
+
+            await tx.marketProfile.create({
+                data: BrandDefaultsService.buildDefaultMarketProfileInput(brand.id, brand.name, brand.domain)
+            });
+
+            return brand;
         });
     }
 

@@ -1,4 +1,5 @@
 import { prisma, MarketProfile, MarketCategory, MarketProfileStatus, DiscoveryIntent } from '../db';
+import { BrandDefaultsService } from './brand_defaults.service';
 
 export interface CreateProfileDTO {
     name: string;
@@ -163,6 +164,15 @@ export class MarketProfileService {
         });
     }
 
+    static async getOrCreateActiveProfile(brandId: string, workspaceId?: string) {
+        const existing = await this.getActiveProfile(brandId, workspaceId);
+        if (existing) {
+            return existing;
+        }
+
+        return this.createDefaultProfile(brandId, workspaceId);
+    }
+
     static async listProfiles(brandId: string, workspaceId?: string) {
         if (workspaceId) {
             await this.assertBrandAccess(brandId, workspaceId);
@@ -172,6 +182,33 @@ export class MarketProfileService {
         return prisma.marketProfile.findMany({
             where: { brand_id: brandId },
             orderBy: { updated_at: 'desc' }
+        });
+    }
+
+    static async createDefaultProfile(brandId: string, workspaceId?: string) {
+        if (workspaceId) {
+            await this.assertBrandAccess(brandId, workspaceId);
+        }
+
+        const brand = await prisma.brand.findUnique({
+            where: { id: brandId },
+            select: { id: true, name: true, domain: true }
+        });
+
+        if (!brand) {
+            throw new Error('Brand not found');
+        }
+
+        const existing = await prisma.marketProfile.findFirst({
+            where: { brand_id: brandId, is_active: true },
+            orderBy: { updated_at: 'desc' }
+        });
+        if (existing) {
+            return existing;
+        }
+
+        return prisma.marketProfile.create({
+            data: BrandDefaultsService.buildDefaultMarketProfileInput(brand.id, brand.name, brand.domain)
         });
     }
 

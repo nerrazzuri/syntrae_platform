@@ -1,5 +1,6 @@
 
 import { PrismaClient, AutomationPolicy, Prisma, PolicyStatus, PolicyMode } from '@syntrae/prisma-schema';
+import { BrandDefaultsService } from './brand_defaults.service';
 
 const prisma = new PrismaClient();
 
@@ -88,24 +89,7 @@ export class PolicyService {
         const version = (latest?.version || 0) + 1;
 
         return prisma.automationPolicy.create({
-            data: {
-                brand_id: brandId,
-                version: version,
-                status: 'ACTIVE',
-                mode: 'SAFE',
-                enabled: true,
-                // Default Safety Limits
-                relevance_min_score: 70,
-                intent_min_score: 60,
-                max_videos_per_hour: 20,
-                max_comments_per_video: 30,
-                max_comments_per_hour: 200,
-                max_leads_per_day: 30,
-                cooldown_ms_between_actions: 2500,
-                random_jitter_ms: 1500,
-                quiet_hours: {}, // Disabled by default
-                notes: "Auto-created default policy"
-            },
+            data: BrandDefaultsService.buildDefaultPolicyInput(brandId, version),
         });
     }
 
