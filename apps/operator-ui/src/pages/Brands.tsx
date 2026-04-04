@@ -11,6 +11,34 @@ interface RunFeedback {
     autoDismiss?: boolean;
 }
 
+function renderConnectionBadge(connection: any) {
+    if (!connection) {
+        return {
+            label: 'XHS not connected',
+            classes: 'bg-slate-100 text-slate-700',
+        };
+    }
+
+    if (connection.status === 'CONNECTED') {
+        return {
+            label: 'XHS connected',
+            classes: 'bg-emerald-100 text-emerald-800',
+        };
+    }
+
+    if (connection.status === 'RECONNECT_REQUIRED' || connection.status === 'EXPIRED' || connection.status === 'INVALID') {
+        return {
+            label: 'XHS reconnect needed',
+            classes: 'bg-amber-100 text-amber-800',
+        };
+    }
+
+    return {
+        label: 'XHS pending',
+        classes: 'bg-blue-100 text-blue-800',
+    };
+}
+
 export function BrandsPage() {
     const [brands, setBrands] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -175,11 +203,14 @@ export function BrandsPage() {
                         <div className="flex flex-col gap-6">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
                                         <h3 className="text-xl font-bold text-slate-900">{brand.name}</h3>
                                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${brand.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                                             }`}>
                                             {brand.status}
+                                        </span>
+                                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${renderConnectionBadge(brand.xhs_connection).classes}`}>
+                                            {renderConnectionBadge(brand.xhs_connection).label}
                                         </span>
                                     </div>
                                     <p className="mt-2 text-sm text-slate-500">{brand.domain}</p>

@@ -30,10 +30,29 @@ export class BrandService {
     }
 
     static async listBrands(accountId: string) {
-        return prisma.brand.findMany({
+        const brands = await prisma.brand.findMany({
             where: { workspace_id: accountId },
-            orderBy: { created_at: 'desc' }
+            orderBy: { created_at: 'desc' },
+            include: {
+                platform_connections: {
+                    where: { platform: 'rednote' },
+                    orderBy: { updated_at: 'desc' },
+                    take: 1,
+                    select: {
+                        id: true,
+                        platform: true,
+                        status: true,
+                        last_verified_at: true,
+                        updated_at: true,
+                    }
+                }
+            }
         });
+
+        return brands.map((brand) => ({
+            ...brand,
+            xhs_connection: brand.platform_connections[0] ?? null,
+        }));
     }
 
     static async setBrandStatus(accountId: string, brandId: string, status: 'ACTIVE' | 'PAUSED') {
