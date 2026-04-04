@@ -36,7 +36,37 @@ interface ConnectionChallenge {
 declare global {
     interface WindowEventMap {
         SYNTRAE_XHS_CAPTURE_RESULT: CustomEvent<{ success: boolean; error?: string }>;
+        SYNTRAE_XHS_EXTENSION_PONG: CustomEvent<{ installed: boolean; version?: string }>;
     }
+}
+
+type SupportedBrowser = 'chrome' | 'edge' | 'firefox' | 'unknown';
+
+function detectBrowser(userAgent: string): SupportedBrowser {
+    const ua = userAgent.toLowerCase();
+    if (ua.includes('firefox')) return 'firefox';
+    if (ua.includes('edg/')) return 'edge';
+    if (ua.includes('chrome/')) return 'chrome';
+    return 'unknown';
+}
+
+function getExtensionDownloads(browser: SupportedBrowser) {
+    if (browser === 'firefox') {
+        return {
+            primaryLabel: 'Download Firefox Extension',
+            primaryHref: '/extensions/syntrae-xhs-connector-firefox.zip',
+            secondaryLabel: null,
+            secondaryHref: null,
+        };
+    }
+
+    const chromiumPackage = '/extensions/syntrae-xhs-connector-chromium.zip';
+    return {
+        primaryLabel: browser === 'edge' ? 'Download Edge Extension' : 'Download Chrome Extension',
+        primaryHref: chromiumPackage,
+        secondaryLabel: browser === 'chrome' ? 'Use this package for Edge too' : 'Use this package for Chrome too',
+        secondaryHref: chromiumPackage,
+    };
 }
 
 export function BrandConnectionsPage() {
@@ -46,6 +76,9 @@ export function BrandConnectionsPage() {
     const [busy, setBusy] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [challenge, setChallenge] = useState<ConnectionChallenge | null>(null);
+    const [extensionInstalled, setExtensionInstalled] = useState<boolean | null>(null);
+    const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+    const [browser, setBrowser] = useState<SupportedBrowser>(() => detectBrowser(window.navigator.userAgent));
 
     useEffect(() => {
         if (brandId) {
@@ -71,6 +104,10 @@ export function BrandConnectionsPage() {
         return () => window.removeEventListener('SYNTRAE_XHS_CAPTURE_RESULT', handleCaptureResult as EventListener);
     }, []);
 
+    useEffect(() => {
+        checkExtensionInstalled();
+    }, []);
+
     async function loadConnection() {
         setLoading(true);
         setError(null);
@@ -82,6 +119,27 @@ export function BrandConnectionsPage() {
         } finally {
             setLoading(false);
         }
+    }
+
+    async function checkExtensionInstalled() {
+        return new Promise<boolean>((resolve) => {
+            const timeout = window.setTimeout(() => {
+                window.removeEventListener('SYNTRAE_XHS_EXTENSION_PONG', handlePong as EventListener);
+                setExtensionInstalled(false);
+                resolve(false);
+            }, 900);
+
+            function handlePong(event: WindowEventMap['SYNTRAE_XHS_EXTENSION_PONG']) {
+                window.clearTimeout(timeout);
+                window.removeEventListener('SYNTRAE_XHS_EXTENSION_PONG', handlePong as EventListener);
+                const installed = Boolean(event.detail?.installed);
+                setExtensionInstalled(installed);
+                resolve(installed);
+            }
+
+            window.addEventListener('SYNTRAE_XHS_EXTENSION_PONG', handlePong as EventListener);
+            window.postMessage({ type: 'SYNTRAE_XHS_EXTENSION_PING' }, window.location.origin);
+        });
     }
 
     async function requestConnection() {
@@ -101,6 +159,13 @@ export function BrandConnectionsPage() {
         setBusy('challenge');
         setError(null);
         try {
+            const installed = await checkExtensionInstalled();
+            if (!installed) {
+                setShowInstallPrompt(true);
+                setBusy(null);
+                return;
+            }
+
             const data = await api.post(`/brands/${brandId}/platform-connections/rednote/challenge`, {}) as ConnectionChallenge;
             setChallenge(data);
             const ingestBase = API_BASE.startsWith('http') ? API_BASE : `${window.location.origin}${API_BASE}`;
@@ -165,6 +230,8 @@ export function BrandConnectionsPage() {
         await navigator.clipboard.writeText(connection.connect_command);
     }
 
+    const downloads = getExtensionDownloads(browser);
+
     if (loading && !connection) {
         return <div className="p-8 text-slate-600">Loading XHS connection...</div>;
     }
@@ -181,6 +248,58 @@ export function BrandConnectionsPage() {
             </div>
 
             {error && <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
+
+            {showInstallPrompt && (
+                <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-6">
+                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-700">Extension required</div>
+                    <h2 className="mt-2 text-xl font-bold text-slate-900">Install the Syntrae XHS Connector first</h2>
+                    <p className="mt-2 text-sm text-slate-700">
+                        Syntrae did not detect the browser extension in this tab. Install it for {browser === 'unknown' ? 'your browser' : browser},
+                        then refresh this page and click <span className="font-semibold">Connect with extension</span> again.
+                    </p>
+
+                    <div className="mt-5 flex flex-wrap gap-3">
+                        <a
+                            href={downloads.primaryHref}
+                            download
+                            className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
+                        >
+                            {downloads.primaryLabel}
+                        </a>
+                        {downloads.secondaryLabel && downloads.secondaryHref && (
+                            <a
+                                href={downloads.secondaryHref}
+                                download
+                                className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700"
+                            >
+                                {downloads.secondaryLabel}
+                            </a>
+                        )}
+                        <button
+                            onClick={() => setShowInstallPrompt(false)}
+                            className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+
+                    <ol className="mt-5 space-y-3 text-sm text-slate-700">
+                        <li className="rounded-2xl border border-amber-100 bg-white px-4 py-3">
+                            <span className="mr-2 font-semibold text-slate-900">1.</span>
+                            Download the extension package for your browser.
+                        </li>
+                        <li className="rounded-2xl border border-amber-100 bg-white px-4 py-3">
+                            <span className="mr-2 font-semibold text-slate-900">2.</span>
+                            Chrome / Edge: unzip it and use <span className="font-mono">Load unpacked</span>. Firefox: load the package from
+                            <span className="font-mono"> about:debugging</span>.
+                        </li>
+                        <li className="rounded-2xl border border-amber-100 bg-white px-4 py-3">
+                            <span className="mr-2 font-semibold text-slate-900">3.</span>
+                            Refresh this page and click <span className="font-semibold">Connect with extension</span>.
+                        </li>
+                    </ol>
+                </div>
+            )}
 
             <div className="mt-6 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
                 <div className="rounded-2xl border border-slate-200 bg-white p-6">
@@ -274,6 +393,10 @@ export function BrandConnectionsPage() {
                         The recommended commercial flow is the Syntrae browser extension. It opens Xiaohongshu login in your own browser,
                         captures the required cookies locally after you sign in, and uploads the brand-scoped session to Syntrae.
                     </p>
+
+                    <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                        Extension status: <span className="font-semibold text-slate-900">{extensionInstalled ? 'Installed' : 'Not detected'}</span>
+                    </div>
 
                     {challenge && (
                         <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
