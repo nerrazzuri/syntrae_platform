@@ -359,6 +359,91 @@ h1 {
   padding-top: 16px;
 }
 
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 28px;
+}
+
+.pricing-card {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 253, 248, 0.92);
+  box-shadow: var(--shadow);
+}
+
+.featured-plan {
+  background:
+    radial-gradient(circle at top right, rgba(13, 143, 116, 0.2), transparent 24%),
+    rgba(255, 253, 248, 0.98);
+  border-color: rgba(13, 143, 116, 0.28);
+}
+
+.pricing-card-top {
+  display: grid;
+  gap: 10px;
+}
+
+.plan-badge {
+  display: inline-flex;
+  width: fit-content;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(21, 32, 38, 0.06);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.accent-badge {
+  background: rgba(13, 143, 116, 0.14);
+  color: var(--accent-deep);
+}
+
+.plan-price {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.9rem;
+  line-height: 1.1;
+}
+
+.plan-subtext {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.plan-feature-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+  color: var(--muted);
+}
+
+.plan-feature-list li {
+  position: relative;
+  padding-left: 18px;
+  line-height: 1.6;
+}
+
+.plan-feature-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
 .pricing-shell {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -414,7 +499,8 @@ h1 {
   .footer-shell,
   .problem-grid,
   .workflow-grid,
-  .proof-grid {
+  .proof-grid,
+  .pricing-grid {
     grid-template-columns: 1fr;
   }
 }
