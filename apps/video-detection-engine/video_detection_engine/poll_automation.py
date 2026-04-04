@@ -94,6 +94,8 @@ async def global_poll_loop(install_id):
             platform = run_data.get("platform")
             claim_token = run_data.get("claim_token")
             workspace_id = run_data.get("workspace_id")
+            ingestion_install_id = run_data.get("ingestion_install_id")
+            ingestion_install_secret = run_data.get("ingestion_install_secret")
 
             logger.info(f"🚀 Claimed Job {run_id} for Brand {brand_id}...")
 
@@ -103,6 +105,7 @@ async def global_poll_loop(install_id):
                 continue
 
             storage_path = resolve_storage_state_path(workspace_id, brand_id, platform)
+            client.set_ingestion_install(ingestion_install_id, ingestion_install_secret)
 
             if storage_path:
                 logger.info(f"Using Session File: {storage_path}")

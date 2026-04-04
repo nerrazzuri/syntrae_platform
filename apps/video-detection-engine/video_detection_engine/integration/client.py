@@ -17,6 +17,8 @@ class IntegrationClient:
         self.brand_id = brand_id
         self.install_id = install_id
         self.claim_token: Optional[str] = None
+        self.ingestion_install_id: Optional[str] = None
+        self.ingestion_install_secret: Optional[str] = None
         
         self.ai_core_url = os.getenv("AI_CORE_BASE_URL")
         if not self.ai_core_url:
@@ -36,6 +38,16 @@ class IntegrationClient:
 
     def set_claim_context(self, claim_token: Optional[str]):
         self.claim_token = claim_token
+
+    def set_ingestion_install(self, install_id: Optional[str], install_secret: Optional[str] = None):
+        self.ingestion_install_id = install_id or None
+        self.ingestion_install_secret = install_secret or None
+
+    def _event_install_id(self) -> str:
+        return self.ingestion_install_id or self.install_id
+
+    def _event_install_secret(self) -> Optional[str]:
+        return self.ingestion_install_secret or self.install_secret
 
     async def get_policy(self, brand_id: str) -> Dict[str, Any]:
         """
@@ -439,7 +451,7 @@ class IntegrationClient:
             "platform": data.get("platform", "tiktok"),
             "session": {
                 "session_id": "00000000-0000-0000-0000-000000000000",
-                "install_id": self.install_id,
+                "install_id": self._event_install_id(),
                 "brand_id": self.brand_id
             },
             "page": {
@@ -477,11 +489,12 @@ class IntegrationClient:
         }
 
         headers = {
-            "x-install-id": self.install_id,
+            "x-install-id": self._event_install_id(),
             "Content-Type": "application/json"
         }
-        if self.install_secret:
-            headers["x-install-secret"] = self.install_secret
+        event_install_secret = self._event_install_secret()
+        if event_install_secret:
+            headers["x-install-secret"] = event_install_secret
         
         try:
             async with httpx.AsyncClient() as client:

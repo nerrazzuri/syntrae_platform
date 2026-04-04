@@ -14,6 +14,10 @@ const DEFAULT_STALE_MINUTES = 10;
 const DEFAULT_RETRY_DELAY_SECONDS = 30;
 const DEFAULT_SWEEP_LIMIT = 25;
 const DEFAULT_MAX_ATTEMPTS = 3;
+const DEFAULT_AUTOMATION_INSTALL_SECRET =
+    process.env.AI_ENGAGEMENT_INTERNAL_SECRET ||
+    process.env.AI_CORE_INTERNAL_SECRET ||
+    'secret';
 
 // Apply internal secret auth to all routes in this router
 router.use(requireInternalSecret);
@@ -34,6 +38,29 @@ function resolvePositiveInteger(rawValue: unknown, fallback: number, min: number
     }
 
     return Math.max(min, Math.min(max, Math.floor(parsed)));
+}
+
+async function ensureWorkspaceAutomationInstall(workspaceId: string) {
+    const installId = `automation-${workspaceId}`;
+
+    return prisma.installRegistry.upsert({
+        where: { install_id: installId },
+        update: {
+            account_id: workspaceId,
+            install_secret: DEFAULT_AUTOMATION_INSTALL_SECRET,
+            is_active: true,
+        },
+        create: {
+            install_id: installId,
+            account_id: workspaceId,
+            install_secret: DEFAULT_AUTOMATION_INSTALL_SECRET,
+            is_active: true,
+        },
+        select: {
+            install_id: true,
+            install_secret: true,
+        },
+    });
 }
 
 // GET /internal/automation-policy/latest
@@ -242,10 +269,15 @@ router.post('/automation-runs/claim', async (req: Request, res: Response) => {
             where: { id: claimed.brand_id },
             select: { workspace_id: true }
         });
+        const automationInstall = brand?.workspace_id
+            ? await ensureWorkspaceAutomationInstall(brand.workspace_id)
+            : null;
 
         return res.json({
             ...claimed,
-            workspace_id: brand?.workspace_id || null
+            workspace_id: brand?.workspace_id || null,
+            ingestion_install_id: automationInstall?.install_id || null,
+            ingestion_install_secret: automationInstall?.install_secret || null,
         });
     } catch (e: any) {
         console.error('Failed to claim automation run:', e);
