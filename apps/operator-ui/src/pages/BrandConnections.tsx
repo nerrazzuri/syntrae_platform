@@ -78,7 +78,7 @@ export function BrandConnectionsPage() {
     const [challenge, setChallenge] = useState<ConnectionChallenge | null>(null);
     const [extensionInstalled, setExtensionInstalled] = useState<boolean | null>(null);
     const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-    const [browser, setBrowser] = useState<SupportedBrowser>(() => detectBrowser(window.navigator.userAgent));
+    const [browser] = useState<SupportedBrowser>(() => detectBrowser(window.navigator.userAgent));
 
     useEffect(() => {
         if (brandId) {
