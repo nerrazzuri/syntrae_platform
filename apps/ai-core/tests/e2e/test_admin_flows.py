@@ -39,7 +39,7 @@ def test_admin_tenant_create_list_summary_and_ops():
     r = client.post(
         "/v1/admin/tenants/create",
         headers=h,
-        json={"name": name, "domain": domain, "subscription_tier": "BASIC"},
+        json={"name": name, "domain": domain, "subscription_tier": "GROWTH"},
     )
     assert r.status_code == 200, r.text
     tid = r.json().get("id")

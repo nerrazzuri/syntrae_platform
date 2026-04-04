@@ -72,7 +72,7 @@ async function main() {
     const wsRes = await fetch(`${BASE_URL}/workspaces`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ name: `Value Corp ${Date.now()}`, plan: 'ENTERPRISE' }) // Unique name
+        body: JSON.stringify({ name: `Value Corp ${Date.now()}`, plan: 'AGENCY' }) // Unique name
     });
 
     if (!wsRes.ok) {

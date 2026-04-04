@@ -12,7 +12,7 @@ import { ownerRouter } from './api/owner';
 import { suggestionsRouter } from './api/suggestions';
 import { valueRouter } from './api/value';
 import { leadsRouter } from './api/leads';
-import { billingRouter } from './api/billing';
+import { billingRouter, stripeWebhookHandler } from './api/billing';
 import { brandRouter } from './api/brands';
 import { policyRouter } from './api/policy';
 import { analyticsRouter } from './api/analytics';
@@ -50,6 +50,8 @@ export function createApp() {
     }));
 
     app.use(cookieParser());
+    // Stripe signs the raw request body, so this route must be mounted before JSON parsing.
+    app.post('/billing/webhooks/stripe', express.raw({ type: 'application/json' }), stripeWebhookHandler);
     app.use(express.json());
     app.use(morgan('dev'));
 

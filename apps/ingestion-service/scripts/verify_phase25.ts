@@ -12,12 +12,12 @@ const FETCH_OPTS = {
 async function main() {
     console.log('\n--- VERIFYING PHASE 25 (Automation Eligibility) ---');
 
-    // 1. Setup: Create Workspace (Default Plan: FREE)
+    // 1. Setup: Create Workspace (Default Plan: STARTER)
     const account = await prisma.account.create({
         data: {
             name: "Phase25_Test",
             status: "ACTIVE",
-            plan_id: "FREE"
+            plan_id: "STARTER"
         }
     });
 
@@ -82,7 +82,7 @@ async function main() {
         return await res.json();
     }
 
-    // TEST 1: Default Block (Reason: Plan FREE, OptIn FALSE)
+    // TEST 1: Default Block (Reason: Plan STARTER, OptIn FALSE)
     console.log('\n[Test 1] Default Block');
     let decision = await checkEligibility(suggestion.id);
     console.log('Result:', JSON.stringify(decision));
@@ -91,8 +91,8 @@ async function main() {
     if (!decision.reasons.find((r: string) => r.includes('Automation is not enabled'))) throw new Error('Failed: Missing Opt-In Reason');
 
     // TEST 2: Plan Gate (Upgrade Plan, Keep OptIn FALSE)
-    console.log('\n[Test 2] Plan Gate (Business Plan, OptIn False)');
-    await prisma.account.update({ where: { id: account.id }, data: { plan_id: 'BUSINESS' } }); // Upgrade
+    console.log('\n[Test 2] Plan Gate (Agency Plan, OptIn False)');
+    await prisma.account.update({ where: { id: account.id }, data: { plan_id: 'AGENCY' } }); // Upgrade
     decision = await checkEligibility(suggestion.id);
     console.log('Result:', JSON.stringify(decision));
     if (decision.allowed === true) throw new Error('Failed: Allowed without Opt-In');

@@ -45,8 +45,8 @@ async function verifyFinal() {
     // GAP C: Video Isolation (Logic Layer)
     console.log('\n--- Checking Gap C (Account-Scoped Video Limits) ---');
     const videoId = `viral_final_${Date.now()}`;
-    const accA = await prisma.account.create({ data: { status: 'ACTIVE', plan: 'FREE' } });
-    const accB = await prisma.account.create({ data: { status: 'ACTIVE', plan: 'FREE' } });
+    const accA = await prisma.account.create({ data: { status: 'ACTIVE', plan_id: 'STARTER' } });
+    const accB = await prisma.account.create({ data: { status: 'ACTIVE', plan_id: 'STARTER' } });
 
     const limit = SafetyConfigService.getInstance().getLimits().max_replies_per_video;
 

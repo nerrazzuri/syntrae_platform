@@ -41,7 +41,7 @@ async function main() {
         const account = await prisma.account.create({
             data: {
                 name: 'Phase 28 Test Corp',
-                plan_id: 'FREE', // 5 events/day limit
+                plan_id: 'STARTER', // starter daily event limit
                 status: 'ACTIVE'
             }
         });
@@ -139,9 +139,8 @@ async function main() {
 
         // 8. Test Plan Limit
         console.log('\n[Test 6] Plan Limit Enforcement');
-        // FREE Plan = 50 events/day (default in code) or 5?
-        // Let's check `ProductDef` (Step 7036): "max_events_per_day: 50" for FREE.
-        // We set account to FREE. 
+        // STARTER plan uses the current starter event limit from the shared package config.
+        // We set account to STARTER.
         // We need to ingest 50 events to hit limit.
         // That's too slow.
         // Update Account to a custom plan or just accept we might not hit it easily unless we loop 50 times.

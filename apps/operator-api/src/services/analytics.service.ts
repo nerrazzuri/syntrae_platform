@@ -1,6 +1,6 @@
 
 import { PrismaClient, BuyerStage, RecommendedAction } from '@syntrae/prisma-schema';
-import { PlanEnforcer } from './billing/plan_enforcer';
+import { SubscriptionPolicyService, type WorkspacePlanSummary } from './billing/subscription_policy.service';
 
 const prisma = new PrismaClient();
 
@@ -32,10 +32,26 @@ export interface BrandPerformance {
 
 export interface UsageMetrics {
     plan_id: string;
+    plan_name: string;
+    subscription_status: string;
     brands_used: number;
     brands_limit: number;
+    team_members_used: number;
+    team_members_limit: number;
+    events_daily_used: number;
+    events_daily_limit: number;
+    events_monthly_used: number;
+    events_monthly_limit: number;
+    suggestions_daily_used: number;
+    suggestions_daily_limit: number;
+    automation_runs_daily_used: number;
+    automation_runs_daily_limit: number;
+    leads_exported_month: number;
+    leads_export_limit: number;
     drafts_generated_month: number;
     leads_captured_month: number;
+    features: WorkspacePlanSummary['features'];
+    blocked: WorkspacePlanSummary['blocked'];
 }
 
 export class AnalyticsService {
@@ -164,27 +180,9 @@ export class AnalyticsService {
      * Get usage vs limits for billing.
      */
     static async getUsageStats(workspaceId: string): Promise<UsageMetrics> {
-        // 1. Get Plan Info
-        let planId = 'FREE';
-        let brandLimit = 1;
+        const planSummary = await SubscriptionPolicyService.getWorkspacePlanSummary(workspaceId);
 
-        try {
-            const plan = await PlanEnforcer.getPlan(workspaceId);
-            brandLimit = plan.maxBrands;
-            planId = plan.id;
-        } catch (e) {
-            // Default fallthrough
-        }
-
-        // 2. Count Active Brands
-        const activeBrands = await prisma.brand.count({
-            where: {
-                workspace_id: workspaceId,
-                status: 'ACTIVE'
-            }
-        });
-
-        // 3. Count Monthly Usage (Definition: 1st of current month to now)
+        // 2. Count monthly operational objects still not tracked in usage counters.
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -203,11 +201,27 @@ export class AnalyticsService {
         });
 
         return {
-            plan_id: planId,
-            brands_used: activeBrands,
-            brands_limit: brandLimit,
+            plan_id: planSummary.plan_code,
+            plan_name: planSummary.display_name,
+            subscription_status: planSummary.subscription_status,
+            brands_used: planSummary.usage.active_brands.used,
+            brands_limit: planSummary.usage.active_brands.limit,
+            team_members_used: planSummary.usage.team_members.used,
+            team_members_limit: planSummary.usage.team_members.limit,
+            events_daily_used: planSummary.usage.events_daily.used,
+            events_daily_limit: planSummary.usage.events_daily.limit,
+            events_monthly_used: planSummary.usage.events_monthly.used,
+            events_monthly_limit: planSummary.usage.events_monthly.limit,
+            suggestions_daily_used: planSummary.usage.suggestions_daily.used,
+            suggestions_daily_limit: planSummary.usage.suggestions_daily.limit,
+            automation_runs_daily_used: planSummary.usage.automation_runs_daily.used,
+            automation_runs_daily_limit: planSummary.usage.automation_runs_daily.limit,
+            leads_exported_month: planSummary.usage.lead_exports_monthly.used,
+            leads_export_limit: planSummary.usage.lead_exports_monthly.limit,
             drafts_generated_month: drafts,
             leads_captured_month: leads,
+            features: planSummary.features,
+            blocked: planSummary.blocked,
         };
     }
 

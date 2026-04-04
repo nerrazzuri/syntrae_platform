@@ -8,8 +8,8 @@ async function verifyGapC() {
 
     const videoId = `viral_vid_${Date.now()}`;
     // Create 2 Accounts
-    const accA = await prisma.account.create({ data: { status: 'ACTIVE', plan: 'FREE' } });
-    const accB = await prisma.account.create({ data: { status: 'ACTIVE', plan: 'FREE' } });
+    const accA = await prisma.account.create({ data: { status: 'ACTIVE', plan_id: 'STARTER' } });
+    const accB = await prisma.account.create({ data: { status: 'ACTIVE', plan_id: 'STARTER' } });
 
     console.log(`Created Accounts: A=${accA.id}, B=${accB.id}`);
 

@@ -19,7 +19,7 @@ model Account {
   id                String   @id @default(uuid())
   status            String   @default("ACTIVE")
   name              String   @default("My Workspace")
-  plan_id           String   @default("FREE")
+  plan_id           String   @default("STARTER")
   onboarding_state  String   @default("CREATED")
   created_at        DateTime @default(now())
 

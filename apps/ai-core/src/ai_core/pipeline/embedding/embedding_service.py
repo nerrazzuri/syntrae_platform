@@ -84,7 +84,7 @@ class EmbeddingService:
 
         # Throttling
         try:
-            # TODO: optionally load tenant tier from DB if available; default BASIC
+            # TODO: optionally load tenant tier from DB if available; default GROWTH
             ok = throttle.acquire(tenant_id, kind="embed", tenant_tier=None)
             if not ok:
                 return None

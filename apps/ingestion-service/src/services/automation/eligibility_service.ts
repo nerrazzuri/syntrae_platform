@@ -1,8 +1,8 @@
 
 import { prisma } from '../../db';
-import { ProductDef, PlanId } from '../product/product_def';
 import { AutomationPolicy } from './automation_policy';
 import { Suggestion, OwnerSettings } from '@syntrae/prisma-schema';
+import { SubscriptionPolicyService } from '../product/subscription_policy_service';
 
 export interface AutomationEligibilityDecision {
     allowed: boolean;
@@ -51,11 +51,10 @@ export class AutomationEligibilityService {
      */
     private static async computeDecision(suggestion: Suggestion, account: any, settings: OwnerSettings | null): Promise<AutomationEligibilityDecision> {
         const reasons: string[] = [];
-        const plan = ProductDef.getPlan(account.plan_id as PlanId);
+        const { plan } = await SubscriptionPolicyService.getEffectivePlan(account.id);
 
-        // 1. GATE: Plan Constraints
-        if (!plan.limits.automation_eligible) {
-            reasons.push(`Plan '${plan.name}' does not support automation.`);
+        if (!plan.capabilities.automationEnabled) {
+            reasons.push(`Plan '${plan.displayName}' does not support automation.`);
         }
 
         // 2. GATE: Owner Opt-In

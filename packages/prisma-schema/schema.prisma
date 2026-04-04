@@ -19,7 +19,7 @@ model Account {
   id                String   @id @default(uuid())
   status            String   @default("ACTIVE")
   name              String   @default("My Workspace")
-  plan_id           String   @default("FREE")
+  plan_id           String   @default("STARTER")
   onboarding_state  String   @default("CREATED")
   created_at        DateTime @default(now())
 
@@ -28,6 +28,8 @@ model Account {
   memberships        WorkspaceMembership[]
   active_sessions    Session[]
   owner_settings     OwnerSettings?
+  subscription       WorkspaceSubscription?
+  usage_counters     WorkspaceUsageCounter[]
 
   suggestions        Suggestion[]
   decisions          SuggestionDecision[]
@@ -56,8 +58,61 @@ model Brand {
   policies        AutomationPolicy[]
   market_profiles MarketProfile[]
   discovered_videos DiscoveredVideo[]
+  usage_counters  WorkspaceUsageCounter[]
 
   @@index([workspace_id])
+  @@schema("core")
+}
+
+model WorkspaceSubscription {
+  id                     String   @id @default(uuid())
+  workspace_id           String   @unique
+  plan_code              String
+  display_name           String
+  billing_provider       String   @default("MANUAL")
+  status                 String   @default("ACTIVE")
+  billing_interval       String   @default("MONTHLY")
+  is_trial               Boolean  @default(false)
+  trial_ends_at          DateTime?
+  current_period_start   DateTime?
+  current_period_end     DateTime?
+  cancel_at_period_end   Boolean  @default(false)
+  scheduled_plan_code    String?
+  stripe_customer_id     String?  @unique
+  stripe_subscription_id String?  @unique
+  stripe_price_id        String?
+  stripe_product_id      String?
+  addon_config           Json     @default("{}")
+  metadata               Json     @default("{}")
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  account Account @relation(fields: [workspace_id], references: [id])
+
+  @@index([plan_code, status])
+  @@schema("core")
+}
+
+model WorkspaceUsageCounter {
+  id                String   @id @default(uuid())
+  workspace_id      String
+  brand_id          String?
+  scope_key         String
+  metric_code       String
+  period_type       String
+  period_start      DateTime
+  current_value     Int      @default(0)
+  blocked_at        DateTime?
+  block_reason_code String?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  account Account @relation(fields: [workspace_id], references: [id])
+  brand   Brand?  @relation(fields: [brand_id], references: [id])
+
+  @@unique([workspace_id, scope_key, metric_code, period_type, period_start])
+  @@index([workspace_id, metric_code, period_type, period_start])
+  @@index([brand_id, metric_code, period_type, period_start])
   @@schema("core")
 }
 

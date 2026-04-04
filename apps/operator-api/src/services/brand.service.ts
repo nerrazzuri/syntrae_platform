@@ -1,12 +1,10 @@
 import { prisma } from '../db';
-import { PlanEnforcer } from './billing/plan_enforcer';
+import { SubscriptionPolicyService } from './billing/subscription_policy.service';
 
 export class BrandService {
     static async createBrand(accountId: string, name: string, domain: string) {
-        // 1. Enforce Plan Limits
-        await PlanEnforcer.checkBrandLimit(accountId);
+        await SubscriptionPolicyService.assertCanCreateAdditionalBrand(accountId);
 
-        // 2. Create
         return prisma.brand.create({
             data: {
                 workspace_id: accountId,
@@ -33,12 +31,9 @@ export class BrandService {
 
         if (!brand) throw new Error('Brand not found or access denied');
 
-        // If Activating, check limits?
-        // If plan is FREE (1 limit), and we try to activate a 2nd brand while one is active?
-        // Prompt says: "Free users limited to 1 Brand".
-        // If I have 5 brands (downgraded), only 1 can be active.
-        // So checking creation limit isn't enough. We need separate `canActivateBrand` check?
-        // Or simpler: `checkActiveBrandLimit`.
+        // Activation must respect the effective package's active-brand ceiling.
+        // A downgraded workspace can retain paused brands, but cannot activate
+        // more brands than its current package allows.
 
         // Check Account Status
         const account = await prisma.account.findUnique({
@@ -51,13 +46,13 @@ export class BrandService {
                 throw new Error('Cannot activate brands while account is pending downgrade. Please resolve the downgrade first.');
             }
 
-            const plan = await PlanEnforcer.getPlan(accountId);
+            const { plan } = await SubscriptionPolicyService.getEffectivePlan(accountId);
             const activeCount = await prisma.brand.count({
                 where: { workspace_id: accountId, status: 'ACTIVE', id: { not: brandId } }
             });
 
-            if (activeCount >= plan.maxBrands) {
-                throw new Error(`Cannot activate brand: Plan limit of ${plan.maxBrands} active brands reached.`);
+            if (activeCount >= plan.limits.maxBrands) {
+                throw new Error(`Cannot activate brand: Plan limit of ${plan.limits.maxBrands} active brands reached.`);
             }
         }
 

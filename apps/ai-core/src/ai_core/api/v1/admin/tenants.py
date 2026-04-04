@@ -70,7 +70,7 @@ def list_tenants(request: Request, db: Session = Depends(get_db)):
 class TenantCreateBody(BaseModel):
     name: str
     domain: str
-    subscription_tier: str | None = "BASIC"
+    subscription_tier: str | None = "GROWTH"
     settings: dict | None = None
 
 
@@ -88,7 +88,7 @@ def create_tenant(body: TenantCreateBody, request: Request, db: Session = Depend
     t = Tenant(
         name=name,
         domain=domain,
-        subscription_tier=body.subscription_tier or "BASIC",
+        subscription_tier=body.subscription_tier or "GROWTH",
         settings=body.settings or {},
     )
     db.add(t)

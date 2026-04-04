@@ -11,7 +11,7 @@ class Throttle:
         return f"throttle:{kind}:{tenant_id}:concurrent"
 
     def _cap_for(self, tenant_tier: Optional[str], kind: str) -> int:
-        tier = (tenant_tier or "").upper() or "BASIC"
+        tier = (tenant_tier or "").upper() or "GROWTH"
         if kind == "llm":
             return int(
                 throttle_cfg.tier_llm_caps.get(

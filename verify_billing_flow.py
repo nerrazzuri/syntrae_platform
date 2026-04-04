@@ -44,8 +44,8 @@ def run_test():
     status = data['active_workspace']['status']
     
     log(f"Workspace: {workspace_id}, Plan: {plan}, Status: {status}")
-    if plan != 'FREE':
-        print("FAILED: Expected initial plan to be FREE")
+    if plan != 'STARTER':
+        print("FAILED: Expected initial plan to be STARTER")
         sys.exit(1)
 
     # 3. Create Brand 1 (Should Succeed - Default brand might already exist?)
@@ -65,7 +65,7 @@ def run_test():
         if res.status_code != 403:
             print(f"FAILED: Expected 403 Forbidden for Brand Limit, got {res.status_code}")
             sys.exit(1)
-        log("PASS: Blocked creation of 2nd brand on FREE plan.")
+        log("PASS: Blocked creation of 2nd brand on STARTER package.")
     else:
         # Create Brand 1
         log("Creating Brand 1...")
@@ -99,8 +99,8 @@ def run_test():
     brand2_id = brand2['id']
     log(f"PASS: Created Brand 2 ({brand2_id}).")
 
-    # 6. Downgrade to FREE
-    log("Downgrading to FREE (Should enter PENDING state)...")
+    # 6. Downgrade to STARTER
+    log("Downgrading to STARTER (Should enter PENDING state)...")
     res = session.post(f"{BASE_URL}/billing/downgrade")
     data = check(res, 200, "Downgrade request failed")
     
@@ -120,8 +120,8 @@ def run_test():
     log("Verifying Final State...")
     res = session.get(f"{BASE_URL}/auth/me")
     data = check(res, 200)
-    if data['active_workspace']['plan_id'] != 'FREE':
-        print("FAILED: Final plan is not FREE")
+    if data['active_workspace']['plan_id'] != 'STARTER':
+        print("FAILED: Final plan is not STARTER")
         sys.exit(1)
     if data['active_workspace']['status'] != 'ACTIVE':
         print("FAILED: Final status is not ACTIVE")

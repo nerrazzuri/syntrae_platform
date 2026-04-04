@@ -64,9 +64,9 @@ async function main() {
 
     const planRes = await fetch(`${BASE_URL}/product/plan`, { headers });
     const plan = await planRes.json();
-    if (plan.plan_id !== 'FREE') throw new Error(`Default plan should be FREE, got ${plan.plan_id}`);
-    if (plan.limits.max_suggestions_per_day !== 5) throw new Error('Incorrect max suggestions for FREE');
-    log('Plan Defaults Verified (FREE).');
+    if (plan.plan_id !== 'STARTER') throw new Error(`Default plan should be STARTER, got ${plan.plan_id}`);
+    if (plan.limits.max_suggestions_per_day !== 20) throw new Error('Incorrect max suggestions for STARTER');
+    log('Plan Defaults Verified (STARTER).');
 
     // 3. Verify Onboarding State (Initial)
     const onbRes1 = await fetch(`${BASE_URL}/product/onboarding`, { headers });

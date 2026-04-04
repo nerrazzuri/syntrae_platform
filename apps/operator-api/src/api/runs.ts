@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { prisma } from '../db';
 import { requireInternalSecret } from "../middleware/internal_auth";
 import { requireSession, requireWorkspace } from '../middleware/session_auth';
+import { SubscriptionPolicyError, SubscriptionPolicyService } from '../services/billing/subscription_policy.service';
 
 
 const router = Router();
@@ -168,6 +169,7 @@ router.post('/brands/:brandId/runs/queue', requireSession, requireWorkspace, asy
                 existing_status: conflictingRun.status
             });
         }
+        await SubscriptionPolicyService.assertCanCreateAutomationRun(req.activeWorkspaceId!, platform, brandId);
 
         const run = await prisma.automationRun.create({
             data: {
@@ -184,8 +186,11 @@ router.post('/brands/:brandId/runs/queue', requireSession, requireWorkspace, asy
         res.json(run);
     } catch (e: any) {
         console.error(`[API] Failed to queue run for brand ${brandId}:`, e);
+        if (e instanceof SubscriptionPolicyError) {
+            return res.status(403).json({ error: e.message, code: e.code, details: e.details });
+        }
         const statusCode = e.message?.includes('access denied') || e.message?.includes('Brand not found') ? 404 : 500;
-        res.status(statusCode).json({ error: statusCode === 500 ? e.message : e.message });
+        res.status(statusCode).json({ error: e.message });
     }
 });
 
@@ -213,6 +218,14 @@ router.post('/brands/:brandId/automation-runs', requireBrandActorAccess, async (
     } = req.body;
 
     try {
+        const brand = await prisma.brand.findUnique({
+            where: { id: brandId },
+            select: { workspace_id: true },
+        });
+        if (!brand) {
+            return res.status(404).json({ error: 'Brand not found' });
+        }
+
         const conflictingRun = await findConflictingRun(brandId, platform || 'unknown');
         if (conflictingRun) {
             return res.status(409).json({
@@ -221,6 +234,7 @@ router.post('/brands/:brandId/automation-runs', requireBrandActorAccess, async (
                 existing_status: conflictingRun.status
             });
         }
+        await SubscriptionPolicyService.assertCanCreateAutomationRun(brand.workspace_id, platform || 'unknown', brandId);
 
         const run = await prisma.automationRun.create({
             data: {
@@ -237,6 +251,9 @@ router.post('/brands/:brandId/automation-runs', requireBrandActorAccess, async (
 
         res.json(run);
     } catch (error: any) {
+        if (error instanceof SubscriptionPolicyError) {
+            return res.status(403).json({ error: error.message, code: error.code, details: error.details });
+        }
         console.error("Run creation failed:", error);
         res.status(500).json({ error: "Failed to create run record" });
     }
@@ -306,7 +323,7 @@ router.post('/runs/:runId/discovery', requireInternalSecret, async (req: any, re
         }
 
         // --------------------------------
-        // BUSINESS DECISION PATH
+        // Package-aware decision path
         // --------------------------------
         const {
             brand_id,

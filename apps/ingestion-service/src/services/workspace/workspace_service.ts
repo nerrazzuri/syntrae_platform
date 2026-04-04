@@ -1,5 +1,6 @@
 
 import { prisma } from '../../db';
+import { PLAN_CODES } from '@syntrae/commercial-plans';
 
 export class WorkspaceService {
 
@@ -15,7 +16,7 @@ export class WorkspaceService {
                 data: {
                     name,
                     status: 'ACTIVE',
-                    plan_id: 'FREE',
+                    plan_id: PLAN_CODES.STARTER,
                     onboarding_state: 'CREATED'
                 }
             });
@@ -40,6 +41,16 @@ export class WorkspaceService {
                     aggressiveness: 'CONSERVATIVE',
                     enable_intents: '{}',
                     platforms_enabled: '[]'
+                }
+            });
+
+            await tx.workspaceSubscription.create({
+                data: {
+                    workspace_id: account.id,
+                    plan_code: PLAN_CODES.STARTER,
+                    display_name: 'Starter',
+                    status: 'ACTIVE',
+                    billing_interval: 'MONTHLY',
                 }
             });
 

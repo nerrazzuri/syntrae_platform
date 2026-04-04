@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { requireSession } from '../middleware/session_auth';
 import { BrandService } from '../services/brand.service';
 import { LeadService } from '../services/lead_service';
+import { SubscriptionPolicyError } from '../services/billing/subscription_policy.service';
 
 const router = Router();
 
@@ -38,8 +39,8 @@ router.post('/', async (req: Request, res: Response) => {
         res.status(201).json(brand);
     } catch (err: any) {
         console.error('[Brands] Create Error:', err);
-        if (err.message.includes('Plan limit')) {
-            res.status(403).json({ error: err.message, code: 'PLAN_LIMIT_EXCEEDED' });
+        if (err instanceof SubscriptionPolicyError) {
+            res.status(403).json({ error: err.message, code: err.code, details: err.details });
         } else {
             res.status(500).json({ error: 'Internal Server Error' });
         }

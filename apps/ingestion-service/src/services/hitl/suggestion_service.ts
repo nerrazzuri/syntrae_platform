@@ -41,18 +41,8 @@ export class SuggestionService {
      */
     static async createSuggestion(params: CreateSuggestionParams): Promise<Suggestion> {
         console.log('[SuggestionService] createSuggestion called');
-        // Phase 24: Enforce Plan Limits
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
-
-        const dailyCount = await prisma.suggestion.count({
-            where: {
-                workspace_id: params.workspaceId,
-                created_at: { gte: startOfDay }
-            }
-        });
-
-        await PlanEnforcer.checkLimit(params.workspaceId, 'suggestions_per_day', dailyCount);
+        await PlanEnforcer.assertPlatformAccess(params.workspaceId, params.platform);
+        await PlanEnforcer.consumeLimit(params.workspaceId, 'suggestions_per_day');
 
         // Calculate expiry (Default 24h)
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);

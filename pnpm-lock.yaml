@@ -19,6 +19,9 @@ importers:
 
   apps/ingestion-service:
     dependencies:
+      '@syntrae/commercial-plans':
+        specifier: workspace:*
+        version: link:../../packages/commercial-plans
       '@syntrae/domain-models':
         specifier: workspace:*
         version: link:../../packages/domain-models
@@ -89,6 +92,9 @@ importers:
 
   apps/operator-api:
     dependencies:
+      '@syntrae/commercial-plans':
+        specifier: workspace:*
+        version: link:../../packages/commercial-plans
       '@syntrae/prisma-schema':
         specifier: workspace:*
         version: link:../../packages/prisma-schema
@@ -119,6 +125,9 @@ importers:
       prisma:
         specifier: ^5.7.0
         version: 5.22.0
+      stripe:
+        specifier: ^18.5.0
+        version: 18.5.0(@types/node@20.19.27)
       zod:
         specifier: ^3.22.4
         version: 3.25.76
@@ -208,6 +217,8 @@ importers:
       vite:
         specifier: ^5.0.8
         version: 5.4.21(@types/node@25.0.3)
+
+  packages/commercial-plans: {}
 
   packages/domain-models:
     dependencies:
@@ -1993,6 +2004,15 @@ packages:
   strip-json-comments@2.0.1:
     resolution: {integrity: sha512-4gB8na07fecVVkOI6Rs4e7T6NOTki5EmL7TUduTs6bu3EdnSycntVJ4re8kgZA+wx9IueI2Y11bfbgwtzuE0KQ==}
     engines: {node: '>=0.10.0'}
+
+  stripe@18.5.0:
+    resolution: {integrity: sha512-Hp+wFiEQtCB0LlNgcFh5uVyKznpDjzyUZ+CNVEf+I3fhlYvh7rZruIg+jOwzJRCpy0ZTPMjlzm7J2/M2N6d+DA==}
+    engines: {node: '>=12.*'}
+    peerDependencies:
+      '@types/node': '>=12.x.x'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
 
   sucrase@3.35.1:
     resolution: {integrity: sha512-DhuTmvZWux4H1UOnWMB3sk0sbaCVOoQZjv8u1rDoTV0HTdGem9hkAZtl4JZy8P2z4Bg0nT+YMeOFyVr4zcG5Tw==}
@@ -3989,6 +4009,12 @@ snapshots:
   strip-bom@3.0.0: {}
 
   strip-json-comments@2.0.1: {}
+
+  stripe@18.5.0(@types/node@20.19.27):
+    dependencies:
+      qs: 6.15.0
+    optionalDependencies:
+      '@types/node': 20.19.27
 
   sucrase@3.35.1:
     dependencies:

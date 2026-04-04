@@ -282,18 +282,20 @@ class ThrottleConfig:
             self,
             "tier_llm_caps",
             {
-                "BASIC": _get_int("THROTTLE_LLM_BASIC", 2),
+                "STARTER": _get_int("THROTTLE_LLM_STARTER", 2),
+                "GROWTH": _get_int("THROTTLE_LLM_GROWTH", 3),
                 "PRO": _get_int("THROTTLE_LLM_PRO", 5),
-                "ENTERPRISE": _get_int("THROTTLE_LLM_ENTERPRISE", 10),
+                "AGENCY": _get_int("THROTTLE_LLM_AGENCY", 10),
             },
         )
         object.__setattr__(
             self,
             "tier_embed_caps",
             {
-                "BASIC": _get_int("THROTTLE_EMBED_BASIC", 4),
+                "STARTER": _get_int("THROTTLE_EMBED_STARTER", 4),
+                "GROWTH": _get_int("THROTTLE_EMBED_GROWTH", 6),
                 "PRO": _get_int("THROTTLE_EMBED_PRO", 10),
-                "ENTERPRISE": _get_int("THROTTLE_EMBED_ENTERPRISE", 20),
+                "AGENCY": _get_int("THROTTLE_EMBED_AGENCY", 20),
             },
         )
 

@@ -4,9 +4,10 @@ import { v4 } from 'uuid';
 
 // Manual Enum Definition since import might fail
 enum PlanId {
-    FREE = 'FREE',
+    STARTER = 'STARTER',
+    GROWTH = 'GROWTH',
     PRO = 'PRO',
-    BUSINESS = 'BUSINESS'
+    AGENCY = 'AGENCY'
 }
 
 enum OnboardingState {
@@ -26,9 +27,8 @@ async function main() {
             data: {
                 name: 'Debug Workspace',
                 status: 'ACTIVE',
-                plan: 'free',
                 // @ts-ignore - Ignore type check in case d.ts is stale
-                plan_id: 'FREE',
+                plan_id: 'STARTER',
                 // @ts-ignore
                 onboarding_state: 'CREATED'
             }

@@ -282,7 +282,7 @@ async def lifespan(app: FastAPI):
                     id=default_tenant_id,
                     name="Global Tenant",
                     domain="global",
-                    subscription_tier="BASIC",
+                    subscription_tier="GROWTH",
                     settings={},
                 )
                 db.add(tenant)

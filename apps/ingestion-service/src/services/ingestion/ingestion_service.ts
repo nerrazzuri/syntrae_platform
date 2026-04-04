@@ -104,15 +104,11 @@ export class IngestionService {
             };
         }
 
-        // 4. Plan Limits
         let status = IngestStatus.RECEIVED;
         try {
-            const startOfDay = new Date();
-            startOfDay.setHours(0, 0, 0, 0);
-            const dailyCount = await prisma.engagementEvent.count({
-                where: { account_id: accountId, created_at: { gte: startOfDay } }
-            });
-            await PlanEnforcer.checkLimit(accountId, 'events_per_day', dailyCount);
+            await PlanEnforcer.assertPlatformAccess(accountId, canonicalPlatform);
+            await PlanEnforcer.consumeLimit(accountId, 'events_per_day');
+            await PlanEnforcer.consumeLimit(accountId, 'events_per_month');
         } catch (e) {
             console.warn(`[Ingest][${correlationId}] Plan Limit Exceeded:`, e);
             status = IngestStatus.BLOCKED_PLAN;

@@ -2,9 +2,9 @@
 import { Router } from 'express';
 import { prisma } from '../db';
 import { requireSession } from '../middleware/session_auth';
-import { ProductDef, PlanId } from '../services/product/product_def';
+import { ProductDef } from '../services/product/product_def';
 import { OnboardingService, OnboardingState } from '../services/product/onboarding_service';
-import { PlanEnforcer } from '../services/product/plan_enforcer';
+import { SubscriptionPolicyService } from '../services/product/subscription_policy_service';
 
 const router = Router();
 
@@ -29,14 +29,15 @@ router.get('/plan', requireSession, async (req, res) => {
 
         if (!account) return res.status(404).json({ error: 'Workspace not found' });
 
-        const planDef = ProductDef.getPlan(account.plan_id as PlanId);
+        const planDef = await SubscriptionPolicyService.getPlanSnapshot(workspaceId);
 
         res.json({
-            plan_id: planDef.id,
+            plan_id: planDef.plan_id,
             name: planDef.name,
             limits: planDef.limits,
-            automation_eligible: planDef.limits.automation_eligible,
-            notes: planDef.notes
+            features: planDef.features,
+            automation_eligible: planDef.features.automationEnabled,
+            notes: `${planDef.name} package policy`
         });
     } catch (error: any) {
         res.status(500).json({ error: error.message });

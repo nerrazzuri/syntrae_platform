@@ -16,7 +16,7 @@ async function migrate() {
         const account = await prisma.account.create({
             data: {
                 status: 'ACTIVE',
-                plan: 'MIGRATED_BASIC'
+                plan_id: 'GROWTH'
             }
         });
 

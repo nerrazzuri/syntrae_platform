@@ -4,6 +4,7 @@ import { prisma } from '../../db';
 import { SessionStore } from './session_store';
 import { User, Account, Prisma } from '@syntrae/prisma-schema';
 import { RateLimitService } from './rate_limiter';
+import { PLAN_CODES } from '@syntrae/commercial-plans';
 
 export class AuthService {
     /**
@@ -150,7 +151,7 @@ export class AuthService {
                 workspace = await tx.account.create({
                     data: {
                         name: workspaceName,
-                        plan_id: 'FREE',
+                        plan_id: PLAN_CODES.STARTER,
                         onboarding_state: 'CREATED'
                     }
                 });
@@ -168,6 +169,16 @@ export class AuthService {
                 // Create Settings
                 await tx.ownerSettings.create({
                     data: { workspace_id: workspace.id }
+                });
+
+                await tx.workspaceSubscription.create({
+                    data: {
+                        workspace_id: workspace.id,
+                        plan_code: PLAN_CODES.STARTER,
+                        display_name: 'Starter',
+                        status: 'ACTIVE',
+                        billing_interval: 'MONTHLY',
+                    }
                 });
 
                 activeWorkspaceId = workspace.id;

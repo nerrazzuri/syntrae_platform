@@ -64,7 +64,7 @@ class Tenant(Base):
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     domain = Column(String(255), unique=True, nullable=False)
-    subscription_tier = Column(String(50), default="BASIC")
+    subscription_tier = Column(String(50), default="GROWTH")
     settings = Column(JSON, default=dict)
     # Whitelabel / Custom Domain fields
     custom_domain = Column(String(255))  # e.g., ai.company.com

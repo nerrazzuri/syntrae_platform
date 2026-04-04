@@ -1,6 +1,7 @@
 import { prisma, Prisma } from '../db';
 import { AuthService } from './auth.service';
 import { User, Account, Session, Brand } from '@syntrae/prisma-schema';
+import { PLAN_CODES } from '@syntrae/commercial-plans';
 
 export class BootstrapService {
 
@@ -40,7 +41,7 @@ export class BootstrapService {
                 data: {
                     name: workspaceName,
                     status: 'ACTIVE',
-                    plan_id: 'FREE',
+                    plan_id: PLAN_CODES.STARTER,
                     onboarding_state: 'COMPLETED' // or BOOTSTRAPPED
                 }
             });
@@ -64,6 +65,16 @@ export class BootstrapService {
                     max_suggestions_per_video: 2,
                     automation_opt_in: false,
                     platforms_enabled: '[]'
+                }
+            });
+
+            await tx.workspaceSubscription.create({
+                data: {
+                    workspace_id: account.id,
+                    plan_code: PLAN_CODES.STARTER,
+                    display_name: 'Starter',
+                    status: 'ACTIVE',
+                    billing_interval: 'MONTHLY',
                 }
             });
 

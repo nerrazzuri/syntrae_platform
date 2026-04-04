@@ -12,7 +12,7 @@ async function verify() {
         data: {
             id: ACC_ID,
             status: 'ACTIVE',
-            plan: 'BASIC'
+            plan_id: 'GROWTH'
         }
     });
     console.log(`[OK] Created Account: ${ACC_ID}`);
