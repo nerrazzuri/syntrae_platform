@@ -10,6 +10,7 @@ easyocr
 pillow
 numpy
 pandas
+pytz
 torch --index-url https://download.pytorch.org/whl/cpu
 torchvision --index-url https://download.pytorch.org/whl/cpu
 SpeechRecognition
