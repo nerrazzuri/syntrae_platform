@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # ---- Base -------------------------------------------------
-# Use official Playwright image (includes Python + Browsers + OS Deps)
-FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
+# Use a newer official Playwright image with current Ubuntu keyrings.
+FROM mcr.microsoft.com/playwright/python:v1.55.0-noble
 
 WORKDIR /app
 
