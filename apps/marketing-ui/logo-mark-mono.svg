@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Syntrae monochrome logo mark">
+  <g stroke="#152026" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M64 18 L97.77 37.5 L97.77 76.5 L64 96 L30.23 76.5 L30.23 37.5 Z" />
+    <path d="M77 44.5C71.6 38.6 61.4 39.1 56.9 45.6C52.8 51.4 54.4 58 62.4 61.8C70.7 65.8 72.5 69.2 69.4 74.2C66.6 78.7 58.6 79.6 52.4 74.5" />
+    <path d="M67.4 37.8V44.8" />
+    <path d="M60.6 83.2V90.2" />
+  </g>
+
+  <g fill="#152026">
+    <circle cx="64" cy="18" r="8.5" />
+    <circle cx="97.77" cy="37.5" r="8.5" />
+    <circle cx="97.77" cy="76.5" r="8.5" />
+    <circle cx="64" cy="96" r="8.5" />
+    <circle cx="30.23" cy="76.5" r="8.5" />
+    <circle cx="30.23" cy="37.5" r="8.5" />
+  </g>
+</svg>

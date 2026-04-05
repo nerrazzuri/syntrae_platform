@@ -4,17 +4,33 @@
       <stop offset="0%" stop-color="#fff9ef"/>
       <stop offset="100%" stop-color="#efe6d8"/>
     </linearGradient>
-    <linearGradient id="accent" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#0d8f74"/>
-      <stop offset="100%" stop-color="#cb7b36"/>
+    <linearGradient id="accent" x1="260" y1="76" x2="404" y2="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#35d4d0"/>
+      <stop offset="55%" stop-color="#57e1c4"/>
+      <stop offset="100%" stop-color="#6be2aa"/>
     </linearGradient>
   </defs>
   <rect width="1200" height="630" fill="url(#bg)"/>
   <circle cx="1040" cy="120" r="170" fill="#0d8f74" fill-opacity="0.10"/>
   <circle cx="160" cy="70" r="140" fill="#cb7b36" fill-opacity="0.10"/>
   <rect x="80" y="74" width="220" height="54" rx="27" fill="#ffffff" fill-opacity="0.9"/>
-  <circle cx="122" cy="101" r="14" fill="url(#accent)"/>
-  <text x="150" y="111" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#152026">Syntrae</text>
+  <g transform="translate(96 77) scale(0.42)">
+    <g stroke="url(#accent)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M64 18 L97.77 37.5 L97.77 76.5 L64 96 L30.23 76.5 L30.23 37.5 Z" />
+      <path d="M77 44.5C71.6 38.6 61.4 39.1 56.9 45.6C52.8 51.4 54.4 58 62.4 61.8C70.7 65.8 72.5 69.2 69.4 74.2C66.6 78.7 58.6 79.6 52.4 74.5" />
+      <path d="M67.4 37.8V44.8" />
+      <path d="M60.6 83.2V90.2" />
+    </g>
+    <g fill="url(#accent)">
+      <circle cx="64" cy="18" r="8.5" />
+      <circle cx="97.77" cy="37.5" r="8.5" />
+      <circle cx="97.77" cy="76.5" r="8.5" />
+      <circle cx="64" cy="96" r="8.5" />
+      <circle cx="30.23" cy="76.5" r="8.5" />
+      <circle cx="30.23" cy="37.5" r="8.5" />
+    </g>
+  </g>
+  <text x="150" y="111" font-family="Manrope, Arial, sans-serif" font-size="28" font-weight="800" letter-spacing="-0.03em" fill="#152026">Syntrae</text>
   <text x="80" y="250" font-family="Georgia, serif" font-size="72" font-weight="700" fill="#152026">
     Turn social comment intent
   </text>
