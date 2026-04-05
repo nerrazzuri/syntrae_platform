@@ -114,7 +114,6 @@ export function Leads() {
     };
 
     const highIntentCount = useMemo(() => leads.filter((lead) => lead.buyer_stage === 'READY' || lead.recommended_action === 'PRIORITY_DM').length, [leads]);
-    const convertedCount = useMemo(() => leads.filter((lead) => lead.lead_status === 'CONVERTED').length, [leads]);
     const revenueTotal = useMemo(() => leads.reduce((sum, lead) => sum + Number(lead.deal_value || 0), 0), [leads]);
 
     const generateReply = async (leadId: string) => {
