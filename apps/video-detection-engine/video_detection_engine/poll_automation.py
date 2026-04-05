@@ -65,6 +65,7 @@ async def execute_claimed_run(install_id: str, run_data: dict[str, object]):
     platform = run_data.get("platform")
     claim_token = run_data.get("claim_token")
     workspace_id = run_data.get("workspace_id")
+    workspace_plan_code = run_data.get("workspace_plan_code")
     ingestion_install_id = run_data.get("ingestion_install_id")
     ingestion_install_secret = run_data.get("ingestion_install_secret")
 
@@ -92,6 +93,7 @@ async def execute_claimed_run(install_id: str, run_data: dict[str, object]):
             storage_state_path=storage_path,
             existing_run_id=run_id,
             claim_token=claim_token,
+            workspace_plan_code=workspace_plan_code,
             ingestion_install_id=ingestion_install_id,
             ingestion_install_secret=ingestion_install_secret,
         )

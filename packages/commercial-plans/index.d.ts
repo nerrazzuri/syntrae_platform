@@ -1,4 +1,4 @@
-export type PlanCode = 'STARTER' | 'GROWTH' | 'PRO' | 'AGENCY';
+export type PlanCode = 'BASIC' | 'STARTER' | 'GROWTH' | 'PRO' | 'AGENCY';
 export type BillingInterval = 'MONTHLY' | 'YEARLY';
 export type SubscriptionStatus = 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'INACTIVE';
 export type LimitPeriod = 'DAILY' | 'MONTHLY';

@@ -47,6 +47,7 @@ async def run_automation(
     storage_state_path: str = None,
     existing_run_id: str | None = None,
     claim_token: str | None = None,
+    workspace_plan_code: str | None = None,
     ingestion_install_id: str | None = None,
     ingestion_install_secret: str | None = None,
 ) -> bool:
@@ -133,6 +134,7 @@ async def run_automation(
             enforcer,
             platform=platform,
             xhs_session_path=storage_state_path,
+            workspace_plan_code=workspace_plan_code,
         )
 
         if url:

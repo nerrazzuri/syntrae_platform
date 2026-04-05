@@ -18,6 +18,9 @@ XHS_KEYWORD_LIMIT = 3
 XHS_MAX_SOURCE_POSTS_PER_RUN = 60
 XHS_MAX_POSTS_PER_KEYWORD = 20
 XHS_MAX_COMMENTS_PER_POST = 10
+XHS_BASIC_MAX_SOURCE_POSTS_PER_RUN = 5
+XHS_BASIC_MAX_POSTS_PER_KEYWORD = 5
+XHS_BASIC_MAX_COMMENTS_PER_POST = 2
 
 class DiscoveryEngine:
     """
@@ -34,6 +37,7 @@ class DiscoveryEngine:
         enforcer: PolicyEnforcer,
         platform: str = "tiktok",
         xhs_session_path: str | None = None,
+        workspace_plan_code: str | None = None,
     ):
         self.controller = controller
         self.client = client
@@ -42,6 +46,7 @@ class DiscoveryEngine:
         self.enforcer = enforcer
         self.platform = platform
         self.xhs_session_path = xhs_session_path
+        self.workspace_plan_code = (workspace_plan_code or "").strip().upper()
         # WF-3.1: Track systemic failures for run integrity
         self.error_count = 0
         self.error_threshold = 5  # Abort run if 5+ ERRORs encountered
@@ -87,14 +92,22 @@ class DiscoveryEngine:
                 processed_source_posts = 0
                 unique_video_ids = set()
                 geo_filtered_posts = 0
+                if self.workspace_plan_code == "BASIC":
+                    run_posts_cap = XHS_BASIC_MAX_SOURCE_POSTS_PER_RUN
+                    posts_per_keyword_cap = XHS_BASIC_MAX_POSTS_PER_KEYWORD
+                    comments_per_post_cap = XHS_BASIC_MAX_COMMENTS_PER_POST
+                else:
+                    run_posts_cap = XHS_MAX_SOURCE_POSTS_PER_RUN
+                    posts_per_keyword_cap = XHS_MAX_POSTS_PER_KEYWORD
+                    comments_per_post_cap = XHS_MAX_COMMENTS_PER_POST
 
                 for keyword in keywords:
-                    remaining_posts = XHS_MAX_SOURCE_POSTS_PER_RUN - processed_source_posts
+                    remaining_posts = run_posts_cap - processed_source_posts
                     if remaining_posts <= 0:
                         logger.info(
                             "Reached XHS source post cap for run %s (%s posts).",
                             self.run_id,
-                            XHS_MAX_SOURCE_POSTS_PER_RUN,
+                            run_posts_cap,
                         )
                         break
 
@@ -102,8 +115,8 @@ class DiscoveryEngine:
                         self.controller.page if self.controller else None,
                         keyword,
                         is_video_eligible=lambda note_id: self.client.check_video_eligibility(note_id, "rednote"),
-                        max_posts=min(XHS_MAX_POSTS_PER_KEYWORD, remaining_posts),
-                        max_comments_per_post=XHS_MAX_COMMENTS_PER_POST,
+                        max_posts=min(posts_per_keyword_cap, remaining_posts),
+                        max_comments_per_post=comments_per_post_cap,
                     )
                     processed_source_posts += int(payload.get("source_posts_processed", 0))
                     results = payload.get("events", [])

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 
-type PlanCode = 'STARTER' | 'GROWTH' | 'PRO' | 'AGENCY';
+type PlanCode = 'BASIC' | 'STARTER' | 'GROWTH' | 'PRO' | 'AGENCY';
 type BillingInterval = 'MONTHLY' | 'YEARLY';
 
 interface SubscriptionSummary {
@@ -32,9 +32,10 @@ interface SubscriptionSummary {
     blocked: Array<{ code: string; message: string }>;
 }
 
-const PLAN_ORDER: PlanCode[] = ['STARTER', 'GROWTH', 'PRO', 'AGENCY'];
+const PLAN_ORDER: PlanCode[] = ['BASIC', 'STARTER', 'GROWTH', 'PRO', 'AGENCY'];
 
 const PLAN_COPY: Record<PlanCode, string> = {
+    BASIC: 'Free tier with 1 brand, 1 automation run daily, and up to 5 videos with 2 comments each.',
     STARTER: 'Manual, single-brand starter package.',
     GROWTH: 'Higher volume with scoring, drafts, and exports.',
     PRO: 'Rule-ready automation for up to 3 brands, each with its own active market strategy.',
@@ -91,7 +92,7 @@ export function BillingPage() {
 
     const handleDowngrade = async () => {
         try {
-            setLoadingAction('STARTER');
+            setLoadingAction('BASIC');
             if (summary?.billing.portal_available) {
                 const res = await api.post('/billing/portal-session', {});
                 if (res.url) {
@@ -149,7 +150,7 @@ export function BillingPage() {
             <div className="p-8 max-w-2xl mx-auto">
                 <h1 className="text-2xl font-bold text-red-600 mb-4">Select The Brand To Keep Active</h1>
                 <p className="mb-6 text-gray-700">
-                    Moving to Starter requires a single active brand. All others will remain paused until you upgrade again.
+                    Moving to Basic requires a single active brand. All others will remain paused until you upgrade again.
                 </p>
                 <div className="space-y-4 mb-6">
                     {brands.map((brand) => (
@@ -168,7 +169,7 @@ export function BillingPage() {
                     disabled={!selectedBrand || loadingAction === 'resolve-downgrade'}
                     className="w-full py-3 bg-red-600 text-white font-bold rounded disabled:opacity-50"
                 >
-                    {loadingAction === 'resolve-downgrade' ? 'Applying...' : 'Confirm Starter Downgrade'}
+                    {loadingAction === 'resolve-downgrade' ? 'Applying...' : 'Confirm Basic Downgrade'}
                 </button>
                 {error && <div className="mt-4 text-red-500">{error}</div>}
             </div>
@@ -251,7 +252,7 @@ export function BillingPage() {
                         const isCurrent = summary.plan_code === planCode;
                         const option = summary.plan_options.find((entry) => entry.plan_code === planCode);
                         const supportsInterval = option?.billing_intervals.includes(billingInterval) ?? false;
-                        const canCheckout = Boolean(option?.checkout_enabled && supportsInterval && planCode !== 'STARTER');
+                        const canCheckout = Boolean(option?.checkout_enabled && supportsInterval && planCode !== 'BASIC');
                         return (
                             <div key={planCode} className={`border rounded p-4 ${isCurrent ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'}`}>
                                 <div className="flex items-center justify-between">
@@ -266,13 +267,13 @@ export function BillingPage() {
                                     </div>
                                     {isCurrent ? (
                                         <span className="text-sm font-semibold text-indigo-700">Current</span>
-                                    ) : planCode === 'STARTER' ? (
+                                    ) : planCode === 'BASIC' ? (
                                         <button
                                             onClick={handleDowngrade}
-                                            disabled={loadingAction === 'STARTER'}
+                                            disabled={loadingAction === 'BASIC'}
                                             className="text-sm text-red-600 hover:underline disabled:opacity-50"
                                         >
-                                            {loadingAction === 'STARTER' ? 'Opening...' : (summary.billing.portal_available ? 'Manage downgrade' : 'Move to Starter')}
+                                            {loadingAction === 'BASIC' ? 'Opening...' : (summary.billing.portal_available ? 'Manage downgrade' : 'Move to Basic')}
                                         </button>
                                     ) : canCheckout ? (
                                         <button

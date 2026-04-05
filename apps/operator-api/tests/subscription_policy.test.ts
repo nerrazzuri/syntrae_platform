@@ -58,13 +58,16 @@ function activeSession(workspaceId: string) {
 }
 
 test('legacy plan ids normalize into the commercial package set', () => {
-    assert.equal(normalizePlanCode('FREE'), PLAN_CODES.STARTER);
-    assert.equal(normalizePlanCode('basic'), PLAN_CODES.GROWTH);
+    assert.equal(normalizePlanCode('FREE'), PLAN_CODES.BASIC);
+    assert.equal(normalizePlanCode('basic'), PLAN_CODES.BASIC);
     assert.equal(normalizePlanCode('BUSINESS'), PLAN_CODES.AGENCY);
-    assert.equal(normalizePlanCode('unknown-value'), PLAN_CODES.STARTER);
+    assert.equal(normalizePlanCode('unknown-value'), PLAN_CODES.BASIC);
 });
 
 test('starter restrictions and growth/pro/agency capabilities resolve correctly', () => {
+    assert.equal(canUsePlatform(PLAN_CODES.BASIC, 'rednote').allowed, true);
+    assert.equal(canUsePlatform(PLAN_CODES.BASIC, 'tiktok').allowed, false);
+    assert.equal(canCreateAutomationRun(PLAN_CODES.BASIC).allowed, true);
     assert.equal(canUsePlatform(PLAN_CODES.STARTER, 'tiktok').allowed, true);
     assert.equal(canUsePlatform(PLAN_CODES.STARTER, 'rednote').allowed, true);
     assert.equal(canUsePlatform(PLAN_CODES.STARTER, 'xiaohongshu').allowed, true);
@@ -80,9 +83,9 @@ test('starter restrictions and growth/pro/agency capabilities resolve correctly'
 });
 
 test('usage evaluation blocks when the package quota is exceeded', () => {
-    const starterDaily = evaluateUsage(PLAN_CODES.STARTER, USAGE_METRICS.EVENTS_INGESTED, LIMIT_PERIODS.DAILY, 150, 1);
-    assert.equal(starterDaily.allowed, false);
-    assert.equal(starterDaily.reasonCode, 'PLAN_LIMIT_REACHED');
+    const basicDaily = evaluateUsage(PLAN_CODES.BASIC, USAGE_METRICS.EVENTS_INGESTED, LIMIT_PERIODS.DAILY, 10, 1);
+    assert.equal(basicDaily.allowed, false);
+    assert.equal(basicDaily.reasonCode, 'PLAN_LIMIT_REACHED');
 
     const proRuns = evaluateUsage(PLAN_CODES.PRO, USAGE_METRICS.AUTOMATION_RUNS_CREATED, LIMIT_PERIODS.DAILY, 24, 1);
     assert.equal(proRuns.allowed, true);

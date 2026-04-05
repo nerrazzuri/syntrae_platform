@@ -296,7 +296,7 @@ export class StripeBillingService {
 
         const targetPlanCode =
             mappedStatus === SUBSCRIPTION_STATUSES.CANCELED || mappedStatus === SUBSCRIPTION_STATUSES.INACTIVE
-                ? PLAN_CODES.STARTER
+                ? PLAN_CODES.BASIC
                 : mappedPlanCode;
         const targetPlan = getPlanDefinition(targetPlanCode);
         const stripeSubscription = subscription as Stripe.Subscription & {
@@ -364,7 +364,7 @@ export class StripeBillingService {
                 where: { id: workspaceId },
                 data: {
                     plan_id: targetPlan.code,
-                    status: targetPlan.code === PLAN_CODES.STARTER && mappedStatus === SUBSCRIPTION_STATUSES.CANCELED ? 'ACTIVE' : 'ACTIVE',
+                    status: 'ACTIVE',
                 },
             });
 
@@ -381,7 +381,7 @@ export class StripeBillingService {
                     current_period_start: currentPeriodStart,
                     current_period_end: currentPeriodEnd,
                     cancel_at_period_end: subscription.cancel_at_period_end,
-                    scheduled_plan_code: subscription.cancel_at_period_end ? PLAN_CODES.STARTER : null,
+                    scheduled_plan_code: subscription.cancel_at_period_end ? PLAN_CODES.BASIC : null,
                     stripe_customer_id: typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id,
                     stripe_subscription_id: subscription.id,
                     stripe_price_id: priceId,
@@ -400,7 +400,7 @@ export class StripeBillingService {
                     current_period_start: currentPeriodStart,
                     current_period_end: currentPeriodEnd,
                     cancel_at_period_end: subscription.cancel_at_period_end,
-                    scheduled_plan_code: subscription.cancel_at_period_end ? PLAN_CODES.STARTER : null,
+                    scheduled_plan_code: subscription.cancel_at_period_end ? PLAN_CODES.BASIC : null,
                     stripe_customer_id: typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id,
                     stripe_subscription_id: subscription.id,
                     stripe_price_id: priceId,
@@ -480,12 +480,12 @@ export class StripeBillingService {
     private static resolvePlanCodeFromStripeSubscription(subscription: Stripe.Subscription, priceId: string | null): PlanCode {
         const metadataPlan = subscription.metadata?.plan_code;
         if (metadataPlan) return normalizePlanCode(metadataPlan);
-        if (!priceId) return PLAN_CODES.STARTER;
+        if (!priceId) return PLAN_CODES.BASIC;
 
         const matchedEntry = this.getConfiguredPriceEntries().find((entry) => entry.priceId === priceId);
         if (matchedEntry) return matchedEntry.planCode;
 
-        return PLAN_CODES.STARTER;
+        return PLAN_CODES.BASIC;
     }
 
     private static mapStripeInterval(subscription: Stripe.Subscription): BillingInterval {

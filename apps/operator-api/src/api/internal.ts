@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { OwnerSettingsService } from '../services/owner/owner_settings_service';
 import { MarketProfileService } from '../services/market_profile.service';
 import { PolicyService } from '../services/policy.service';
+import { SubscriptionPolicyService } from '../services/billing/subscription_policy.service';
 
 const router = Router();
 const DEFAULT_LEASE_SECONDS = 120;
@@ -272,6 +273,9 @@ router.post('/automation-runs/claim', async (req: Request, res: Response) => {
             where: { id: claimed.brand_id },
             select: { workspace_id: true }
         });
+        const planSummary = brand?.workspace_id
+            ? await SubscriptionPolicyService.getWorkspacePlanSummary(brand.workspace_id)
+            : null;
         const automationInstall = brand?.workspace_id
             ? await ensureWorkspaceAutomationInstall(brand.workspace_id)
             : null;
@@ -279,6 +283,7 @@ router.post('/automation-runs/claim', async (req: Request, res: Response) => {
         return res.json({
             ...claimed,
             workspace_id: brand?.workspace_id || null,
+            workspace_plan_code: planSummary?.plan_code || null,
             ingestion_install_id: automationInstall?.install_id || null,
             ingestion_install_secret: automationInstall?.install_secret || null,
         });

@@ -7,7 +7,7 @@ export class BillingService {
         const normalized = SubscriptionPolicyService.normalizePlanCode(targetPlanCode);
         const result = await SubscriptionPolicyService.changePlan(accountId, normalized);
 
-        if (normalized !== PLAN_CODES.STARTER) {
+        if (normalized !== PLAN_CODES.BASIC) {
             await prisma.brand.updateMany({
                 where: { workspace_id: accountId },
                 data: { status: 'ACTIVE' },
@@ -23,12 +23,12 @@ export class BillingService {
     }
 
     static async downgradeToFree(accountId: string) {
-        return this.downgradeToPlan(accountId, PLAN_CODES.STARTER);
+        return this.downgradeToPlan(accountId, PLAN_CODES.BASIC);
     }
 
     static async downgradeToPlan(accountId: string, targetPlanCode: PlanCode) {
         const summary = await SubscriptionPolicyService.getWorkspacePlanSummary(accountId);
-        if (summary.usage.active_brands.used <= getStarterBrandLimit()) {
+        if (summary.usage.active_brands.used <= getBasicBrandLimit()) {
             const { subscription } = await this.changePlan(accountId, targetPlanCode);
             return { plan_id: subscription.plan_code, status: 'ACTIVE' };
         }
@@ -79,21 +79,21 @@ export class BillingService {
 
             await tx.account.update({
                 where: { id: accountId },
-                data: { status: 'ACTIVE', plan_id: PLAN_CODES.STARTER },
+                data: { status: 'ACTIVE', plan_id: PLAN_CODES.BASIC },
             });
 
             const subscription = await tx.workspaceSubscription.upsert({
                 where: { workspace_id: accountId },
                 update: {
-                    plan_code: PLAN_CODES.STARTER,
-                    display_name: 'Starter',
+                    plan_code: PLAN_CODES.BASIC,
+                    display_name: 'Basic',
                     scheduled_plan_code: null,
                     status: 'ACTIVE',
                 },
                 create: {
                     workspace_id: accountId,
-                    plan_code: PLAN_CODES.STARTER,
-                    display_name: 'Starter',
+                    plan_code: PLAN_CODES.BASIC,
+                    display_name: 'Basic',
                     status: 'ACTIVE',
                     billing_interval: 'MONTHLY',
                 },
@@ -107,6 +107,6 @@ export class BillingService {
     }
 }
 
-function getStarterBrandLimit() {
-    return getPlanDefinition(PLAN_CODES.STARTER).limits.maxBrands;
+function getBasicBrandLimit() {
+    return getPlanDefinition(PLAN_CODES.BASIC).limits.maxBrands;
 }

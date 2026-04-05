@@ -1,6 +1,7 @@
 "use strict";
 
 const PLAN_CODES = {
+  BASIC: "BASIC",
   STARTER: "STARTER",
   GROWTH: "GROWTH",
   PRO: "PRO",
@@ -46,8 +47,8 @@ const PLAN_REASON_CODES = {
 };
 
 const LEGACY_PLAN_ALIASES = {
-  FREE: PLAN_CODES.STARTER,
-  BASIC: PLAN_CODES.GROWTH,
+  FREE: PLAN_CODES.BASIC,
+  BASIC: PLAN_CODES.BASIC,
   MIGRATED_BASIC: PLAN_CODES.GROWTH,
   PRO: PLAN_CODES.PRO,
   BUSINESS: PLAN_CODES.AGENCY,
@@ -61,6 +62,39 @@ const PLATFORM_ALIASES = {
 };
 
 const PLAN_DEFINITIONS = {
+  [PLAN_CODES.BASIC]: {
+    code: PLAN_CODES.BASIC,
+    displayName: "Basic",
+    rank: 0,
+    availableBillingIntervals: [],
+    status: "ACTIVE",
+    limits: {
+      maxPlatforms: 1,
+      maxBrands: 1,
+      maxWorkspaces: 1,
+      maxUsers: 1,
+      maxCampaigns: 1,
+      dailyProcessedEvents: 10,
+      monthlyProcessedEvents: 300,
+      dailySuggestions: 5,
+      monthlyLeadExports: 0,
+      dailyAutomationRuns: 1,
+    },
+    includedPlatforms: ["rednote"],
+    capabilities: {
+      manualWorkflow: true,
+      automationEnabled: true,
+      automationRuleReady: false,
+      exportEnabled: false,
+      advancedScoringEnabled: false,
+      priorityProcessingEnabled: false,
+      assistedReplyDrafts: false,
+      leadPrioritization: false,
+      teamMemberInvites: false,
+      multiBrand: false,
+      multiClientIsolation: false,
+    },
+  },
   [PLAN_CODES.STARTER]: {
     code: PLAN_CODES.STARTER,
     displayName: "Starter",
@@ -196,9 +230,9 @@ const PLAN_DEFINITIONS = {
 };
 
 function normalizePlanCode(planCode) {
-  if (!planCode) return PLAN_CODES.STARTER;
+  if (!planCode) return PLAN_CODES.BASIC;
   const upper = String(planCode).trim().toUpperCase();
-  return PLAN_DEFINITIONS[upper] ? upper : LEGACY_PLAN_ALIASES[upper] || PLAN_CODES.STARTER;
+  return PLAN_DEFINITIONS[upper] ? upper : LEGACY_PLAN_ALIASES[upper] || PLAN_CODES.BASIC;
 }
 
 function getPlanDefinition(planCode) {

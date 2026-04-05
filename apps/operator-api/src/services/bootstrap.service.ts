@@ -43,7 +43,7 @@ export class BootstrapService {
                 data: {
                     name: workspaceName,
                     status: 'ACTIVE',
-                    plan_id: PLAN_CODES.STARTER,
+                    plan_id: PLAN_CODES.BASIC,
                     onboarding_state: 'CREATED'
                 }
             });
@@ -73,8 +73,8 @@ export class BootstrapService {
             await tx.workspaceSubscription.create({
                 data: {
                     workspace_id: account.id,
-                    plan_code: PLAN_CODES.STARTER,
-                    display_name: 'Starter',
+                    plan_code: PLAN_CODES.BASIC,
+                    display_name: 'Basic',
                     status: 'ACTIVE',
                     billing_interval: 'MONTHLY',
                 }

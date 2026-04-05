@@ -162,7 +162,7 @@ router.post('/downgrade', async (req: Request, res: Response) => {
             return;
         }
 
-        const result = await BillingService.downgradeToPlan(workspaceId, PLAN_CODES.STARTER);
+        const result = await BillingService.downgradeToPlan(workspaceId, PLAN_CODES.BASIC);
         res.json({
             status: 'success',
             plan: result.plan_id,
