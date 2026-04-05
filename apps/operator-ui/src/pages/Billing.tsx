@@ -51,12 +51,23 @@ export function BillingPage() {
     const [billingInterval, setBillingInterval] = useState<BillingInterval>('MONTHLY');
     const [voucherCode, setVoucherCode] = useState('');
     const [loadingAction, setLoadingAction] = useState<string | null>(null);
+    const [selectedIntervals, setSelectedIntervals] = useState<Partial<Record<PlanCode, BillingInterval>>>({});
 
     const loadSummary = async () => {
         try {
-            const data = await api.get('/billing/subscription');
+            const data = await api.get('/billing/subscription') as SubscriptionSummary;
             setSummary(data);
             setBillingInterval(data.billing_interval || 'MONTHLY');
+            setSelectedIntervals(() => {
+                const next: Partial<Record<PlanCode, BillingInterval>> = {};
+                data.plan_options.forEach((option) => {
+                    if (!option.billing_intervals.length) return;
+                    next[option.plan_code] = option.billing_intervals.includes(data.billing_interval)
+                        ? data.billing_interval
+                        : option.billing_intervals[0];
+                });
+                return next;
+            });
         } catch (e: any) {
             setError(e.message || 'Failed to load subscription');
         }
@@ -71,9 +82,10 @@ export function BillingPage() {
             setLoadingAction(planCode);
             setError(null);
             setNotice(null);
+            const interval = selectedIntervals[planCode] || billingInterval;
             const res = await api.post('/billing/checkout-session', {
                 plan_code: planCode,
-                billing_interval: billingInterval,
+                billing_interval: interval,
                 voucher_code: voucherCode,
             });
             if (res.applied_voucher?.code) {
@@ -221,17 +233,7 @@ export function BillingPage() {
             <div className="bg-white p-6 rounded shadow">
                 <div className="flex items-center justify-between gap-4 mb-4">
                     <h2 className="text-xl font-semibold">Packages</h2>
-                    <div className="inline-flex rounded border border-gray-200 p-1 text-sm">
-                        {(['MONTHLY', 'YEARLY'] as BillingInterval[]).map((interval) => (
-                            <button
-                                key={interval}
-                                onClick={() => setBillingInterval(interval)}
-                                className={`px-3 py-1 rounded ${billingInterval === interval ? 'bg-indigo-600 text-white' : 'text-gray-600'}`}
-                            >
-                                {interval === 'MONTHLY' ? 'Monthly' : 'Yearly'}
-                            </button>
-                        ))}
-                    </div>
+                    <p className="text-sm text-gray-500">Choose billing interval on each paid plan before checkout.</p>
                 </div>
                 <div className="mb-4 rounded border border-gray-200 p-4 bg-gray-50">
                     <label className="block text-sm font-medium mb-2">Promo voucher for Stripe checkout</label>
@@ -251,11 +253,12 @@ export function BillingPage() {
                     {PLAN_ORDER.map((planCode) => {
                         const isCurrent = summary.plan_code === planCode;
                         const option = summary.plan_options.find((entry) => entry.plan_code === planCode);
-                        const supportsInterval = option?.billing_intervals.includes(billingInterval) ?? false;
+                        const selectedInterval = selectedIntervals[planCode] || option?.billing_intervals[0] || 'MONTHLY';
+                        const supportsInterval = option?.billing_intervals.includes(selectedInterval) ?? false;
                         const canCheckout = Boolean(option?.checkout_enabled && supportsInterval && planCode !== 'BASIC');
                         return (
                             <div key={planCode} className={`border rounded p-4 ${isCurrent ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'}`}>
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-start justify-between gap-4">
                                     <div>
                                         <h3 className="font-semibold">{planCode}</h3>
                                         <p className="text-sm text-gray-600">{PLAN_COPY[planCode]}</p>
@@ -276,13 +279,31 @@ export function BillingPage() {
                                             {loadingAction === 'BASIC' ? 'Opening...' : (summary.billing.portal_available ? 'Manage downgrade' : 'Move to Basic')}
                                         </button>
                                     ) : canCheckout ? (
-                                        <button
-                                            onClick={() => handleCheckout(planCode)}
-                                            disabled={loadingAction === planCode}
-                                            className="px-3 py-2 rounded bg-indigo-600 text-white text-sm font-medium disabled:opacity-50"
-                                        >
-                                            {loadingAction === planCode ? 'Redirecting...' : `Checkout ${billingInterval === 'MONTHLY' ? 'Monthly' : 'Yearly'}`}
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <select
+                                                value={selectedInterval}
+                                                onChange={(event) =>
+                                                    setSelectedIntervals((current) => ({
+                                                        ...current,
+                                                        [planCode]: event.target.value as BillingInterval,
+                                                    }))
+                                                }
+                                                className="rounded border border-gray-300 bg-white px-3 py-2 text-sm"
+                                            >
+                                                {option?.billing_intervals.map((interval) => (
+                                                    <option key={interval} value={interval}>
+                                                        {interval === 'MONTHLY' ? 'Monthly checkout' : 'Yearly checkout'}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                onClick={() => handleCheckout(planCode)}
+                                                disabled={loadingAction === planCode}
+                                                className="px-3 py-2 rounded bg-indigo-600 text-white text-sm font-medium disabled:opacity-50"
+                                            >
+                                                {loadingAction === planCode ? 'Redirecting...' : 'Checkout'}
+                                            </button>
+                                        </div>
                                     ) : summary.billing.manual_change_allowed ? (
                                         <button
                                             onClick={async () => {
