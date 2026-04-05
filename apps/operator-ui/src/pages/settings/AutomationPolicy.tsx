@@ -26,6 +26,7 @@ export const AutomationPolicySettings: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [notice, setNotice] = useState<string | null>(null);
 
     useEffect(() => {
         if (!brandId) return;
@@ -35,6 +36,7 @@ export const AutomationPolicySettings: React.FC = () => {
     const loadPolicy = async () => {
         try {
             setLoading(true);
+            setError(null);
             const data = await api.get(`/brands/${brandId}/automation-policy`);
             setPolicy(data);
         } catch (err) {
@@ -50,12 +52,13 @@ export const AutomationPolicySettings: React.FC = () => {
         try {
             setSaving(true);
             setError(null);
+            setNotice(null);
 
             // Allow user to toggle status via a separate button or implicit?
             // Here we just save updates.
             const updated = await api.put(`/brands/${brandId}/automation-policy`, policy);
             setPolicy(updated);
-            alert("Policy updated successfully (New Version Created)");
+            setNotice(`Policy saved. Version ${updated.version} is now the current automation policy.`);
         } catch (err: any) {
             console.error(err);
             setError(err.response?.data?.error || "Failed to save policy");
@@ -97,6 +100,11 @@ export const AutomationPolicySettings: React.FC = () => {
             </div>
 
             {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>}
+            {notice && (
+                <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                    {notice}
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* GATING */}
