@@ -1279,7 +1279,8 @@ function extractIntentTrace(metadata: any) {
 }
 
 function deriveAlerts(payload: any) {
-  const alerts: Array<{ title: string; detail: string; meta: string; tone: 'danger' | 'warning' | 'accent' }> = [];
+  type AlertItem = { title: string; detail: string; meta: string; tone: 'danger' | 'warning' | 'accent' };
+  const alerts: AlertItem[] = [];
   (payload.runs || [])
     .filter((run: any) => ['FAILED', 'DEGRADED', 'ABORTED'].includes(run.status))
     .slice(0, 6)
@@ -1310,7 +1311,7 @@ function deriveAlerts(payload: any) {
       tone: 'warning' as const,
     })))
     .slice(0, 6)
-    .forEach((item) => alerts.push(item));
+    .forEach((item: AlertItem) => alerts.push(item));
   const draftBacklog = (payload.drafts || []).filter((draft: any) => ['DRAFT', 'EDITED'].includes(draft.status));
   if (draftBacklog.length > 10) {
     alerts.push({
