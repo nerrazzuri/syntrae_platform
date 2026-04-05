@@ -118,4 +118,42 @@ export class BrandService {
             data,
         });
     }
+
+    static async deleteBrand(accountId: string, brandId: string) {
+        const brand = await prisma.brand.findFirst({
+            where: { id: brandId, workspace_id: accountId }
+        });
+
+        if (!brand) throw new Error('Brand not found or access denied');
+
+        const [activeRuns, runCount, eventCount, leadCount, draftCount] = await Promise.all([
+            prisma.automationRun.count({
+                where: {
+                    brand_id: brandId,
+                    status: { in: ['PENDING', 'RUNNING'] as any }
+                }
+            }),
+            prisma.automationRun.count({ where: { brand_id: brandId } }),
+            prisma.engagementEvent.count({ where: { brand_id: brandId } }),
+            prisma.leadOpportunity.count({ where: { brand_id: brandId } }),
+            prisma.outreachDraft.count({ where: { brand_id: brandId } }),
+        ]);
+
+        if (activeRuns > 0) {
+            throw new Error('Cannot delete brand while automation runs are active. Stop the runs first.');
+        }
+
+        if (runCount > 0 || eventCount > 0 || leadCount > 0 || draftCount > 0) {
+            throw new Error('Cannot delete brand with existing automation history, captured events, leads, or drafts. Pause the brand instead to preserve tenant records.');
+        }
+
+        return prisma.$transaction(async (tx) => {
+            await tx.platformConnectionChallenge.deleteMany({ where: { brand_id: brandId } });
+            await tx.brandPlatformConnection.deleteMany({ where: { brand_id: brandId } });
+            await tx.automationPolicy.deleteMany({ where: { brand_id: brandId } });
+            await tx.marketProfile.deleteMany({ where: { brand_id: brandId } });
+            await tx.discoveredVideo.deleteMany({ where: { brand_id: brandId } });
+            return tx.brand.delete({ where: { id: brandId } });
+        });
+    }
 }

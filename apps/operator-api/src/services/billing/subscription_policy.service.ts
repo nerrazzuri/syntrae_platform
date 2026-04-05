@@ -258,7 +258,6 @@ export class SubscriptionPolicyService {
 
         const usageDecision = await UsageAccountingService.consume(prisma, {
             workspaceId,
-            brandId,
             planCode: plan.code,
             metric: USAGE_METRICS.AUTOMATION_RUNS_CREATED,
             period: LIMIT_PERIODS.DAILY,
