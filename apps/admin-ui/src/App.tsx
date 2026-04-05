@@ -115,7 +115,7 @@ export default function App() {
           break;
         case 'discovery':
           payload = {
-            runs: (await adminRequest('/runs')).items || [],
+            ...(await adminRequest('/discovery')),
             installs: (await adminRequest('/platform-connections')).items || [],
           };
           break;
@@ -123,7 +123,7 @@ export default function App() {
           payload = await adminRequest('/leads');
           break;
         case 'ai_audit':
-          payload = await adminRequest('/leads');
+          payload = await adminRequest('/ai-audit');
           break;
         case 'drafts':
           payload = await adminRequest('/drafts');
@@ -400,6 +400,12 @@ function DashboardView({ payload }: { payload: any }) {
   const leads = payload.leads || [];
   const health = payload.health || {};
   const billing = payload.billing || [];
+  const aiLatencyMinutes = medianOf(
+    leads
+      .filter((lead: any) => lead.event?.created_at && lead.created_at)
+      .map((lead: any) => minutesBetween(lead.event.created_at, lead.created_at))
+      .filter((value: number) => value >= 0)
+  );
 
   const runCounts = countBy(runs, (run: any) => run.status || 'UNKNOWN');
   const platformCounts = countBy(runs, (run: any) => normalizePlatform(run.platform));
@@ -484,8 +490,8 @@ function DashboardView({ payload }: { payload: any }) {
         </Section>
 
         <Section title="AI Inference Latency">
-          <div className="insight-stat muted">Telemetry pending</div>
-          <p className="admin-muted">Wire request timing from AI Core into admin telemetry before using this for SLOs.</p>
+          <div className="insight-stat">{aiLatencyMinutes != null ? `${aiLatencyMinutes.toFixed(1)}m` : '—'}</div>
+          <p className="admin-muted">Median lead creation lag from captured event to persisted lead in the current payload window.</p>
         </Section>
       </div>
 
@@ -588,8 +594,8 @@ function WorkspacesView({ payload, reload }: { payload: any; reload: (target: Vi
               {item.status === 'ACTIVE'
                 ? <MutationButton label="Suspend Workspace" kind="danger" action={() => adminRequest(`/workspaces/${item.id}/suspend`, { method: 'POST', body: JSON.stringify({}) }).then(() => reload('workspaces'))} />
                 : <MutationButton label="Reactivate Workspace" action={() => adminRequest(`/workspaces/${item.id}/activate`, { method: 'POST', body: JSON.stringify({}) }).then(() => reload('workspaces'))} />}
-              <GhostButton label="Force stop active automations" />
-              <GhostButton label="Impersonation mode (read-only)" />
+              <MutationButton label="Force stop active automations" kind="danger" action={() => adminRequest(`/workspaces/${item.id}/force-stop-runs`, { method: 'POST', body: JSON.stringify({}) }).then(() => reload('workspaces'))} />
+              <PreviewButton label="Impersonation preview" path={`/workspaces/${item.id}/impersonation-preview`} />
             </div>
           </div>
         ))}
@@ -659,11 +665,11 @@ function RunsView({ payload }: { payload: any }) {
             </div>
 
             <div className="action-row">
-              <GhostButton label="Retry run" />
-              <GhostButton label="Cancel run" />
-              <GhostButton label="Inspect logs" />
-              <GhostButton label="Download artifacts" />
-              <GhostButton label="Compare previous run" />
+              <MutationButton label="Retry run" action={() => adminRequest(`/runs/${run.id}/retry`, { method: 'POST', body: JSON.stringify({}) })} />
+              <MutationButton label="Cancel run" kind="danger" action={() => adminRequest(`/runs/${run.id}/cancel`, { method: 'POST', body: JSON.stringify({}) })} />
+              <PreviewButton label="Inspect logs" path={`/runs/${run.id}/logs`} />
+              <PreviewButton label="Download artifacts" path={`/runs/${run.id}/logs`} downloadName={`run-${run.id}-artifacts.json`} />
+              <PreviewButton label="Compare previous run" path={`/runs/${run.id}/compare-previous`} />
             </div>
           </div>
         ))}
@@ -698,10 +704,10 @@ function InstallsView({ payload }: { payload: any }) {
               item.auth_type ? `Auth ${item.auth_type}` : null,
             ].filter(Boolean) as string[]} emptyText="No metadata" />
             <div className="action-row">
-              <GhostButton label="Test connectivity" />
-              <GhostButton label="Revalidate secret" />
-              <GhostButton label="Rotate install secret" />
-              <GhostButton label="Mark compromised" />
+              <MutationButton label="Test connectivity" action={() => adminRequest(`/platform-connections/${item.id}/revalidate`, { method: 'POST', body: JSON.stringify({}) })} />
+              <MutationButton label="Revalidate secret" action={() => adminRequest(`/platform-connections/${item.id}/revalidate`, { method: 'POST', body: JSON.stringify({}) })} />
+              <MutationButton label="Rotate install secret" action={() => adminRequest(`/platform-connections/${item.id}/rotate-install-secret`, { method: 'POST', body: JSON.stringify({}) })} />
+              <MutationButton label="Mark compromised" kind="danger" action={() => adminRequest(`/platform-connections/${item.id}/mark-compromised`, { method: 'POST', body: JSON.stringify({}) })} />
             </div>
           </div>
         ))}
@@ -713,10 +719,12 @@ function InstallsView({ payload }: { payload: any }) {
 function DiscoveryView({ payload }: { payload: any }) {
   const runs = payload.runs || [];
   const installs = payload.installs || [];
+  const discoveredVideos = payload.discovered_videos || [];
   const emptyResults = runs.filter((run: any) => statNumber(run.stats, 'comments_captured') === 0).length;
   const extractionFailures = runs.filter((run: any) => ['FAILED', 'DEGRADED'].includes(run.status)).length;
   const averageComments = averageOf(runs, (run: any) => statNumber(run.stats, 'comments_captured'));
   const sessionIssues = installs.filter((item: any) => item.status !== 'CONNECTED' || item.last_error).length;
+  const averageMarketScore = averageOf(discoveredVideos, (video: any) => Number(video.market_score || 0));
 
   return (
     <div className="view-stack">
@@ -725,6 +733,7 @@ function DiscoveryView({ payload }: { payload: any }) {
         <MetricCard label="Average comments / source" value={averageComments.toFixed(1)} note="Based on recent run payloads" />
         <MetricCard label="Empty-result rate" value={`${successRate(emptyResults, runs.length || 1)}%`} note="Runs with zero captured comments" />
         <MetricCard label="Session issues" value={formatMetric(sessionIssues)} note="Disconnected or erroring platform sessions" />
+        <MetricCard label="Average market score" value={averageMarketScore ? `${Math.round(averageMarketScore * 100)}%` : '—'} note="Accepted and rejected discovery candidates combined" />
       </div>
 
       <Section title="Platform Diagnostics">
@@ -739,6 +748,10 @@ function DiscoveryView({ payload }: { payload: any }) {
             <TagList items={runs.filter((run: any) => /selector|parser|extract|token/i.test(run.last_error || '')).map((run: any) => `${run.brand?.name || run.brand_id} · ${run.last_error}`)} emptyText="No parser drift indicators in recent runs" />
           </InfoGroup>
         </div>
+      </Section>
+
+      <Section title="Recent Discovery Candidates">
+        <SimpleTable rows={discoveredVideos} columns={['discovered_at', 'platform', 'decision', 'video_id', 'market_score', 'error_class', 'http_status']} />
       </Section>
     </div>
   );
@@ -769,10 +782,9 @@ function LeadsView({ payload }: { payload: any }) {
               { label: 'Drafts', value: formatMetric((lead.drafts || []).length) },
             ]} />
             <div className="action-row">
-              <GhostButton label="Approve lead" />
-              <GhostButton label="Reject lead" />
-              <GhostButton label="Relabel lead" />
-              <GhostButton label="Assign reviewer" />
+              <LeadRelabelButton lead={lead} />
+              <PreviewButton label="Source event" data={lead.event} />
+              <PreviewButton label="Lead record" data={lead} />
             </div>
           </div>
         ))}
@@ -788,6 +800,7 @@ function AiAuditView({ payload }: { payload: any }) {
       <div className="stack">
         {items.map((lead: any) => {
           const trace = extractIntentTrace(lead.event?.metadata);
+          const latestSession = lead.suggestion_sessions?.[0];
           return (
             <div key={lead.id} className="panel nested-panel">
               <div className="list-row">
@@ -805,9 +818,10 @@ function AiAuditView({ payload }: { payload: any }) {
                   <ul className="plain-list">
                     <li>Intent label: {lead.intent}</li>
                     <li>Buyer stage: {lead.buyer_stage}</li>
-                    <li>Normalization confidence: {trace.normalizationConfidence || 'Not instrumented'}</li>
+                    <li>Normalization confidence: {trace.normalizationConfidence || latestSession?.brain_meta || 'Unavailable'}</li>
                     <li>Fallback path: {trace.fallback || 'Unknown'}</li>
                     <li>Explanation: {trace.explanation || 'Trace unavailable in current payload'}</li>
+                    <li>Rule / model output: {latestSession?.suggestion_text || 'No suggestion session for this event'}</li>
                   </ul>
                 </InfoGroup>
               </div>
@@ -847,6 +861,11 @@ function DraftsView({ payload }: { payload: any }) {
                 { label: 'Sent', value: draft.sent_at ? formatDate(draft.sent_at) : 'Not sent' },
                 { label: 'Channel', value: draft.reply_channel || 'THREAD_REPLY' },
               ]} />
+              <div className="action-row">
+                <MutationButton label="Approve" action={() => adminRequest(`/drafts/${draft.id}/approve`, { method: 'POST', body: JSON.stringify({}) })} />
+                <MutationButton label="Request revision" action={() => adminRequest(`/drafts/${draft.id}/request-revision`, { method: 'POST', body: JSON.stringify({}) })} />
+                <MutationButton label="Reject" kind="danger" action={() => adminRequest(`/drafts/${draft.id}/reject`, { method: 'POST', body: JSON.stringify({}) })} />
+              </div>
             </div>
           ))}
         </div>
@@ -883,10 +902,9 @@ function PolicyView({ payload }: { payload: any }) {
                 <DetailCard label="CTA / redirect" value={ownerSettings?.reply_redirect_target || 'STORE'} note={ownerSettings?.reply_cta_style || 'SOFT'} />
               </div>
               <div className="action-row">
-                <GhostButton label="Edit policy template" />
-                <GhostButton label="Compare policy versions" />
-                <GhostButton label="Freeze automation" />
-                <GhostButton label="Manual review only mode" />
+                <PreviewButton label="Compare policy versions" data={brand.policies || []} />
+                <MutationButton label="Freeze automation" kind="danger" action={() => adminRequest(`/policies/brands/${brand.id}/freeze`, { method: 'POST', body: JSON.stringify({}) })} />
+                <MutationButton label="Manual review only mode" action={() => adminRequest(`/policies/workspaces/${brand.workspace_id}/manual-review-only`, { method: 'POST', body: JSON.stringify({}) })} />
               </div>
             </div>
           );
@@ -918,10 +936,9 @@ function BillingView({ payload }: { payload: any }) {
             ]} />
             <TagList items={formatUsageCounters(workspace.usage_counters)} emptyText="No usage counters" />
             <div className="action-row">
-              <GhostButton label="Upgrade / downgrade" />
-              <GhostButton label="Grant temporary credits" />
-              <GhostButton label="Pause for non-payment" />
-              <GhostButton label="Enterprise override" />
+              <MutationButton label="Grant temporary credits" action={() => adminRequest(`/workspaces/${workspace.id}/reset-automation-quota`, { method: 'POST', body: JSON.stringify({}) })} />
+              <MutationButton label="Pause for non-payment" kind="danger" action={() => adminRequest(`/billing/workspaces/${workspace.id}/pause`, { method: 'POST', body: JSON.stringify({}) })} />
+              <MutationButton label="Enterprise override" action={() => adminRequest(`/billing/workspaces/${workspace.id}/enterprise-override`, { method: 'POST', body: JSON.stringify({}) })} />
             </div>
           </div>
         ))}
@@ -1099,8 +1116,70 @@ function MutationButton({ label, action, kind = 'default' }: { label: string; ac
   );
 }
 
-function GhostButton({ label }: { label: string }) {
-  return <button className="ghost-button" type="button">{label}</button>;
+function PreviewButton({ label, path, data, downloadName }: { label: string; path?: string; data?: unknown; downloadName?: string }) {
+  const [busy, setBusy] = useState(false);
+
+  async function openPreview() {
+    setBusy(true);
+    try {
+      const payload = path ? await adminRequest(path) : data;
+      const content = JSON.stringify(payload, null, 2);
+      if (downloadName) {
+        const blob = new Blob([content], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = downloadName;
+        link.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+      const win = window.open('', '_blank', 'noopener,noreferrer');
+      if (!win) return;
+      win.document.write(`<pre style="white-space:pre-wrap;word-break:break-word;font-family:ui-monospace, SFMono-Regular, Menlo, monospace;padding:24px;">${escapeHtml(content)}</pre>`);
+      win.document.close();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button className="ghost-button" type="button" disabled={busy} onClick={() => void openPreview()}>
+      {busy ? 'Opening...' : label}
+    </button>
+  );
+}
+
+function LeadRelabelButton({ lead }: { lead: any }) {
+  const [busy, setBusy] = useState(false);
+
+  async function relabel() {
+    const intent = window.prompt('Intent label', lead.intent || 'PRODUCT_INQUIRY');
+    if (intent == null) return;
+    const buyerStage = window.prompt('Buyer stage (AWARENESS, EVALUATING, READY)', lead.buyer_stage || 'EVALUATING');
+    if (buyerStage == null) return;
+    const recommendedAction = window.prompt('Recommended action (SILENT_CAPTURE, RECOMMEND_DM, PRIORITY_DM)', lead.recommended_action || 'RECOMMEND_DM');
+    if (recommendedAction == null) return;
+    setBusy(true);
+    try {
+      await adminRequest(`/leads/${lead.id}/relabel`, {
+        method: 'POST',
+        body: JSON.stringify({
+          intent,
+          buyer_stage: buyerStage,
+          recommended_action: recommendedAction,
+        }),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button className="secondary-button" type="button" disabled={busy} onClick={() => void relabel()}>
+      {busy ? 'Saving...' : 'Relabel lead'}
+    </button>
+  );
 }
 
 function EmptyState({ text, compact = false }: { text: string; compact?: boolean }) {
@@ -1322,4 +1401,22 @@ function deriveAlerts(payload: any) {
     });
   }
   return alerts;
+}
+
+function medianOf(values: number[]) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function minutesBetween(start: string, end: string) {
+  return Math.max(0, (new Date(end).getTime() - new Date(start).getTime()) / 60000);
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }

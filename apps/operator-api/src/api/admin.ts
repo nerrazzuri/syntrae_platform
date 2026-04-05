@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { randomBytes } from 'crypto';
 import { prisma } from '../db';
 import { AdminAuthService } from '../services/admin_auth.service';
 import { requireAdmin } from '../middleware/admin_auth';
@@ -49,6 +50,8 @@ router.post('/auth/logout', requireAdmin, async (req, res) => {
 });
 
 router.get('/dashboard', requireAdmin, async (_req, res) => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
     const [
         workspace_count,
         user_count,
@@ -58,6 +61,13 @@ router.get('/dashboard', requireAdmin, async (_req, res) => {
         running_run_count,
         lead_count,
         draft_count,
+        runs_today,
+        comments_captured_today,
+        leads_today,
+        drafts_today,
+        drafts_approved_today,
+        drafts_sent_today,
+        blocked_events_today,
         recent_runs,
         recent_workspaces,
     ] = await Promise.all([
@@ -69,6 +79,16 @@ router.get('/dashboard', requireAdmin, async (_req, res) => {
         prisma.automationRun.count({ where: { status: 'RUNNING' } }),
         prisma.leadOpportunity.count(),
         prisma.outreachDraft.count(),
+        prisma.automationRun.count({ where: { started_at: { gte: startOfToday } } }),
+        prisma.automationRun.findMany({
+            where: { started_at: { gte: startOfToday } },
+            select: { stats: true }
+        }).then((items) => items.reduce((sum, item) => sum + Number((item.stats as any)?.comments_captured || 0), 0)),
+        prisma.leadOpportunity.count({ where: { created_at: { gte: startOfToday } } }),
+        prisma.outreachDraft.count({ where: { created_at: { gte: startOfToday } } }),
+        prisma.outreachDraft.count({ where: { approved_at: { gte: startOfToday } } }),
+        prisma.outreachDraft.count({ where: { sent_at: { gte: startOfToday } } }),
+        prisma.workspaceUsageCounter.count({ where: { blocked_at: { gte: startOfToday } } }),
         prisma.automationRun.findMany({
             take: 8,
             orderBy: { started_at: 'desc' },
@@ -106,6 +126,13 @@ router.get('/dashboard', requireAdmin, async (_req, res) => {
             running_run_count,
             lead_count,
             draft_count,
+            runs_today,
+            comments_captured_today,
+            leads_today,
+            drafts_today,
+            drafts_approved_today,
+            drafts_sent_today,
+            blocked_events_today,
         },
         recent_runs,
         recent_workspaces,
@@ -388,7 +415,29 @@ router.get('/platform-connections', requireAdmin, async (req, res) => {
             account: { select: { id: true, name: true } },
         }
     });
-    res.json({ items });
+    const installs = await prisma.installRegistry.findMany({
+        where: { account_id: { in: Array.from(new Set(items.map((item) => item.workspace_id))) } },
+        select: {
+            id: true,
+            account_id: true,
+            install_id: true,
+            install_secret: true,
+            is_active: true,
+            created_at: true,
+        }
+    });
+    const installsByWorkspace = new Map<string, any[]>();
+    installs.forEach((install) => {
+        const bucket = installsByWorkspace.get(install.account_id || '') || [];
+        bucket.push(install);
+        installsByWorkspace.set(install.account_id || '', bucket);
+    });
+    res.json({
+        items: items.map((item) => ({
+            ...item,
+            installs: installsByWorkspace.get(item.workspace_id) || [],
+        }))
+    });
 });
 
 router.get('/drafts', requireAdmin, async (req, res) => {
@@ -418,6 +467,94 @@ router.get('/drafts', requireAdmin, async (req, res) => {
         }
     });
     res.json({ items });
+});
+
+router.get('/discovery', requireAdmin, async (req, res) => {
+    const workspaceId = String(req.query.workspace_id || '').trim();
+    const runs = await prisma.automationRun.findMany({
+        where: workspaceId ? { brand: { workspace_id: workspaceId } } : undefined,
+        take: 60,
+        orderBy: { started_at: 'desc' },
+        select: {
+            id: true,
+            brand_id: true,
+            platform: true,
+            status: true,
+            started_at: true,
+            ended_at: true,
+            last_error: true,
+            stats: true,
+        }
+    });
+    const discoveredVideos = await prisma.discoveredVideo.findMany({
+        where: {
+            ...(workspaceId ? { brand: { workspace_id: workspaceId } } : {}),
+            automation_run_id: { in: runs.map((run) => run.id) || [''] },
+        },
+        take: 300,
+        orderBy: { discovered_at: 'desc' },
+        select: {
+            id: true,
+            automation_run_id: true,
+            brand_id: true,
+            platform: true,
+            video_id: true,
+            video_url: true,
+            market_score: true,
+            decision: true,
+            decision_reasons: true,
+            evaluation_performed: true,
+            error_class: true,
+            http_status: true,
+            discovered_at: true,
+        }
+    });
+    res.json({ runs, discovered_videos: discoveredVideos });
+});
+
+router.get('/ai-audit', requireAdmin, async (req, res) => {
+    const workspaceId = String(req.query.workspace_id || '').trim();
+    const leads = await prisma.leadOpportunity.findMany({
+        where: workspaceId ? { account_id: workspaceId } : undefined,
+        take: 60,
+        orderBy: { created_at: 'desc' },
+        include: {
+            brand: { select: { id: true, name: true } },
+            account: { select: { id: true, name: true } },
+            event: {
+                select: {
+                    id: true,
+                    content_text: true,
+                    metadata: true,
+                    created_at: true,
+                    status: true,
+                    failure_reason: true,
+                }
+            },
+        }
+    });
+    const eventIds = leads.map((lead) => lead.source_event_id);
+    const sessions = eventIds.length
+        ? await prisma.suggestionSession.findMany({
+            where: { event_id: { in: eventIds } },
+            orderBy: { created_at: 'desc' },
+            include: {
+                feedback: true,
+            }
+        })
+        : [];
+    const sessionMap = new Map<string, any[]>();
+    sessions.forEach((session) => {
+        const bucket = sessionMap.get(session.event_id) || [];
+        bucket.push(session);
+        sessionMap.set(session.event_id, bucket);
+    });
+    res.json({
+        items: leads.map((lead) => ({
+            ...lead,
+            suggestion_sessions: sessionMap.get(lead.source_event_id) || [],
+        }))
+    });
 });
 
 router.get('/policies', requireAdmin, async (req, res) => {
@@ -500,6 +637,463 @@ router.get('/billing', requireAdmin, async (_req, res) => {
         }
     });
     res.json({ items });
+});
+
+router.post('/workspaces/:id/force-stop-runs', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const brands = await prisma.brand.findMany({
+        where: { workspace_id: id },
+        select: { id: true }
+    });
+    const result = await prisma.automationRun.updateMany({
+        where: {
+            brand_id: { in: brands.map((brand) => brand.id) },
+            status: { in: ['PENDING', 'RUNNING'] as any },
+        },
+        data: {
+            status: 'ABORTED',
+            abort_reason: 'Admin forced stop',
+            ended_at: new Date(),
+            last_error: 'Stopped by admin from workspace control plane',
+        }
+    });
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'FORCE_STOP_WORKSPACE_RUNS',
+            resource: 'AutomationRun',
+            resource_id: id,
+            workspace_id: id,
+            meta: JSON.stringify({ aborted: result.count }),
+            ip: req.ip || 'unknown',
+        }
+    });
+    res.json({ status: 'ok', aborted: result.count });
+});
+
+router.get('/workspaces/:id/impersonation-preview', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const workspace = await prisma.account.findUnique({
+        where: { id },
+        include: {
+            memberships: { include: { user: { select: { id: true, email: true, status: true } } } },
+            brands: { select: { id: true, name: true, status: true, domain: true } },
+            subscription: true,
+            owner_settings: true,
+        }
+    });
+    res.json({
+        status: 'ok',
+        mode: 'READ_ONLY_PREVIEW',
+        workspace,
+    });
+});
+
+router.post('/runs/:id/cancel', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const run = await prisma.automationRun.update({
+        where: { id },
+        data: {
+            status: 'ABORTED',
+            abort_reason: 'Admin cancelled run',
+            ended_at: new Date(),
+            last_error: 'Cancelled from admin run center',
+        }
+    });
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'CANCEL_RUN',
+            resource: 'AutomationRun',
+            resource_id: id,
+            workspace_id: null,
+            meta: JSON.stringify({ brand_id: run.brand_id }),
+            ip: req.ip || 'unknown',
+        }
+    });
+    res.json({ status: 'ok', run });
+});
+
+router.post('/runs/:id/retry', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const current = await prisma.automationRun.findUnique({ where: { id } });
+    if (!current) return res.status(404).json({ error: 'Run not found' });
+    const retry = await prisma.automationRun.create({
+        data: {
+            brand_id: current.brand_id,
+            install_id: current.install_id,
+            platform: current.platform,
+            discovery_mode: current.discovery_mode,
+            discovery_intent: current.discovery_intent,
+            status: 'PENDING',
+            policy_id: current.policy_id,
+            policy_snapshot: current.policy_snapshot,
+            market_profile_snapshot: current.market_profile_snapshot,
+            stats: {},
+            attempt_count: (current.attempt_count || 0) + 1,
+            last_error: null,
+        }
+    });
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'RETRY_RUN',
+            resource: 'AutomationRun',
+            resource_id: retry.id,
+            workspace_id: null,
+            meta: JSON.stringify({ source_run_id: id }),
+            ip: req.ip || 'unknown',
+        }
+    });
+    res.json({ status: 'ok', retry });
+});
+
+router.get('/runs/:id/logs', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const run = await prisma.automationRun.findUnique({
+        where: { id },
+        include: {
+            discovered_videos: {
+                take: 20,
+                orderBy: { discovered_at: 'desc' },
+            }
+        }
+    });
+    if (!run) return res.status(404).json({ error: 'Run not found' });
+    const logLines = [
+        `[Run] ${run.id}`,
+        `[Status] ${run.status}`,
+        `[Platform] ${run.platform}`,
+        `[Started] ${run.started_at?.toISOString?.() || run.started_at}`,
+        `[Ended] ${run.ended_at?.toISOString?.() || run.ended_at || 'in progress'}`,
+        `[Error] ${run.last_error || run.abort_reason || 'none'}`,
+        `[Stats] ${JSON.stringify(run.stats || {})}`,
+        ...run.discovered_videos.slice(0, 10).map((video) => `[Discovery] ${video.decision} ${video.video_url} ${video.error_class || ''}`.trim()),
+    ];
+    res.json({ status: 'ok', logs: logLines, run });
+});
+
+router.get('/runs/:id/compare-previous', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const run = await prisma.automationRun.findUnique({ where: { id } });
+    if (!run) return res.status(404).json({ error: 'Run not found' });
+    const previous = await prisma.automationRun.findFirst({
+        where: {
+            brand_id: run.brand_id,
+            platform: run.platform,
+            started_at: { lt: run.started_at },
+        },
+        orderBy: { started_at: 'desc' },
+    });
+    res.json({ status: 'ok', current: run, previous });
+});
+
+router.post('/platform-connections/:id/disable', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const item = await prisma.brandPlatformConnection.update({
+        where: { id },
+        data: {
+            status: 'DISCONNECTED',
+            last_error: 'Disabled by admin',
+            last_checked_at: new Date(),
+        }
+    });
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'DISABLE_INSTALL',
+            resource: 'BrandPlatformConnection',
+            resource_id: id,
+            workspace_id: item.workspace_id,
+            ip: req.ip || 'unknown',
+        }
+    });
+    res.json({ status: 'ok', item });
+});
+
+router.post('/platform-connections/:id/revalidate', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const current = await prisma.brandPlatformConnection.findUnique({ where: { id } });
+    if (!current) return res.status(404).json({ error: 'Connection not found' });
+    const item = await prisma.brandPlatformConnection.update({
+        where: { id },
+        data: {
+            last_checked_at: new Date(),
+            last_verified_at: current.status === 'CONNECTED' ? new Date() : current.last_verified_at,
+            verification_error: null,
+        }
+    });
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'REVALIDATE_INSTALL',
+            resource: 'BrandPlatformConnection',
+            resource_id: id,
+            workspace_id: item.workspace_id,
+            ip: req.ip || 'unknown',
+        }
+    });
+    res.json({ status: 'ok', item });
+});
+
+router.post('/platform-connections/:id/mark-compromised', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const item = await prisma.brandPlatformConnection.update({
+        where: { id },
+        data: {
+            status: 'DISCONNECTED',
+            verification_error: 'Marked compromised by admin',
+            last_error: 'Session marked compromised',
+            expires_at: new Date(),
+        }
+    });
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'MARK_INSTALL_COMPROMISED',
+            resource: 'BrandPlatformConnection',
+            resource_id: id,
+            workspace_id: item.workspace_id,
+            ip: req.ip || 'unknown',
+        }
+    });
+    res.json({ status: 'ok', item });
+});
+
+router.post('/platform-connections/:id/rotate-install-secret', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const connection = await prisma.brandPlatformConnection.findUnique({ where: { id } });
+    if (!connection) return res.status(404).json({ error: 'Connection not found' });
+    const installs = await prisma.installRegistry.findMany({
+        where: { account_id: connection.workspace_id },
+        select: { id: true, install_id: true }
+    });
+    const newSecret = randomBytes(24).toString('hex');
+    const result = await prisma.installRegistry.updateMany({
+        where: { account_id: connection.workspace_id },
+        data: { install_secret: newSecret }
+    });
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'ROTATE_INSTALL_SECRET',
+            resource: 'InstallRegistry',
+            resource_id: installs[0]?.id || connection.workspace_id,
+            workspace_id: connection.workspace_id,
+            meta: JSON.stringify({ updated: result.count }),
+            ip: req.ip || 'unknown',
+        }
+    });
+    res.json({ status: 'ok', updated: result.count, install_ids: installs.map((item) => item.install_id) });
+});
+
+router.post('/drafts/:id/approve', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const draft = await prisma.outreachDraft.update({
+        where: { id },
+        data: {
+            status: 'APPROVED',
+            approved_at: new Date(),
+            approved_by_user_id: req.admin!.id,
+        }
+    });
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'APPROVE_DRAFT',
+            resource: 'OutreachDraft',
+            resource_id: id,
+            workspace_id: draft.account_id,
+            ip: req.ip || 'unknown',
+        }
+    });
+    res.json({ status: 'ok', draft });
+});
+
+router.post('/drafts/:id/reject', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const draft = await prisma.outreachDraft.update({
+        where: { id },
+        data: {
+            status: 'REJECTED',
+            approved_at: null,
+            approved_by_user_id: null,
+        }
+    });
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'REJECT_DRAFT',
+            resource: 'OutreachDraft',
+            resource_id: id,
+            workspace_id: draft.account_id,
+            ip: req.ip || 'unknown',
+        }
+    });
+    res.json({ status: 'ok', draft });
+});
+
+router.post('/drafts/:id/request-revision', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const draft = await prisma.outreachDraft.update({
+        where: { id },
+        data: {
+            status: 'EDITED',
+        }
+    });
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'REQUEST_DRAFT_REVISION',
+            resource: 'OutreachDraft',
+            resource_id: id,
+            workspace_id: draft.account_id,
+            ip: req.ip || 'unknown',
+        }
+    });
+    res.json({ status: 'ok', draft });
+});
+
+router.post('/leads/:id/relabel', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const nextIntent = String(req.body?.intent || '').trim();
+    const nextStage = String(req.body?.buyer_stage || '').trim();
+    const nextAction = String(req.body?.recommended_action || '').trim();
+    const current = await prisma.leadOpportunity.findUnique({ where: { id } });
+    if (!current) return res.status(404).json({ error: 'Lead not found' });
+    const lead = await prisma.leadOpportunity.update({
+        where: { id },
+        data: {
+            intent: nextIntent || current.intent,
+            buyer_stage: (nextStage as any) || current.buyer_stage,
+            recommended_action: (nextAction as any) || current.recommended_action,
+        }
+    });
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'RELABEL_LEAD',
+            resource: 'LeadOpportunity',
+            resource_id: id,
+            workspace_id: lead.account_id,
+            meta: JSON.stringify({ from: { intent: current.intent, buyer_stage: current.buyer_stage, recommended_action: current.recommended_action }, to: { intent: lead.intent, buyer_stage: lead.buyer_stage, recommended_action: lead.recommended_action } }),
+            ip: req.ip || 'unknown',
+        }
+    });
+    res.json({ status: 'ok', lead });
+});
+
+router.post('/policies/brands/:brandId/freeze', requireAdmin, async (req, res) => {
+    const brandId = req.params.brandId;
+    const result = await prisma.automationPolicy.updateMany({
+        where: { brand_id: brandId, status: 'ACTIVE' as any },
+        data: { status: 'PAUSED', enabled: false }
+    });
+    const brand = await prisma.brand.findUnique({ where: { id: brandId } });
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'FREEZE_AUTOMATION',
+            resource: 'AutomationPolicy',
+            resource_id: brandId,
+            workspace_id: brand?.workspace_id,
+            meta: JSON.stringify({ updated: result.count }),
+            ip: req.ip || 'unknown',
+        }
+    });
+    res.json({ status: 'ok', updated: result.count });
+});
+
+router.post('/policies/workspaces/:workspaceId/manual-review-only', requireAdmin, async (req, res) => {
+    const workspaceId = req.params.workspaceId;
+    const settings = await prisma.ownerSettings.upsert({
+        where: { workspace_id: workspaceId },
+        update: {
+            reply_qualified_mode: 'MANUAL_REVIEW',
+            reply_require_human_review_high_risk: true,
+        },
+        create: {
+            workspace_id: workspaceId,
+            reply_qualified_mode: 'MANUAL_REVIEW',
+            reply_require_human_review_high_risk: true,
+        }
+    });
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'SET_MANUAL_REVIEW_ONLY',
+            resource: 'OwnerSettings',
+            resource_id: workspaceId,
+            workspace_id: workspaceId,
+            ip: req.ip || 'unknown',
+        }
+    });
+    res.json({ status: 'ok', settings });
+});
+
+router.post('/billing/workspaces/:workspaceId/pause', requireAdmin, async (req, res) => {
+    const workspaceId = req.params.workspaceId;
+    const subscription = await prisma.workspaceSubscription.updateMany({
+        where: { workspace_id: workspaceId },
+        data: { status: 'PAUSED' }
+    });
+    await prisma.account.update({ where: { id: workspaceId }, data: { status: 'SUSPENDED' } });
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'PAUSE_BILLING',
+            resource: 'WorkspaceSubscription',
+            resource_id: workspaceId,
+            workspace_id: workspaceId,
+            ip: req.ip || 'unknown',
+        }
+    });
+    res.json({ status: 'ok', updated: subscription.count });
+});
+
+router.post('/billing/workspaces/:workspaceId/enterprise-override', requireAdmin, async (req, res) => {
+    const workspaceId = req.params.workspaceId;
+    const subscription = await prisma.workspaceSubscription.upsert({
+        where: { workspace_id: workspaceId },
+        update: {
+            plan_code: 'ENTERPRISE',
+            display_name: 'Enterprise Override',
+            metadata: { override: true },
+        },
+        create: {
+            workspace_id: workspaceId,
+            plan_code: 'ENTERPRISE',
+            display_name: 'Enterprise Override',
+            metadata: { override: true },
+        }
+    });
+    await prisma.account.update({ where: { id: workspaceId }, data: { plan_id: 'ENTERPRISE', status: 'ACTIVE' } });
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'ENTERPRISE_OVERRIDE',
+            resource: 'WorkspaceSubscription',
+            resource_id: workspaceId,
+            workspace_id: workspaceId,
+            ip: req.ip || 'unknown',
+        }
+    });
+    res.json({ status: 'ok', subscription });
 });
 
 router.get('/audit', requireAdmin, async (_req, res) => {
