@@ -5,6 +5,16 @@ import { BrandDefaultsService } from './brand_defaults.service';
 const prisma = new PrismaClient();
 
 export class PolicyService {
+    private static async getLatestCurrentPolicy(brandId: string) {
+        return prisma.automationPolicy.findFirst({
+            where: {
+                brand_id: brandId,
+                status: { not: 'ARCHIVED' }
+            },
+            orderBy: { version: 'desc' }
+        });
+    }
+
     static async assertBrandAccess(brandId: string, workspaceId: string) {
         const brand = await prisma.brand.findFirst({
             where: { id: brandId, workspace_id: workspaceId },
@@ -52,13 +62,7 @@ export class PolicyService {
             throw new Error('Brand access context required');
         }
 
-        const policy = await prisma.automationPolicy.findFirst({
-            where: {
-                brand_id: brandId,
-                status: 'ACTIVE',
-            },
-            orderBy: { version: 'desc' },
-        });
+        const policy = await this.getLatestCurrentPolicy(brandId);
 
         if (!policy) {
             return this.createDefaultPolicy(brandId);
@@ -107,10 +111,10 @@ export class PolicyService {
             });
             const newVersion = (current?.version || 0) + 1;
 
-            // 2. If new status is ACTIVE, archive old active
-            if (updates.status === 'ACTIVE') {
+            // 2. Supersede the previous current policy version.
+            if (updates.status) {
                 await tx.automationPolicy.updateMany({
-                    where: { brand_id: brandId, status: 'ACTIVE' },
+                    where: { brand_id: brandId, status: { not: 'ARCHIVED' } },
                     data: { status: 'ARCHIVED' }
                 });
             }

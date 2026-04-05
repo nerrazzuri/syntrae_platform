@@ -70,7 +70,10 @@ router.get('/automation-policy/latest', async (req: Request, res: Response) => {
         if (!brandId) return res.status(400).json({ error: "Missing brand_id" });
 
         let policy = await prisma.automationPolicy.findFirst({
-            where: { brand_id: brandId, status: 'ACTIVE' },
+            where: {
+                brand_id: brandId,
+                status: { not: 'ARCHIVED' }
+            },
             orderBy: { version: 'desc' }
         });
 
