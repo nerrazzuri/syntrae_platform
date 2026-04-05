@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { prisma } from '../db';
+import { prisma, Prisma } from '../db';
 import { AuthService } from '../services/auth.service';
 import { BootstrapService } from '../services/bootstrap.service';
 import { requireAuth } from '../middleware/auth';
@@ -145,7 +145,7 @@ async function applyPromoVoucherRedemption(params: {
                 current_period_start: now,
                 current_period_end: endsAt,
                 cancel_at_period_end: false,
-                metadata: nextMetadata,
+                metadata: nextMetadata as Prisma.InputJsonValue,
             },
             create: {
                 workspace_id: params.workspaceId,
@@ -159,7 +159,7 @@ async function applyPromoVoucherRedemption(params: {
                 current_period_start: now,
                 current_period_end: endsAt,
                 cancel_at_period_end: false,
-                metadata: nextMetadata,
+                metadata: nextMetadata as Prisma.InputJsonValue,
             }
         });
 
