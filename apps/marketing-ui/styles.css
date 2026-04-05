@@ -456,7 +456,7 @@ h1 {
   line-height: 1.1;
 }
 
-.plan-price span {
+.plan-price-suffix {
   font-family: "Manrope", "Segoe UI", sans-serif;
   font-size: 0.95rem;
   font-weight: 800;
