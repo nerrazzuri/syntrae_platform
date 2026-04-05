@@ -11,15 +11,15 @@ type ViewKey =
   | 'audit'
   | 'health';
 
-const views: Array<{ key: ViewKey; label: string }> = [
-  { key: 'dashboard', label: 'Dashboard' },
-  { key: 'workspaces', label: 'Workspaces' },
-  { key: 'users', label: 'Users' },
-  { key: 'runs', label: 'Runs' },
-  { key: 'leads', label: 'Leads' },
-  { key: 'connections', label: 'Connections' },
-  { key: 'audit', label: 'Audit' },
-  { key: 'health', label: 'Health' },
+const views: Array<{ key: ViewKey; label: string; short: string; description: string }> = [
+  { key: 'dashboard', label: 'Dashboard', short: 'DB', description: 'System overview, volume, and recent activity.' },
+  { key: 'workspaces', label: 'Workspaces', short: 'WS', description: 'Subscriptions, brands, membership, and quota controls.' },
+  { key: 'users', label: 'Users', short: 'US', description: 'User records, verification state, and account lifecycle.' },
+  { key: 'runs', label: 'Runs', short: 'RN', description: 'Automation execution history across brands and installs.' },
+  { key: 'leads', label: 'Leads', short: 'LD', description: 'Qualified lead pipeline and source event coverage.' },
+  { key: 'connections', label: 'Connections', short: 'CN', description: 'Platform sessions, health, and reconnect status.' },
+  { key: 'audit', label: 'Audit', short: 'AU', description: 'Internal admin actions and workspace-level changes.' },
+  { key: 'health', label: 'Health', short: 'HL', description: 'Service status, payloads, and internal diagnostics.' },
 ];
 
 export default function App() {
@@ -31,6 +31,7 @@ export default function App() {
   const [data, setData] = useState<Record<string, any>>({});
   const [workspaceQuery, setWorkspaceQuery] = useState('');
   const [userQuery, setUserQuery] = useState('');
+  const currentView = useMemo(() => views.find((item) => item.key === view) ?? views[0], [view]);
 
   useEffect(() => {
     if (!token) return;
@@ -108,10 +109,13 @@ export default function App() {
   return (
     <div className="admin-shell">
       <aside className="admin-sidebar">
-        <div>
-          <div className="admin-kicker">Internal Control Plane</div>
-          <h1>Syntrae Admin</h1>
-          <p className="admin-muted">Workspace, billing, automation, and reply operations in one internal panel.</p>
+        <div className="brand-block">
+          <div className="brand-mark">S</div>
+          <div>
+            <div className="admin-kicker">Internal Control Plane</div>
+            <h1>Syntrae Admin</h1>
+            <p className="admin-muted">Workspace, billing, automation, and reply operations in one internal panel.</p>
+          </div>
         </div>
 
         <nav className="admin-nav">
@@ -121,14 +125,23 @@ export default function App() {
               className={`admin-nav-item ${view === item.key ? 'active' : ''}`}
               onClick={() => setView(item.key)}
             >
-              {item.label}
+              <span className="nav-badge">{item.short}</span>
+              <span className="nav-copy">
+                <span className="nav-title">{item.label}</span>
+                <span className="nav-description">{item.description}</span>
+              </span>
             </button>
           ))}
         </nav>
 
         <div className="admin-account">
-          <div>{admin.email}</div>
-          <div className="admin-muted">{admin.role}</div>
+          <div className="admin-account-row">
+            <div className="admin-avatar">{admin.email?.[0]?.toUpperCase() || 'A'}</div>
+            <div>
+              <div>{admin.email}</div>
+              <div className="admin-muted">{admin.role}</div>
+            </div>
+          </div>
           <button className="danger-button" onClick={logout}>Log Out</button>
         </div>
       </aside>
@@ -136,8 +149,9 @@ export default function App() {
       <main className="admin-main">
         <header className="admin-topbar">
           <div>
-            <div className="admin-kicker">{views.find((item) => item.key === view)?.label}</div>
-            <h2>{views.find((item) => item.key === view)?.label}</h2>
+            <div className="admin-kicker">{currentView.label}</div>
+            <h2>{currentView.label}</h2>
+            <p className="admin-header-copy">{currentView.description}</p>
           </div>
           <div className="topbar-actions">
             {view === 'workspaces' && (
@@ -162,6 +176,7 @@ export default function App() {
                 <button className="primary-button" onClick={() => loadView('users')}>Search</button>
               </>
             )}
+            <div className="header-pill">{admin.role}</div>
             <button className="secondary-button" onClick={() => loadView(view)}>Refresh</button>
           </div>
         </header>
@@ -179,6 +194,7 @@ function LoginScreen({ onLogin, loading, error }: { onLogin: (email: string, pas
 
   return (
     <div className="login-shell">
+      <div className="login-backdrop" aria-hidden="true" />
       <form
         className="login-card"
         onSubmit={(e) => {
@@ -186,9 +202,19 @@ function LoginScreen({ onLogin, loading, error }: { onLogin: (email: string, pas
           void onLogin(email, password);
         }}
       >
-        <div className="admin-kicker">Internal Only</div>
-        <h1>Syntrae Admin</h1>
+        <div className="login-brand">
+          <div className="brand-mark">S</div>
+          <div>
+            <div className="admin-kicker">Internal Only</div>
+            <h1>Syntrae Admin</h1>
+          </div>
+        </div>
         <p className="admin-muted">Separate control plane for workspaces, runs, billing, and operator activity.</p>
+        <div className="login-points">
+          <span>Workspace controls</span>
+          <span>Run visibility</span>
+          <span>Audit access</span>
+        </div>
         <input className="surface-input" placeholder="Admin email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <input className="surface-input" placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         {error && <div className="error-banner">{error}</div>}
@@ -202,20 +228,25 @@ function renderView(view: ViewKey, payload: any, reload: (view: ViewKey) => Prom
   if (!payload) return <div className="panel">No data yet.</div>;
 
   if (view === 'dashboard') {
+    const metrics = payload.metrics || {};
     return (
-      <div className="dashboard-grid">
-        {Object.entries(payload.metrics || {}).map(([key, value]) => (
-          <div key={key} className="metric-card">
-            <div className="metric-label">{key.replace(/_/g, ' ')}</div>
-            <div className="metric-value">{String(value)}</div>
-          </div>
-        ))}
-        <Section title="Recent Runs">
-          <SimpleTable rows={payload.recent_runs || []} columns={['id', 'status', 'install_id', 'created_at']} />
-        </Section>
-        <Section title="Recent Workspaces">
-          <SimpleTable rows={payload.recent_workspaces || []} columns={['id', 'name', 'status', 'plan_id', 'created_at']} />
-        </Section>
+      <div className="view-stack">
+        <div className="dashboard-grid metrics-grid">
+          {Object.entries(metrics).map(([key, value]) => (
+            <div key={key} className="metric-card">
+              <div className="metric-label">{humanizeKey(key)}</div>
+              <div className="metric-value">{String(value)}</div>
+            </div>
+          ))}
+        </div>
+        <div className="dashboard-grid">
+          <Section title="Recent Runs">
+            <SimpleTable rows={payload.recent_runs || []} columns={['id', 'status', 'install_id', 'created_at']} />
+          </Section>
+          <Section title="Recent Workspaces">
+            <SimpleTable rows={payload.recent_workspaces || []} columns={['id', 'name', 'status', 'plan_id', 'created_at']} />
+          </Section>
+        </div>
       </div>
     );
   }
@@ -235,20 +266,20 @@ function renderView(view: ViewKey, payload: any, reload: (view: ViewKey) => Prom
               </div>
               <div className="workspace-grid">
                 <div>
-                  <div className="admin-muted">Brands</div>
+                  <div className="eyebrow-label">Brands</div>
                   <div>{item.brands?.map((brand: any) => brand.name).join(', ') || 'None'}</div>
                 </div>
                 <div>
-                  <div className="admin-muted">Members</div>
+                  <div className="eyebrow-label">Members</div>
                   <div>{item.memberships?.map((membership: any) => membership.user.email).join(', ') || 'None'}</div>
                 </div>
                 <div>
-                  <div className="admin-muted">Subscription</div>
+                  <div className="eyebrow-label">Subscription</div>
                   <div>{item.subscription?.plan_code || 'Manual'} / {item.subscription?.status || item.status}</div>
                 </div>
                 <div>
-                  <div className="admin-muted">Counts</div>
-                  <div>{JSON.stringify(item._count)}</div>
+                  <div className="eyebrow-label">Counts</div>
+                  <div>{formatCounts(item._count)}</div>
                 </div>
               </div>
               <div className="action-row">
@@ -283,8 +314,8 @@ function renderView(view: ViewKey, payload: any, reload: (view: ViewKey) => Prom
     return (
       <div className="dashboard-grid">
         {Object.entries(payload).map(([key, value]) => (
-          <div key={key} className="panel">
-            <h3>{key}</h3>
+          <div key={key} className="panel health-card">
+            <div className="section-title">{humanizeKey(key)}</div>
             <pre>{JSON.stringify(value, null, 2)}</pre>
           </div>
         ))}
@@ -325,12 +356,16 @@ function MutationButton({ label, action, kind = 'default' }: { label: string; ac
 }
 
 function SimpleTable({ rows, columns }: { rows: any[]; columns: string[] }) {
+  if (!rows.length) {
+    return <div className="empty-state">No records available for this view.</div>;
+  }
+
   return (
     <div className="table-wrap">
       <table className="data-table">
         <thead>
           <tr>
-            {columns.map((col) => <th key={col}>{col}</th>)}
+            {columns.map((col) => <th key={col}>{humanizeKey(col)}</th>)}
           </tr>
         </thead>
         <tbody>
@@ -347,6 +382,20 @@ function SimpleTable({ rows, columns }: { rows: any[]; columns: string[] }) {
 
 function formatCell(value: any) {
   if (value == null) return '—';
+  if (typeof value === 'string' && /\d{4}-\d{2}-\d{2}T/.test(value)) {
+    return new Date(value).toLocaleString();
+  }
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+}
+
+function humanizeKey(value: string) {
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatCounts(value: Record<string, unknown> | null | undefined) {
+  if (!value) return '—';
+  return Object.entries(value)
+    .map(([key, item]) => `${humanizeKey(key)}: ${String(item)}`)
+    .join(' · ');
 }
