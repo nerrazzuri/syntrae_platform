@@ -45,8 +45,10 @@ export function BillingPage() {
     const [summary, setSummary] = useState<SubscriptionSummary | null>(null);
     const [brands, setBrands] = useState<any[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [notice, setNotice] = useState<string | null>(null);
     const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
     const [billingInterval, setBillingInterval] = useState<BillingInterval>('MONTHLY');
+    const [voucherCode, setVoucherCode] = useState('');
     const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
     const loadSummary = async () => {
@@ -66,10 +68,16 @@ export function BillingPage() {
     const handleCheckout = async (planCode: PlanCode) => {
         try {
             setLoadingAction(planCode);
+            setError(null);
+            setNotice(null);
             const res = await api.post('/billing/checkout-session', {
                 plan_code: planCode,
                 billing_interval: billingInterval,
+                voucher_code: voucherCode,
             });
+            if (res.applied_voucher?.code) {
+                setNotice(`Voucher ${res.applied_voucher.code} applied. Stripe checkout will start with ${res.applied_voucher.duration_days} free days.`);
+            }
             if (res.url) {
                 window.location.href = res.url;
                 return;
@@ -224,6 +232,20 @@ export function BillingPage() {
                         ))}
                     </div>
                 </div>
+                <div className="mb-4 rounded border border-gray-200 p-4 bg-gray-50">
+                    <label className="block text-sm font-medium mb-2">Promo voucher for Stripe checkout</label>
+                    <input
+                        type="text"
+                        className="w-full md:max-w-md p-2 border rounded uppercase bg-white"
+                        value={voucherCode}
+                        onChange={(event) => setVoucherCode(event.target.value.toUpperCase())}
+                        placeholder="Optional campaign or KOL voucher"
+                    />
+                    <p className="text-xs text-gray-500 mt-2">
+                        If valid, the voucher will be attached to the Stripe subscription checkout and applied as free access or trial time after payment setup.
+                    </p>
+                </div>
+                {notice ? <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</div> : null}
                 <div className="space-y-4">
                     {PLAN_ORDER.map((planCode) => {
                         const isCurrent = summary.plan_code === planCode;

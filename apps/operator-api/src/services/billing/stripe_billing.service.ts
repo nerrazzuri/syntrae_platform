@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { Prisma } from '@syntrae/prisma-schema';
 import {
     BILLING_INTERVALS,
     PLAN_CODES,
@@ -19,6 +20,7 @@ interface CheckoutSessionInput {
     userId: string;
     planCode: string;
     billingInterval?: BillingInterval;
+    voucherCode?: string;
 }
 
 interface PortalSessionInput {
@@ -41,6 +43,14 @@ type PriceEntry = { planCode: PlanCode; billingInterval: BillingInterval; priceI
 
 export class StripeBillingService {
     private static stripeClient: Stripe | null = null;
+
+    private static normalizeVoucherCode(value: unknown) {
+        return String(value || '').trim().toUpperCase();
+    }
+
+    private static jsonObject(value: unknown): Record<string, unknown> {
+        return value && typeof value === 'object' && !Array.isArray(value) ? { ...(value as Record<string, unknown>) } : {};
+    }
 
     static isConfigured() {
         return Boolean(process.env.STRIPE_SECRET_KEY);
@@ -75,6 +85,7 @@ export class StripeBillingService {
         const billingInterval = input.billingInterval || BILLING_INTERVALS.MONTHLY;
         const priceId = this.getRequiredPriceId(planCode, billingInterval);
         const stripe = this.getStripe();
+        const promoVoucher = await this.findRedeemablePromoVoucher(input.voucherCode);
 
         const workspace = await prisma.account.findUnique({
             where: { id: input.workspaceId },
@@ -131,12 +142,17 @@ export class StripeBillingService {
                 user_id: input.userId,
                 plan_code: planCode,
                 billing_interval: billingInterval,
+                promo_voucher_id: promoVoucher?.id || '',
+                promo_voucher_code: promoVoucher?.code || '',
             },
             subscription_data: {
+                ...(promoVoucher ? { trial_period_days: Math.max(1, promoVoucher.duration_days) } : {}),
                 metadata: {
                     workspace_id: input.workspaceId,
                     plan_code: planCode,
                     billing_interval: billingInterval,
+                    promo_voucher_id: promoVoucher?.id || '',
+                    promo_voucher_code: promoVoucher?.code || '',
                 },
             },
         });
@@ -159,6 +175,14 @@ export class StripeBillingService {
         return {
             url: session.url,
             session_id: session.id,
+            applied_voucher: promoVoucher
+                ? {
+                    code: promoVoucher.code,
+                    duration_days: promoVoucher.duration_days,
+                    plan_code: promoVoucher.plan_code,
+                    billing_interval: promoVoucher.billing_interval,
+                }
+                : null,
         };
     }
 
@@ -281,8 +305,61 @@ export class StripeBillingService {
         };
         const currentPeriodStart = stripeSubscription.current_period_start ? new Date(stripeSubscription.current_period_start * 1000) : null;
         const currentPeriodEnd = stripeSubscription.current_period_end ? new Date(stripeSubscription.current_period_end * 1000) : null;
+        const promoVoucherId = subscription.metadata?.promo_voucher_id || null;
+        const promoVoucherCode = subscription.metadata?.promo_voucher_code || null;
 
         await prisma.$transaction(async (tx) => {
+            const existingSubscription = await tx.workspaceSubscription.findUnique({
+                where: { workspace_id: workspaceId },
+            });
+            const currentMetadata = this.jsonObject(existingSubscription?.metadata);
+            const nextMetadata: Record<string, unknown> = {
+                ...currentMetadata,
+                stripe_status: subscription.status,
+            };
+
+            if (promoVoucherId && promoVoucherCode) {
+                const history = Array.isArray(currentMetadata.promo_redemptions)
+                    ? currentMetadata.promo_redemptions as Array<Record<string, unknown>>
+                    : [];
+                const alreadyRecorded = history.some((entry) => String(entry?.code || '') === promoVoucherCode);
+
+                if (!alreadyRecorded) {
+                    const voucher = await tx.promoVoucher.findUnique({ where: { id: promoVoucherId } });
+                    if (voucher) {
+                        history.unshift({
+                            code: voucher.code,
+                            label: voucher.label || null,
+                            redeemed_at: new Date().toISOString(),
+                            duration_days: voucher.duration_days,
+                            plan_code: voucher.plan_code,
+                            billing_interval: voucher.billing_interval,
+                            note: voucher.note || null,
+                            source: 'STRIPE_CHECKOUT',
+                        });
+                        nextMetadata.promo_redemptions = history.slice(0, 25);
+                        nextMetadata.access_override = {
+                            type: 'PROMO_VOUCHER',
+                            code: voucher.code,
+                            active: subscription.status === 'trialing' || subscription.status === 'active',
+                            starts_at: currentPeriodStart ? currentPeriodStart.toISOString() : new Date().toISOString(),
+                            ends_at: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+                            note: voucher.note || null,
+                        };
+
+                        if (voucher.max_redemptions === null || voucher.redemptions_count < voucher.max_redemptions) {
+                            await tx.promoVoucher.update({
+                                where: { id: voucher.id },
+                                data: {
+                                    redemptions_count: { increment: 1 },
+                                    last_redeemed_at: new Date(),
+                                },
+                            });
+                        }
+                    }
+                }
+            }
+
             await tx.account.update({
                 where: { id: workspaceId },
                 data: {
@@ -309,9 +386,7 @@ export class StripeBillingService {
                     stripe_subscription_id: subscription.id,
                     stripe_price_id: priceId,
                     stripe_product_id: productId,
-                    metadata: {
-                        stripe_status: subscription.status,
-                    },
+                    metadata: nextMetadata as Prisma.InputJsonValue,
                 },
                 create: {
                     workspace_id: workspaceId,
@@ -330,12 +405,38 @@ export class StripeBillingService {
                     stripe_subscription_id: subscription.id,
                     stripe_price_id: priceId,
                     stripe_product_id: productId,
-                    metadata: {
-                        stripe_status: subscription.status,
-                    },
+                    metadata: nextMetadata as Prisma.InputJsonValue,
                 },
             });
         });
+    }
+
+    private static async findRedeemablePromoVoucher(code?: string | null) {
+        const normalizedCode = this.normalizeVoucherCode(code);
+        if (!normalizedCode) return null;
+
+        const voucher = await prisma.promoVoucher.findUnique({
+            where: { code: normalizedCode },
+        });
+        if (!voucher) {
+            throw new StripeBillingError('PROMO_VOUCHER_NOT_FOUND', 'Promo voucher not found', 404);
+        }
+
+        const now = new Date();
+        if (voucher.status !== 'ACTIVE') {
+            throw new StripeBillingError('PROMO_VOUCHER_INACTIVE', 'Promo voucher is inactive');
+        }
+        if (voucher.starts_at && voucher.starts_at > now) {
+            throw new StripeBillingError('PROMO_VOUCHER_NOT_STARTED', 'Promo voucher is not active yet');
+        }
+        if (voucher.ends_at && voucher.ends_at < now) {
+            throw new StripeBillingError('PROMO_VOUCHER_EXPIRED', 'Promo voucher has expired');
+        }
+        if (voucher.max_redemptions !== null && voucher.redemptions_count >= voucher.max_redemptions) {
+            throw new StripeBillingError('PROMO_VOUCHER_EXHAUSTED', 'Promo voucher is fully redeemed');
+        }
+
+        return voucher;
     }
 
     private static async resolveWorkspaceId(resource: StripeSubscriptionLike) {

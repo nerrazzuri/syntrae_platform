@@ -50,6 +50,7 @@ router.post('/checkout-session', async (req: Request, res: Response) => {
         const user = req.user;
         const billingInterval = (req.body?.billing_interval || BILLING_INTERVALS.MONTHLY) as BillingInterval;
         const planCode = req.body?.plan_code;
+        const voucherCode = String(req.body?.voucher_code || '').trim();
 
         if (!workspaceId || !user) {
             res.status(400).json({ error: 'Missing billing session context' });
@@ -66,6 +67,7 @@ router.post('/checkout-session', async (req: Request, res: Response) => {
             userId: user.id,
             planCode,
             billingInterval,
+            voucherCode,
         });
 
         res.json(session);
