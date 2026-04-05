@@ -27,6 +27,8 @@ export class BrandDefaultsService {
             max_comments_per_video: 30,
             max_comments_per_hour: 200,
             max_leads_per_day: 30,
+            max_source_posts_per_run: 60,
+            max_comments_per_source_post: 10,
             cooldown_ms_between_actions: 2500,
             random_jitter_ms: 1500,
             allow_capture_seen_events: true,

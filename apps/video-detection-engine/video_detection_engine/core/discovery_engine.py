@@ -15,9 +15,9 @@ from video_detection_engine.utils.validators import VideoPageValidator
 logger = logging.getLogger(__name__)
 
 XHS_KEYWORD_LIMIT = 3
-XHS_MAX_SOURCE_POSTS_PER_RUN = 60
-XHS_MAX_POSTS_PER_KEYWORD = 20
-XHS_MAX_COMMENTS_PER_POST = 10
+XHS_DEFAULT_SOURCE_POSTS_PER_RUN = 60
+XHS_DEFAULT_POSTS_PER_KEYWORD = 20
+XHS_DEFAULT_COMMENTS_PER_POST = 10
 XHS_BASIC_MAX_SOURCE_POSTS_PER_RUN = 5
 XHS_BASIC_MAX_POSTS_PER_KEYWORD = 5
 XHS_BASIC_MAX_COMMENTS_PER_POST = 2
@@ -92,14 +92,23 @@ class DiscoveryEngine:
                 processed_source_posts = 0
                 unique_video_ids = set()
                 geo_filtered_posts = 0
+                policy_run_posts_cap = max(
+                    1,
+                    int(self.enforcer.policy.get("max_source_posts_per_run", XHS_DEFAULT_SOURCE_POSTS_PER_RUN))
+                )
+                policy_comments_per_post_cap = max(
+                    1,
+                    int(self.enforcer.policy.get("max_comments_per_source_post", XHS_DEFAULT_COMMENTS_PER_POST))
+                )
+                policy_posts_per_keyword_cap = min(policy_run_posts_cap, XHS_DEFAULT_POSTS_PER_KEYWORD)
                 if self.workspace_plan_code == "BASIC":
-                    run_posts_cap = XHS_BASIC_MAX_SOURCE_POSTS_PER_RUN
-                    posts_per_keyword_cap = XHS_BASIC_MAX_POSTS_PER_KEYWORD
-                    comments_per_post_cap = XHS_BASIC_MAX_COMMENTS_PER_POST
+                    run_posts_cap = min(policy_run_posts_cap, XHS_BASIC_MAX_SOURCE_POSTS_PER_RUN)
+                    posts_per_keyword_cap = min(policy_posts_per_keyword_cap, XHS_BASIC_MAX_POSTS_PER_KEYWORD)
+                    comments_per_post_cap = min(policy_comments_per_post_cap, XHS_BASIC_MAX_COMMENTS_PER_POST)
                 else:
-                    run_posts_cap = XHS_MAX_SOURCE_POSTS_PER_RUN
-                    posts_per_keyword_cap = XHS_MAX_POSTS_PER_KEYWORD
-                    comments_per_post_cap = XHS_MAX_COMMENTS_PER_POST
+                    run_posts_cap = policy_run_posts_cap
+                    posts_per_keyword_cap = policy_posts_per_keyword_cap
+                    comments_per_post_cap = policy_comments_per_post_cap
 
                 for keyword in keywords:
                     remaining_posts = run_posts_cap - processed_source_posts

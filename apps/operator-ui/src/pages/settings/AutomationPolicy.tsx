@@ -15,6 +15,8 @@ interface Policy {
     max_comments_per_video: number;
     max_comments_per_hour: number;
     max_leads_per_day: number;
+    max_source_posts_per_run: number;
+    max_comments_per_source_post: number;
     cooldown_ms_between_actions: number;
     allow_capture_seen_events: boolean;
     notes?: string;
@@ -154,6 +156,11 @@ export const AutomationPolicySettings: React.FC = () => {
                     <div className="mt-3 text-lg font-bold text-slate-900">{policy.mode}</div>
                     <p className="mt-2 text-sm text-slate-500">{modeLabel(policy.mode)}</p>
                 </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Discovery Cap</div>
+                    <div className="mt-3 text-2xl font-bold text-slate-900">{policy.max_source_posts_per_run}</div>
+                    <p className="mt-2 text-sm text-slate-500">Maximum source posts the current run can inspect before capture stops.</p>
+                </div>
             </div>
 
             {error && <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
@@ -230,6 +237,26 @@ export const AutomationPolicySettings: React.FC = () => {
                                 onChange={(e) => handleChange('max_videos_per_hour', numberValue(e.target.value))}
                                 className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
                             />
+                        </label>
+                        <label className="block">
+                            <span className="text-sm font-medium text-slate-700">Max Source Posts / Run</span>
+                            <input
+                                type="number"
+                                value={policy.max_source_posts_per_run}
+                                onChange={(e) => handleChange('max_source_posts_per_run', numberValue(e.target.value))}
+                                className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
+                            />
+                            <span className="mt-2 block text-xs text-slate-500">Controls how many Xiaohongshu source posts can be scanned in one automation run.</span>
+                        </label>
+                        <label className="block">
+                            <span className="text-sm font-medium text-slate-700">Max Comments / Source Post</span>
+                            <input
+                                type="number"
+                                value={policy.max_comments_per_source_post}
+                                onChange={(e) => handleChange('max_comments_per_source_post', numberValue(e.target.value))}
+                                className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
+                            />
+                            <span className="mt-2 block text-xs text-slate-500">Controls how many comments are collected from each discovered source post.</span>
                         </label>
                         <label className="block">
                             <span className="text-sm font-medium text-slate-700">Max Comments / Video</span>

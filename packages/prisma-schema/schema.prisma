@@ -617,6 +617,8 @@ model AutomationPolicy {
   max_comments_per_video   Int  @default(30)
   max_comments_per_hour    Int  @default(200)
   max_leads_per_day        Int  @default(30)
+  max_source_posts_per_run Int  @default(60)
+  max_comments_per_source_post Int @default(10)
   
   // Pacing
   cooldown_ms_between_actions Int @default(2500)
