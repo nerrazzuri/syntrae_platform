@@ -58,6 +58,10 @@ const DEFAULT_PROFILE: Partial<MarketProfile> = {
     weight_hashtag: 0.2
 };
 
+function getThreeKeywordSlots(values?: string[]) {
+    return Array.from({ length: 3 }, (_, index) => values?.[index] ?? '');
+}
+
 export const MarketProfiles: React.FC = () => {
     const { brandId } = useParams<{ brandId: string }>();
     const [profiles, setProfiles] = useState<MarketProfile[]>([]);
@@ -181,6 +185,13 @@ export const MarketProfiles: React.FC = () => {
         return '';
     };
 
+    const handlePositiveKeywordChange = (index: number, value: string) => {
+        if (!editing) return;
+        const nextKeywords = getThreeKeywordSlots(editing.keywords_positive);
+        nextKeywords[index] = value;
+        setEditing({ ...editing, keywords_positive: nextKeywords });
+    };
+
     if (loading && !profiles.length) return <div className="p-8">Loading Market Profiles...</div>;
 
     // EDITOR VIEW
@@ -266,12 +277,19 @@ export const MarketProfiles: React.FC = () => {
                         <h3 className="font-bold mb-3 text-gray-700">Targeting Signals</h3>
 
                         <div className="mb-4">
-                            <label className="block text-sm font-medium mb-1">Positive Keywords (Comma separated)</label>
-                            <span className="text-xs text-gray-500 block mb-1">Phrases to match in captions or bio. Use exactly 3 because discovery only uses 3 per run.</span>
-                            <input className="w-full p-2 border rounded"
-                                value={getArrayString('keywords_positive')}
-                                onChange={e => handleArrayInput('keywords_positive', e.target.value)}
-                                placeholder="organic, vitamin c, glow, skin routine" />
+                            <label className="block text-sm font-medium mb-1">Positive Keywords</label>
+                            <span className="text-xs text-gray-500 block mb-2">Fill in exactly 3 phrases. Discovery uses these 3 keywords per run.</span>
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                                {getThreeKeywordSlots(editing.keywords_positive).map((keyword, index) => (
+                                    <input
+                                        key={index}
+                                        className="w-full p-2 border rounded"
+                                        value={keyword}
+                                        onChange={e => handlePositiveKeywordChange(index, e.target.value)}
+                                        placeholder={`Keyword ${index + 1}`}
+                                    />
+                                ))}
+                            </div>
                         </div>
 
                         <div className="mb-4">

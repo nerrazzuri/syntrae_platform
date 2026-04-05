@@ -81,6 +81,10 @@ function parseCommaSeparated(value: string) {
         .filter(Boolean);
 }
 
+function normalizeKeywordFields(values: string[]) {
+    return Array.from({ length: 3 }, (_, index) => values[index] ?? '');
+}
+
 function currentStep(checklist: Record<ChecklistKey, boolean>) {
     if (!checklist.brand_basics) return 1;
     if (!checklist.platform_selection) return 2;
@@ -104,7 +108,7 @@ export function OnboardingPage() {
     const [geoMode, setGeoMode] = useState('COUNTRY');
     const [geoTargets, setGeoTargets] = useState('MY');
     const [geoStrictness, setGeoStrictness] = useState('BALANCED');
-    const [positiveKeywords, setPositiveKeywords] = useState('');
+    const [positiveKeywords, setPositiveKeywords] = useState<string[]>(['', '', '']);
     const [negativeKeywords, setNegativeKeywords] = useState('cheap, discount, giveaway');
 
     useEffect(() => {
@@ -189,7 +193,7 @@ export function OnboardingPage() {
             return;
         }
 
-        const keywordsPositive = parseCommaSeparated(positiveKeywords);
+        const keywordsPositive = positiveKeywords.map(item => item.trim()).filter(Boolean);
         const keywordsNegative = parseCommaSeparated(negativeKeywords);
         const selectedLanguages = parseCommaSeparated(languages);
         const selectedGeoTargets = parseCommaSeparated(geoTargets).map(item => item.toUpperCase());
@@ -496,14 +500,23 @@ export function OnboardingPage() {
                         </div>
                         <div className="lg:col-span-2">
                             <label className="mb-1 block text-sm font-medium text-slate-700">Positive keywords</label>
-                            <textarea
-                                className="min-h-[96px] w-full rounded-xl border border-slate-200 px-3 py-2.5"
-                                value={positiveKeywords}
-                                onChange={event => setPositiveKeywords(event.target.value)}
-                                placeholder="hydrating serum, sensitive skin, skin barrier repair, redness reduction"
-                                required
-                            />
-                            <p className="mt-2 text-xs text-slate-500">Comma-separated. Use exactly 3 phrases because discovery only uses 3 positive keywords per run.</p>
+                            <div className="grid gap-3 md:grid-cols-3">
+                                {normalizeKeywordFields(positiveKeywords).map((keyword, index) => (
+                                    <input
+                                        key={index}
+                                        className="w-full rounded-xl border border-slate-200 px-3 py-2.5"
+                                        value={keyword}
+                                        onChange={event => {
+                                            const next = normalizeKeywordFields(positiveKeywords);
+                                            next[index] = event.target.value;
+                                            setPositiveKeywords(next);
+                                        }}
+                                        placeholder={`Keyword ${index + 1}`}
+                                        required
+                                    />
+                                ))}
+                            </div>
+                            <p className="mt-2 text-xs text-slate-500">Fill in exactly 3 phrases because discovery uses 3 positive keywords per run.</p>
                         </div>
                         <div className="lg:col-span-2">
                             <button
