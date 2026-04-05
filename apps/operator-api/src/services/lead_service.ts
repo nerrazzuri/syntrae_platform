@@ -50,8 +50,26 @@ export class LeadService {
         }
 
         // Parallel fetch for count and data
-        const [total, rawItems] = await Promise.all([
+        const [total, highIntentTotal, revenueAggregate, rawItems] = await Promise.all([
             prisma.leadOpportunity.count({ where }),
+            prisma.leadOpportunity.count({
+                where: {
+                    ...where,
+                    OR: [
+                        { buyer_stage: 'READY' },
+                        { recommended_action: 'PRIORITY_DM' },
+                    ],
+                },
+            }),
+            prisma.leadOpportunity.aggregate({
+                where: {
+                    ...where,
+                    lead_status: 'CONVERTED',
+                },
+                _sum: {
+                    deal_value: true,
+                },
+            }),
             prisma.leadOpportunity.findMany({
                 where,
                 take: Math.min(limit, 200), // Hard cap
@@ -102,7 +120,16 @@ export class LeadService {
             })
         }));
 
-        return { items, total, limit, offset };
+        return {
+            items,
+            total,
+            limit,
+            offset,
+            summary: {
+                high_intent_leads: highIntentTotal,
+                estimated_revenue: Number(revenueAggregate._sum.deal_value || 0),
+            },
+        };
     }
 
     static async getLead(accountId: string, leadId: string) {
@@ -325,29 +352,55 @@ export class LeadService {
         }
 
         const nextStatus = updates.lead_status ?? lead.lead_status;
-        const followedUpAt = updates.followed_up_at === undefined
+        let followedUpAt = updates.followed_up_at === undefined
             ? lead.followed_up_at
             : updates.followed_up_at === null
                 ? null
                 : new Date(updates.followed_up_at);
-        const convertedAt = updates.converted_at === undefined
+        let convertedAt = updates.converted_at === undefined
             ? lead.converted_at
             : updates.converted_at === null
                 ? null
                 : new Date(updates.converted_at);
-        const dealValue = updates.deal_value === undefined ? lead.deal_value : updates.deal_value;
-        const outcomeReason = updates.outcome_reason === undefined ? lead.outcome_reason : updates.outcome_reason;
+        let dealValue = updates.deal_value === undefined ? lead.deal_value : updates.deal_value;
+        let outcomeReason = updates.outcome_reason === undefined ? lead.outcome_reason : updates.outcome_reason;
         const outcomeSource = updates.outcome_source ?? lead.outcome_source;
+
+        if (followedUpAt && Number.isNaN(followedUpAt.getTime())) {
+            throw new Error('Invalid follow-up timestamp');
+        }
+        if (convertedAt && Number.isNaN(convertedAt.getTime())) {
+            throw new Error('Invalid conversion timestamp');
+        }
 
         if (nextStatus === LeadStatus.CONTACTED && !followedUpAt) {
             throw new Error('Contacted leads require a follow-up timestamp');
         }
+        if (nextStatus === LeadStatus.QUALIFIED && !followedUpAt) {
+            throw new Error('Qualified leads require a follow-up timestamp');
+        }
         if (nextStatus === LeadStatus.CONVERTED) {
             if (!convertedAt) throw new Error('Converted leads require a conversion timestamp');
             if (dealValue == null || Number(dealValue) < 0) throw new Error('Converted leads require a non-negative deal value');
+            if (!followedUpAt) {
+                followedUpAt = convertedAt;
+            }
         }
         if (nextStatus === LeadStatus.LOST && !outcomeReason?.trim()) {
             throw new Error('Lost leads require an outcome reason');
+        }
+
+        if (nextStatus !== LeadStatus.CONVERTED) {
+            convertedAt = null;
+            dealValue = null;
+        }
+
+        if (nextStatus === LeadStatus.NEW) {
+            followedUpAt = null;
+        }
+
+        if (nextStatus !== LeadStatus.CONVERTED && nextStatus !== LeadStatus.LOST) {
+            outcomeReason = null;
         }
 
         const updated = await prisma.leadOpportunity.update({

@@ -87,6 +87,7 @@ interface InternalMetrics {
     total_leads: number;
     ready_leads: number;
     high_intent_leads: number;
+    worked_leads: number;
     contacted_leads: number;
     qualified_leads: number;
     converted_leads: number;
@@ -107,14 +108,15 @@ export class AnalyticsService {
      * Get high-level KPI overview for a workspace, including "All Brands" rollup and per-brand stats.
      */
     static async getOverviewStats(workspaceId: string, range: DateRange): Promise<DashboardOverview> {
-        // 1. Fetch all leads in range for workspace
+        // Capture, follow-up, and conversion metrics use different business timestamps.
         const leads = await prisma.leadOpportunity.findMany({
             where: {
                 account_id: workspaceId,
-                created_at: {
-                    gte: range.from,
-                    lte: range.to,
-                }
+                OR: [
+                    { created_at: { gte: range.from, lte: range.to } },
+                    { followed_up_at: { gte: range.from, lte: range.to } },
+                    { converted_at: { gte: range.from, lte: range.to } },
+                ],
             },
             select: {
                 id: true,
@@ -137,13 +139,13 @@ export class AnalyticsService {
         // 3. Aggregate
         for (const lead of leads) {
             // Update Global
-            this.updateMetrics(global, lead);
+            this.updateMetrics(global, lead, range);
 
             // Update Brand
             if (!brands[lead.brand_id]) {
                 brands[lead.brand_id] = this.emptyMetrics();
             }
-            this.updateMetrics(brands[lead.brand_id], lead);
+            this.updateMetrics(brands[lead.brand_id], lead, range);
         }
 
         // 4. Finalize Averages/Rates
@@ -169,10 +171,11 @@ export class AnalyticsService {
         const leads = await prisma.leadOpportunity.findMany({
             where: {
                 account_id: workspaceId,
-                created_at: {
-                    gte: range.from,
-                    lte: range.to,
-                }
+                OR: [
+                    { created_at: { gte: range.from, lte: range.to } },
+                    { followed_up_at: { gte: range.from, lte: range.to } },
+                    { converted_at: { gte: range.from, lte: range.to } },
+                ],
             },
             select: {
                 brand_id: true,
@@ -214,8 +217,10 @@ export class AnalyticsService {
             const perf = performanceMap[lead.brand_id];
             if (!perf) continue; // Brand might have been deleted?
 
-            this.updateMetrics(metricMap[lead.brand_id], lead as LeadMetricRow);
-            perf.stages[lead.buyer_stage] = (perf.stages[lead.buyer_stage] || 0) + 1;
+            this.updateMetrics(metricMap[lead.brand_id], lead as LeadMetricRow, range);
+            if (this.isWithin(lead.created_at, range)) {
+                perf.stages[lead.buyer_stage] = (perf.stages[lead.buyer_stage] || 0) + 1;
+            }
 
             if (!intentCounts[lead.brand_id]) intentCounts[lead.brand_id] = {};
             intentCounts[lead.brand_id][lead.intent] = (intentCounts[lead.brand_id][lead.intent] || 0) + 1;
@@ -256,7 +261,11 @@ export class AnalyticsService {
             prisma.leadOpportunity.findMany({
                 where: {
                     account_id: workspaceId,
-                    created_at: { gte: startOfMonth }
+                    OR: [
+                        { created_at: { gte: startOfMonth } },
+                        { followed_up_at: { gte: startOfMonth } },
+                        { converted_at: { gte: startOfMonth } },
+                    ],
                 },
                 select: {
                     id: true,
@@ -274,7 +283,7 @@ export class AnalyticsService {
         ]);
 
         const monthlyMetrics = this.finalizeMetrics(leadRows.reduce((acc, lead) => {
-            this.updateMetrics(acc, lead as LeadMetricRow);
+            this.updateMetrics(acc, lead as LeadMetricRow, { from: startOfMonth, to: now });
             return acc;
         }, this.emptyMetrics()));
 
@@ -318,6 +327,7 @@ export class AnalyticsService {
             total_leads: 0,
             ready_leads: 0,
             high_intent_leads: 0,
+            worked_leads: 0,
             contacted_leads: 0,
             qualified_leads: 0,
             converted_leads: 0,
@@ -333,60 +343,65 @@ export class AnalyticsService {
         };
     }
 
-    private static updateMetrics(m: InternalMetrics, lead: LeadMetricRow) {
-        m.total_leads++;
-        m.confidence_sum += lead.confidence;
+    private static isWithin(value: Date | null | undefined, range: DateRange) {
+        return Boolean(value && value >= range.from && value <= range.to);
+    }
 
-        if (lead.buyer_stage === BuyerStage.READY) {
-            m.ready_leads++;
+    private static updateMetrics(m: InternalMetrics, lead: LeadMetricRow, range: DateRange) {
+        const capturedInWindow = this.isWithin(lead.created_at, range);
+        const followedUpInWindow = this.isWithin(lead.followed_up_at, range);
+        const convertedInWindow = this.isWithin(lead.converted_at, range);
+        const workedInWindow = followedUpInWindow || convertedInWindow;
+
+        if (capturedInWindow) {
+            m.total_leads++;
+            m.confidence_sum += lead.confidence;
+
+            if (lead.buyer_stage === BuyerStage.READY) {
+                m.ready_leads++;
+            }
+
+            if (lead.buyer_stage === BuyerStage.READY || lead.recommended_action === RecommendedAction.PRIORITY_DM) {
+                m.high_intent_leads++;
+            }
+
+            if (lead.recommended_action === RecommendedAction.PRIORITY_DM) {
+                m.priority_dm++;
+            }
         }
 
-        if (lead.buyer_stage === BuyerStage.READY || lead.recommended_action === RecommendedAction.PRIORITY_DM) {
-            m.high_intent_leads++;
+        if (workedInWindow) {
+            m.worked_leads++;
         }
 
-        if (lead.recommended_action === RecommendedAction.PRIORITY_DM) {
-            m.priority_dm++;
-        }
-
-        if (
-            lead.lead_status === LeadStatus.CONTACTED ||
-            lead.lead_status === LeadStatus.QUALIFIED ||
-            lead.lead_status === LeadStatus.CONVERTED ||
-            lead.lead_status === LeadStatus.LOST ||
-            lead.followed_up_at
-        ) {
+        if (followedUpInWindow) {
             m.contacted_leads++;
+            if (lead.lead_status === LeadStatus.QUALIFIED) {
+                m.qualified_leads++;
+            }
+            const lagMs = lead.followed_up_at!.getTime() - lead.created_at.getTime();
+            m.follow_up_hours_sum += Math.max(0, lagMs) / (1000 * 60 * 60);
+            m.follow_up_count++;
         }
 
-        if (lead.lead_status === LeadStatus.QUALIFIED) {
-            m.qualified_leads++;
-        }
-
-        if (lead.lead_status === LeadStatus.CONVERTED) {
+        if (convertedInWindow) {
             m.converted_leads++;
             m.estimated_revenue += Number(lead.deal_value || 0);
         }
 
-        if (lead.lead_status === LeadStatus.LOST) {
+        if (lead.lead_status === LeadStatus.LOST && followedUpInWindow) {
             m.lost_leads++;
-        }
-
-        if (lead.followed_up_at) {
-            const lagMs = lead.followed_up_at.getTime() - lead.created_at.getTime();
-            m.follow_up_hours_sum += Math.max(0, lagMs) / (1000 * 60 * 60);
-            m.follow_up_count++;
         }
     }
 
     private static finalizeMetrics(m: InternalMetrics): OverviewMetrics {
         if (m.total_leads > 0) {
-            m.conversion_rate = m.converted_leads / m.total_leads;
             m.avg_confidence = m.confidence_sum / m.total_leads;
         } else {
-            m.conversion_rate = 0;
             m.avg_confidence = 0;
         }
+
+        m.conversion_rate = m.worked_leads > 0 ? m.converted_leads / m.worked_leads : 0;
 
         m.avg_follow_up_hours = m.follow_up_count > 0 ? m.follow_up_hours_sum / m.follow_up_count : null;
 

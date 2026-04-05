@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Client } from '../lib/api';
@@ -37,6 +37,15 @@ interface UsageData {
     features: Record<string, boolean>;
 }
 
+interface LeadListResponse {
+    items: LeadRecord[];
+    total: number;
+    summary: {
+        high_intent_leads: number;
+        estimated_revenue: number;
+    };
+}
+
 function formatDate(dateStr?: string | null) {
     if (!dateStr) return 'Not set';
     const d = new Date(dateStr);
@@ -65,16 +74,18 @@ export function Leads() {
     const [leadError, setLeadError] = useState<string | null>(null);
     const [leadNotice, setLeadNotice] = useState<string | null>(null);
     const [usage, setUsage] = useState<UsageData | null>(null);
+    const [summary, setSummary] = useState({ high_intent_leads: 0, estimated_revenue: 0 });
 
     const loadData = async () => {
         try {
             setLoading(true);
             const [leadData, usageData] = await Promise.all([
-                Client.get('/leads'),
+                Client.get('/leads') as Promise<LeadListResponse>,
                 Client.get('/analytics/usage'),
             ]);
             setLeads(leadData.items || []);
             setTotal(leadData.total || 0);
+            setSummary(leadData.summary || { high_intent_leads: 0, estimated_revenue: 0 });
             setUsage(usageData);
         } catch (e) {
             console.error(e);
@@ -112,9 +123,6 @@ export function Leads() {
         };
         return colors[status];
     };
-
-    const highIntentCount = useMemo(() => leads.filter((lead) => lead.buyer_stage === 'READY' || lead.recommended_action === 'PRIORITY_DM').length, [leads]);
-    const revenueTotal = useMemo(() => leads.reduce((sum, lead) => sum + Number(lead.deal_value || 0), 0), [leads]);
 
     const generateReply = async (leadId: string) => {
         setDraftGenerationLoadingId(leadId);
@@ -171,23 +179,23 @@ export function Leads() {
                         </div>
                         <div className="metric-panel min-w-[180px]">
                             <div className="text-sm font-semibold text-slate-500">High-Intent</div>
-                            <div className="mt-2 text-3xl font-bold">{highIntentCount}</div>
+                            <div className="mt-2 text-3xl font-bold">{summary.high_intent_leads}</div>
                         </div>
                         <div className="metric-panel min-w-[180px]">
                             <div className="text-sm font-semibold text-slate-500">Reported Value</div>
-                            <div className="mt-2 text-3xl font-bold">{currency(revenueTotal)}</div>
+                            <div className="mt-2 text-3xl font-bold">{currency(summary.estimated_revenue)}</div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {exportLocked && highIntentCount > 0 && (
+            {exportLocked && summary.high_intent_leads > 0 && (
                 <section className="panel border border-amber-200 bg-amber-50 p-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div>
                             <div className="text-sm font-semibold text-amber-900">Export is locked on the current plan</div>
                             <p className="mt-2 text-sm leading-6 text-amber-800">
-                                You already have {highIntentCount} high-intent leads in the queue. Upgrade to Growth to export qualified leads and work them outside the console.
+                                You already have {summary.high_intent_leads} high-intent leads in the filtered result set. Upgrade to Growth to export qualified leads and work them outside the console.
                             </p>
                         </div>
                         <Link to="/billing" className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900">

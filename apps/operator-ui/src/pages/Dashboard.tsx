@@ -126,8 +126,8 @@ export const Dashboard = () => {
                         <div className="hero-kicker">Commercial Overview</div>
                         <h1 className="hero-title mt-3">Track pipeline, follow-up speed, and revenue from comment-driven leads.</h1>
                         <p className="hero-copy">
-                            This workspace view focuses on business outcomes: how many leads were captured, how many were worked,
-                            how many converted, and what value they produced.
+                            This workspace view separates capture activity from commercial outcomes: captured-lead metrics use capture date,
+                            follow-up metrics use follow-up date, and revenue metrics use conversion date.
                         </p>
                     </div>
 
@@ -167,7 +167,7 @@ export const Dashboard = () => {
                         <h2 className="text-xl font-bold">Pipeline Health</h2>
                     </div>
                     <p className="mt-2 text-sm text-slate-500">
-                        Conversion rate below is based on leads marked as <strong>converted</strong>, not just leads classified as ready.
+                        Conversion rate below is based on leads that were worked or closed in this window, not just leads classified as ready.
                     </p>
                     <div className="mt-6 space-y-5">
                         <ProgressBar label="High-intent share" value={metrics?.high_intent_leads || 0} total={metrics?.total_leads || 1} color="from-teal-600 to-emerald-500" />
@@ -186,7 +186,7 @@ export const Dashboard = () => {
                     </div>
                     <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                         <div className="font-semibold text-slate-900">Real conversion rate</div>
-                        <div className="mt-1">{`${(((metrics?.conversion_rate || 0) * 100)).toFixed(1)}% of captured leads have been marked converted in this window.`}</div>
+                        <div className="mt-1">{`${(((metrics?.conversion_rate || 0) * 100)).toFixed(1)}% of leads worked or closed in this window are recorded as converted.`}</div>
                     </div>
                 </div>
             </section>

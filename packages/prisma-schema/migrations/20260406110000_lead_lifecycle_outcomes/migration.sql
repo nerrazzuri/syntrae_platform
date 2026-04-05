@@ -11,11 +11,7 @@ ADD COLUMN "outcome_reason" TEXT,
 ADD COLUMN "outcome_source" "core"."OutcomeSource" NOT NULL DEFAULT 'MANUAL';
 
 UPDATE "core"."LeadOpportunity"
-SET "lead_status" = CASE
-    WHEN "buyer_stage" = 'READY' THEN 'QUALIFIED'::"core"."LeadStatus"
-    WHEN "buyer_stage" = 'EVALUATING' THEN 'NEW'::"core"."LeadStatus"
-    ELSE 'NEW'::"core"."LeadStatus"
-END
+SET "lead_status" = 'NEW'::"core"."LeadStatus"
 WHERE "lead_status" = 'NEW';
 
 CREATE INDEX "LeadOpportunity_account_id_lead_status_created_at_idx"
