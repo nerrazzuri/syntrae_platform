@@ -11,6 +11,9 @@ const DISCOVERY_INTENTS = [
     "CONSERVATIVE", "BALANCED", "AGGRESSIVE"
 ];
 
+const GEO_MODES = ["COUNTRY", "REGION", "GLOBAL"];
+const GEO_STRICTNESS = ["STRICT", "BALANCED", "BROAD"];
+
 // Interface matching DB
 interface MarketProfile {
     id: string;
@@ -20,6 +23,9 @@ interface MarketProfile {
     primary_category: string;
     target_audience: string;
     languages: string[];
+    geo_mode: string;
+    geo_targets: string[];
+    geo_strictness: string;
     keywords_positive: string[];
     keywords_negative: string[];
     hashtags_positive: string[];
@@ -39,6 +45,9 @@ const DEFAULT_PROFILE: Partial<MarketProfile> = {
     primary_category: "ECOM_GENERAL",
     target_audience: "",
     languages: ["en"],
+    geo_mode: "COUNTRY",
+    geo_targets: ["MY"],
+    geo_strictness: "BALANCED",
     keywords_positive: [],
     keywords_negative: [],
     hashtags_positive: [],
@@ -103,7 +112,7 @@ export const MarketProfiles: React.FC = () => {
         const arrayFields: (keyof MarketProfile)[] = [
             'keywords_positive', 'keywords_negative',
             'hashtags_positive', 'hashtags_negative',
-            'excluded_topics', 'languages'
+            'excluded_topics', 'languages', 'geo_targets'
         ];
 
         arrayFields.forEach(field => {
@@ -122,6 +131,12 @@ export const MarketProfiles: React.FC = () => {
 
         if ((cleanProfile.keywords_positive || []).length > 3) {
             setError('Positive keywords are limited to exactly 3. Discovery only uses the first 3.');
+            setSaving(false);
+            return;
+        }
+
+        if (cleanProfile.geo_mode !== 'GLOBAL' && (cleanProfile.geo_targets || []).length < 1) {
+            setError('Add at least one geo target when using country or region focus.');
             setSaving(false);
             return;
         }
@@ -220,6 +235,30 @@ export const MarketProfiles: React.FC = () => {
                         <textarea className="w-full p-2 border rounded h-20"
                             value={editing.target_audience} onChange={e => setEditing({ ...editing, target_audience: e.target.value })}
                             placeholder="e.g. Women 25-34 interested in organic skincare..." required />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Geo Mode</label>
+                            <select className="w-full p-2 border rounded"
+                                value={editing.geo_mode} onChange={e => setEditing({ ...editing, geo_mode: e.target.value })}>
+                                {GEO_MODES.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Geo Targets</label>
+                            <input className="w-full p-2 border rounded"
+                                value={getArrayString('geo_targets')}
+                                onChange={e => handleArrayInput('geo_targets', e.target.value.toUpperCase())}
+                                placeholder={editing.geo_mode === 'REGION' ? "SEA" : "MY, SG"} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Geo Strictness</label>
+                            <select className="w-full p-2 border rounded"
+                                value={editing.geo_strictness} onChange={e => setEditing({ ...editing, geo_strictness: e.target.value })}>
+                                {GEO_STRICTNESS.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
                     </div>
 
                     {/* Keywords Section */}
@@ -354,6 +393,9 @@ export const MarketProfiles: React.FC = () => {
                                 <span className="text-xs px-2 py-1 rounded bg-purple-50 text-purple-700 font-bold">
                                     {p.primary_category}
                                 </span>
+                                <span className="text-xs px-2 py-1 rounded bg-teal-50 text-teal-700 font-bold">
+                                    {p.geo_mode}:{(p.geo_targets || []).join('/') || 'GLOBAL'}
+                                </span>
                             </div>
 
                             <p className="text-sm text-gray-600 mb-4 line-clamp-2 min-h-[40px]">
@@ -368,6 +410,10 @@ export const MarketProfiles: React.FC = () => {
                                 <div className="flex justify-between">
                                     <span>Intent:</span>
                                     <span className="font-bold text-black">{p.discovery_intent}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span>Geo strictness:</span>
+                                    <span className="font-bold text-black">{p.geo_strictness}</span>
                                 </div>
                                 <div className="flex justify-between pt-2 border-t mt-2">
                                     <span>Quality Score:</span>

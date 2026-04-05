@@ -46,6 +46,18 @@ const PLATFORM_OPTIONS = [
     { value: 'tiktok', label: 'TikTok' },
 ];
 
+const GEO_MODE_OPTIONS = [
+    { value: 'COUNTRY', label: 'Country focus' },
+    { value: 'REGION', label: 'Regional focus' },
+    { value: 'GLOBAL', label: 'Global discovery' },
+];
+
+const GEO_STRICTNESS_OPTIONS = [
+    { value: 'STRICT', label: 'Strict' },
+    { value: 'BALANCED', label: 'Balanced' },
+    { value: 'BROAD', label: 'Broad' },
+];
+
 const CHECKLIST_LABELS: Record<ChecklistKey, string> = {
     brand_basics: 'Brand basics',
     platform_selection: 'Platform focus',
@@ -89,6 +101,9 @@ export function OnboardingPage() {
     const [primaryCategory, setPrimaryCategory] = useState('ECOM_GENERAL');
     const [targetAudience, setTargetAudience] = useState('');
     const [languages, setLanguages] = useState('en, zh');
+    const [geoMode, setGeoMode] = useState('COUNTRY');
+    const [geoTargets, setGeoTargets] = useState('MY');
+    const [geoStrictness, setGeoStrictness] = useState('BALANCED');
     const [positiveKeywords, setPositiveKeywords] = useState('');
     const [negativeKeywords, setNegativeKeywords] = useState('cheap, discount, giveaway');
 
@@ -177,6 +192,7 @@ export function OnboardingPage() {
         const keywordsPositive = parseCommaSeparated(positiveKeywords);
         const keywordsNegative = parseCommaSeparated(negativeKeywords);
         const selectedLanguages = parseCommaSeparated(languages);
+        const selectedGeoTargets = parseCommaSeparated(geoTargets).map(item => item.toUpperCase());
 
         if (keywordsPositive.length < 3) {
             setError('Add at least 3 positive keywords for the first market profile.');
@@ -194,6 +210,10 @@ export function OnboardingPage() {
             setError('Describe the target audience before creating the market profile.');
             return;
         }
+        if (geoMode !== 'GLOBAL' && selectedGeoTargets.length < 1) {
+            setError('Add at least one geo target code, such as MY or SEA.');
+            return;
+        }
 
         setSavingStep('profile');
         setError(null);
@@ -203,6 +223,9 @@ export function OnboardingPage() {
                 primary_category: primaryCategory,
                 target_audience: targetAudience.trim(),
                 languages: selectedLanguages.length > 0 ? selectedLanguages : ['en'],
+                geo_mode: geoMode,
+                geo_targets: geoMode === 'GLOBAL' ? [] : selectedGeoTargets,
+                geo_strictness: geoStrictness,
                 keywords_positive: keywordsPositive,
                 keywords_negative: keywordsNegative,
                 hashtags_positive: [],
@@ -421,6 +444,46 @@ export function OnboardingPage() {
                                 onChange={event => setLanguages(event.target.value)}
                                 placeholder="en, zh"
                             />
+                        </div>
+                        <div>
+                            <label className="mb-1 block text-sm font-medium text-slate-700">Geo mode</label>
+                            <select
+                                className="w-full rounded-xl border border-slate-200 px-3 py-2.5"
+                                value={geoMode}
+                                onChange={event => setGeoMode(event.target.value)}
+                            >
+                                {GEO_MODE_OPTIONS.map(option => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="mb-1 block text-sm font-medium text-slate-700">Geo targets</label>
+                            <input
+                                className="w-full rounded-xl border border-slate-200 px-3 py-2.5"
+                                value={geoTargets}
+                                onChange={event => setGeoTargets(event.target.value)}
+                                placeholder={geoMode === 'REGION' ? 'SEA' : 'MY'}
+                                disabled={geoMode === 'GLOBAL'}
+                            />
+                            <p className="mt-2 text-xs text-slate-500">
+                                Use ISO-style country codes like <span className="font-semibold">MY</span>, <span className="font-semibold">SG</span>, or region code <span className="font-semibold">SEA</span>.
+                            </p>
+                        </div>
+                        <div>
+                            <label className="mb-1 block text-sm font-medium text-slate-700">Geo strictness</label>
+                            <select
+                                className="w-full rounded-xl border border-slate-200 px-3 py-2.5"
+                                value={geoStrictness}
+                                onChange={event => setGeoStrictness(event.target.value)}
+                            >
+                                {GEO_STRICTNESS_OPTIONS.map(option => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                            </select>
+                            <p className="mt-2 text-xs text-slate-500">
+                                Strict keeps only strong geo matches. Balanced is recommended for Malaysia-first discovery.
+                            </p>
                         </div>
                         <div>
                             <label className="mb-1 block text-sm font-medium text-slate-700">Negative keywords</label>

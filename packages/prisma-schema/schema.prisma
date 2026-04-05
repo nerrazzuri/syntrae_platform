@@ -732,6 +732,9 @@ model MarketProfile {
   primary_category  MarketCategory
   target_audience   String
   languages         String[]
+  geo_mode          String            @default("COUNTRY")
+  geo_targets       String[]
+  geo_strictness    String            @default("BALANCED")
   
   // Keywords & Hashtags
   keywords_positive String[]

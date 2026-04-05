@@ -6,6 +6,9 @@ export interface CreateProfileDTO {
     primary_category: MarketCategory;
     target_audience: string;
     languages: string[];
+    geo_mode: string;
+    geo_targets: string[];
+    geo_strictness: string;
     keywords_positive: string[];
     keywords_negative: string[];
     hashtags_positive: string[];
@@ -23,6 +26,9 @@ export interface UpdateProfileDTO extends Partial<CreateProfileDTO> {
 
 const GENERIC_BANNED_TERMS = ['buy', 'sale', 'cheap', 'promo', 'offer', 'price', 'cost', 'money', 'cash', 'deal', 'discount', 'free'];
 const MAX_POSITIVE_KEYWORDS = 3;
+const GEO_MODES = new Set(['COUNTRY', 'REGION', 'GLOBAL']);
+const GEO_STRICTNESS_LEVELS = new Set(['STRICT', 'BALANCED', 'BROAD']);
+const REGION_CODES = new Set(['SEA']);
 
 // Implicit Category Exclusions (Simple Static Map)
 const CATEGORY_EXCLUSIONS: Record<MarketCategory, string[]> = {
@@ -50,6 +56,48 @@ export class MarketProfileService {
         if (keywords.length > MAX_POSITIVE_KEYWORDS) {
             throw new Error(`Positive keywords are limited to ${MAX_POSITIVE_KEYWORDS}. Discovery only uses the first ${MAX_POSITIVE_KEYWORDS}.`);
         }
+    }
+
+    private static normalizeUpperList(values: string[] | undefined): string[] {
+        return this.normalizeList(values).map((value) => value.toUpperCase());
+    }
+
+    private static normalizeGeoMode(value: string | undefined): string {
+        const normalized = String(value || 'COUNTRY').trim().toUpperCase();
+        if (!GEO_MODES.has(normalized)) {
+            throw new Error('Geo mode must be COUNTRY, REGION, or GLOBAL.');
+        }
+        return normalized;
+    }
+
+    private static normalizeGeoStrictness(value: string | undefined): string {
+        const normalized = String(value || 'BALANCED').trim().toUpperCase();
+        if (!GEO_STRICTNESS_LEVELS.has(normalized)) {
+            throw new Error('Geo strictness must be STRICT, BALANCED, or BROAD.');
+        }
+        return normalized;
+    }
+
+    private static normalizeGeoTargets(mode: string, values: string[] | undefined): string[] {
+        if (mode === 'GLOBAL') {
+            return [];
+        }
+
+        const targets = this.normalizeUpperList(values);
+        if (targets.length === 0) {
+            return mode === 'REGION' ? ['SEA'] : ['MY'];
+        }
+
+        if (mode === 'REGION') {
+            for (const target of targets) {
+                if (!REGION_CODES.has(target)) {
+                    throw new Error(`Unsupported region target: ${target}`);
+                }
+            }
+            return targets;
+        }
+
+        return targets;
     }
 
     static async assertBrandAccess(brandId: string, workspaceId: string) {
@@ -100,12 +148,16 @@ export class MarketProfileService {
         const normalizedData: CreateProfileDTO = {
             ...data,
             languages: this.normalizeList(data.languages),
+            geo_mode: this.normalizeGeoMode(data.geo_mode),
+            geo_targets: [],
+            geo_strictness: this.normalizeGeoStrictness(data.geo_strictness),
             keywords_positive: this.normalizeList(data.keywords_positive),
             keywords_negative: this.normalizeList(data.keywords_negative),
             hashtags_positive: this.normalizeList(data.hashtags_positive),
             hashtags_negative: this.normalizeList(data.hashtags_negative),
             excluded_topics: this.normalizeList(data.excluded_topics),
         };
+        normalizedData.geo_targets = this.normalizeGeoTargets(normalizedData.geo_mode, data.geo_targets);
         this.assertPositiveKeywordLimit(normalizedData.keywords_positive);
         const { validation_warnings, quality_score } = this.validateProfile(normalizedData);
 
@@ -140,6 +192,9 @@ export class MarketProfileService {
             primary_category: data.primary_category ?? existing.primary_category as MarketCategory,
             target_audience: data.target_audience ?? existing.target_audience,
             languages: this.normalizeList(data.languages ?? existing.languages),
+            geo_mode: this.normalizeGeoMode(data.geo_mode ?? existing.geo_mode),
+            geo_targets: [],
+            geo_strictness: this.normalizeGeoStrictness(data.geo_strictness ?? existing.geo_strictness),
             keywords_positive: this.normalizeList(data.keywords_positive ?? existing.keywords_positive),
             keywords_negative: this.normalizeList(data.keywords_negative ?? existing.keywords_negative),
             hashtags_positive: this.normalizeList(data.hashtags_positive ?? existing.hashtags_positive),
@@ -149,6 +204,7 @@ export class MarketProfileService {
             weight_keyword: data.weight_keyword ?? existing.weight_keyword,
             weight_hashtag: data.weight_hashtag ?? existing.weight_hashtag,
         };
+        merged.geo_targets = this.normalizeGeoTargets(merged.geo_mode, data.geo_targets ?? existing.geo_targets);
 
         this.assertPositiveKeywordLimit(merged.keywords_positive);
         const { validation_warnings, quality_score } = this.validateProfile(merged);
@@ -172,6 +228,11 @@ export class MarketProfileService {
             data: {
                 ...data,
                 ...(data.languages ? { languages: merged.languages } : {}),
+                ...((data.geo_mode || data.geo_targets) ? {
+                    geo_mode: merged.geo_mode,
+                    geo_targets: merged.geo_targets,
+                } : {}),
+                ...(data.geo_strictness ? { geo_strictness: merged.geo_strictness } : {}),
                 ...(data.keywords_positive ? { keywords_positive: merged.keywords_positive } : {}),
                 ...(data.keywords_negative ? { keywords_negative: merged.keywords_negative } : {}),
                 ...(data.hashtags_positive ? { hashtags_positive: merged.hashtags_positive } : {}),

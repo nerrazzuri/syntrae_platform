@@ -86,6 +86,7 @@ class DiscoveryEngine:
                 seen_pairs = set()
                 processed_source_posts = 0
                 unique_video_ids = set()
+                geo_filtered_posts = 0
 
                 for keyword in keywords:
                     remaining_posts = XHS_MAX_SOURCE_POSTS_PER_RUN - processed_source_posts
@@ -108,12 +109,25 @@ class DiscoveryEngine:
                     results = payload.get("events", [])
 
                     for item in results or []:
+                        geo_eval = qb.evaluate_geo_candidate(item, keyword)
+                        if not geo_eval.get("allowed", True):
+                            geo_filtered_posts += 1
+                            logger.info(
+                                "Skipping XHS note %s outside geo focus (%s): %s",
+                                item.get("video_id"),
+                                geo_eval.get("status"),
+                                ", ".join(geo_eval.get("reasons", [])),
+                            )
+                            continue
+
                         dedup_key = (item.get("video_id"), item.get("referral_comment_id"))
                         if dedup_key in seen_pairs:
                             continue
                         seen_pairs.add(dedup_key)
                         if item.get("video_id"):
                             unique_video_ids.add(item["video_id"])
+                        item["geo_match_status"] = geo_eval.get("status")
+                        item["geo_match_reasons"] = geo_eval.get("reasons", [])
                         all_results.append(item)
 
                 # Emit to pipeline
@@ -135,6 +149,12 @@ class DiscoveryEngine:
                         f"{success_count} success, {failed_count} failed "
                         f"across {self.videos_processed_total} source posts"
                     )
+                    if geo_filtered_posts > 0:
+                        logger.info(
+                            "Xiaohongshu geo filter skipped %s source-post candidates for run %s",
+                            geo_filtered_posts,
+                            self.run_id,
+                        )
                 
             except Exception as e:
                 logger.error(f"Xiaohongshu Discovery Failed: {e}")
