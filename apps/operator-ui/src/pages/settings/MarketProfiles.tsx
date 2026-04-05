@@ -40,6 +40,22 @@ interface MarketProfile {
     weight_hashtag?: number;
 }
 
+interface MarketProfilePayload {
+    name: string;
+    primary_category: string;
+    target_audience: string;
+    languages: string[];
+    geo_mode: string;
+    geo_targets: string[];
+    geo_strictness: string;
+    keywords_positive: string[];
+    keywords_negative: string[];
+    hashtags_positive: string[];
+    hashtags_negative: string[];
+    excluded_topics: string[];
+    discovery_intent: string;
+}
+
 const DEFAULT_PROFILE: Partial<MarketProfile> = {
     name: "New Profile",
     primary_category: "ECOM_GENERAL",
@@ -62,6 +78,15 @@ function getThreeKeywordSlots(values?: string[]) {
     return Array.from({ length: 3 }, (_, index) => values?.[index] ?? '');
 }
 
+function labelize(value?: string) {
+    if (!value) return '';
+    return value
+        .toLowerCase()
+        .split('_')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+}
+
 export const MarketProfiles: React.FC = () => {
     const { brandId } = useParams<{ brandId: string }>();
     const [profiles, setProfiles] = useState<MarketProfile[]>([]);
@@ -71,6 +96,7 @@ export const MarketProfiles: React.FC = () => {
     const [isNew, setIsNew] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [notice, setNotice] = useState<string | null>(null);
 
     useEffect(() => {
         if (brandId) loadProfiles();
@@ -92,12 +118,14 @@ export const MarketProfiles: React.FC = () => {
         setEditing({ ...DEFAULT_PROFILE });
         setIsNew(true);
         setError(null);
+        setNotice(null);
     };
 
     const handleEdit = (profile: MarketProfile) => {
         setEditing({ ...profile });
         setIsNew(false);
         setError(null);
+        setNotice(null);
     };
 
     const handleCancel = () => {
@@ -145,13 +173,30 @@ export const MarketProfiles: React.FC = () => {
             return;
         }
 
+        const payload: MarketProfilePayload = {
+            name: cleanProfile.name || 'New Profile',
+            primary_category: cleanProfile.primary_category || 'ECOM_GENERAL',
+            target_audience: cleanProfile.target_audience || '',
+            languages: cleanProfile.languages || ['en'],
+            geo_mode: cleanProfile.geo_mode || 'COUNTRY',
+            geo_targets: cleanProfile.geo_mode === 'GLOBAL' ? [] : (cleanProfile.geo_targets || []),
+            geo_strictness: cleanProfile.geo_strictness || 'BALANCED',
+            keywords_positive: cleanProfile.keywords_positive || [],
+            keywords_negative: cleanProfile.keywords_negative || [],
+            hashtags_positive: cleanProfile.hashtags_positive || [],
+            hashtags_negative: cleanProfile.hashtags_negative || [],
+            excluded_topics: cleanProfile.excluded_topics || [],
+            discovery_intent: cleanProfile.discovery_intent || 'BALANCED',
+        };
+
         try {
             if (isNew) {
-                await api.post(`/brands/${brandId}/market-profiles`, cleanProfile);
+                await api.post(`/brands/${brandId}/market-profiles`, payload);
             } else {
-                await api.patch(`/market-profiles/${editing.id}`, cleanProfile);
+                await api.patch(`/market-profiles/${editing.id}`, payload);
             }
             setEditing(null);
+            setNotice(isNew ? 'Market strategy created.' : 'Market strategy updated.');
             loadProfiles();
         } catch (err: any) {
             console.error(err);
@@ -217,7 +262,7 @@ export const MarketProfiles: React.FC = () => {
 
                 {editing.validation_warnings && editing.validation_warnings.length > 0 && !error && (
                     <div className="mb-4 p-4 bg-yellow-100 border border-yellow-200 text-yellow-800 rounded-md">
-                        <strong className="block font-bold">Validation Warnings (Draft Mode):</strong>
+                        <strong className="block font-bold">Validation Notes:</strong>
                         <ul className="mt-1 list-disc list-inside text-sm">
                             {editing.validation_warnings.map(w => <li key={w}>{w}</li>)}
                         </ul>
@@ -322,7 +367,7 @@ export const MarketProfiles: React.FC = () => {
                     {/* Strategy */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium mb-1">Discovery Intent</label>
+                            <label className="block text-sm font-medium mb-1">Discovery Mode</label>
                             <select className="w-full p-2 border rounded"
                                 value={editing.discovery_intent} onChange={e => setEditing({ ...editing, discovery_intent: e.target.value })}>
                                 {DISCOVERY_INTENTS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -334,29 +379,11 @@ export const MarketProfiles: React.FC = () => {
                             </span>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium mb-1">Quality Score Estimate</label>
-                            <div className="text-2xl font-bold text-gray-400">
-                                {editing.quality_score ? (editing.quality_score * 100).toFixed(0) : '--'}%
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Weights (Advanced) - Collapsed or simpler? Let's just show inputs */}
-                    <div className="p-4 bg-gray-50 border rounded">
-                        <h3 className="font-bold text-sm mb-3 text-gray-700">Scoring Weights (Sum ≤ 1.0)</h3>
-                        <div className="flex gap-4">
-                            <div className="flex-1">
-                                <label className="block text-xs font-bold mb-1">Keyword Weight ({editing.weight_keyword})</label>
-                                <input type="range" min="0" max="1" step="0.1" className="w-full"
-                                    value={editing.weight_keyword}
-                                    onChange={e => setEditing({ ...editing, weight_keyword: parseFloat(e.target.value) })} />
-                            </div>
-                            <div className="flex-1">
-                                <label className="block text-xs font-bold mb-1">Hashtag Weight ({editing.weight_hashtag})</label>
-                                <input type="range" min="0" max="1" step="0.1" className="w-full"
-                                    value={editing.weight_hashtag}
-                                    onChange={e => setEditing({ ...editing, weight_hashtag: parseFloat(e.target.value) })} />
-                            </div>
+                            <label className="block text-sm font-medium mb-1">Languages</label>
+                            <input className="w-full p-2 border rounded"
+                                value={getArrayString('languages')}
+                                onChange={e => handleArrayInput('languages', e.target.value)}
+                                placeholder="en, zh, ms" />
                         </div>
                     </div>
 
@@ -376,8 +403,8 @@ export const MarketProfiles: React.FC = () => {
         <div className="p-8">
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h1 className="text-3xl font-bold">Market Intelligence</h1>
-                    <p className="text-gray-500">Manage targeting profiles for discovery.</p>
+                    <h1 className="text-3xl font-bold">Market Strategy</h1>
+                    <p className="text-gray-500">Manage audience targeting profiles for discovery.</p>
                 </div>
                 <button
                     onClick={handleCreate}
@@ -386,6 +413,12 @@ export const MarketProfiles: React.FC = () => {
                     New Profile
                 </button>
             </div>
+
+            {notice && (
+                <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                    {notice}
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {profiles.map(p => (
@@ -406,13 +439,13 @@ export const MarketProfiles: React.FC = () => {
 
                             <div className="flex flex-wrap gap-2 mb-4">
                                 <span className={`text-xs px-2 py-1 rounded font-mono ${p.status === 'READY' || p.status === 'ACTIVE' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
-                                    {p.status} (v{p.version})
+                                    {labelize(p.status)} (v{p.version})
                                 </span>
                                 <span className="text-xs px-2 py-1 rounded bg-purple-50 text-purple-700 font-bold">
-                                    {p.primary_category}
+                                    {labelize(p.primary_category)}
                                 </span>
                                 <span className="text-xs px-2 py-1 rounded bg-teal-50 text-teal-700 font-bold">
-                                    {p.geo_mode}:{(p.geo_targets || []).join('/') || 'GLOBAL'}
+                                    {labelize(p.geo_mode)}: {(p.geo_targets || []).join('/') || 'GLOBAL'}
                                 </span>
                             </div>
 
@@ -426,17 +459,17 @@ export const MarketProfiles: React.FC = () => {
                                     <span className="font-mono text-black">{p.keywords_positive.length} pos / {p.keywords_negative.length} neg</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span>Intent:</span>
-                                    <span className="font-bold text-black">{p.discovery_intent}</span>
+                                    <span>Discovery mode:</span>
+                                    <span className="font-bold text-black">{labelize(p.discovery_intent)}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span>Geo strictness:</span>
-                                    <span className="font-bold text-black">{p.geo_strictness}</span>
+                                    <span>Geo match:</span>
+                                    <span className="font-bold text-black">{labelize(p.geo_strictness)}</span>
                                 </div>
                                 <div className="flex justify-between pt-2 border-t mt-2">
-                                    <span>Quality Score:</span>
-                                    <span className={`font-bold ${p.quality_score > 0.8 ? 'text-green-600' : p.quality_score < 0.5 ? 'text-red-600' : 'text-yellow-600'}`}>
-                                        {(p.quality_score * 100).toFixed(0)}%
+                                    <span>Languages:</span>
+                                    <span className="font-bold text-black">
+                                        {(p.languages || []).join(', ') || 'Not set'}
                                     </span>
                                 </div>
                             </div>
