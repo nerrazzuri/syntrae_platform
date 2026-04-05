@@ -97,6 +97,29 @@ model WorkspaceSubscription {
   @@schema("core")
 }
 
+model PromoVoucher {
+  id                 String   @id @default(uuid())
+  code               String   @unique
+  label              String?
+  status             String   @default("ACTIVE")
+  plan_code          String
+  billing_interval   String   @default("MONTHLY")
+  duration_days      Int
+  max_redemptions    Int?
+  redemptions_count  Int      @default(0)
+  starts_at          DateTime?
+  ends_at            DateTime?
+  last_redeemed_at   DateTime?
+  note               String?
+  metadata           Json     @default("{}")
+  created_by_admin_id String?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  @@index([status, created_at])
+  @@schema("core")
+}
+
 model WorkspaceUsageCounter {
   id                String   @id @default(uuid())
   workspace_id      String

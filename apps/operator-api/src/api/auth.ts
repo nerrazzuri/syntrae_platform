@@ -5,6 +5,7 @@ import { BootstrapService } from '../services/bootstrap.service';
 import { requireAuth } from '../middleware/auth';
 import { AuthTokenService, AUTH_TOKEN_TYPES } from '../services/auth_token.service';
 import { EmailService } from '../services/email.service';
+import { getPlanDefinition, normalizePlanCode } from '@syntrae/commercial-plans';
 
 export const authRouter = Router();
 
@@ -34,10 +35,175 @@ const COOKIE_OPTIONS: any = {
     maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
-function isSignupAllowed(email: string) {
+function isSignupAllowed(email: string, hasVoucher = false) {
+    if (hasVoucher) return true;
     if (!BETA_SIGNUP_ENABLED) return false;
     if (BETA_SIGNUP_ALLOWLIST.size === 0) return true;
     return BETA_SIGNUP_ALLOWLIST.has(email.trim().toLowerCase());
+}
+
+function normalizeVoucherCode(value: unknown) {
+    return String(value || '').trim().toUpperCase();
+}
+
+async function findRedeemablePromoVoucher(code: string) {
+    if (!code) return null;
+    const voucher = await prisma.promoVoucher.findUnique({
+        where: { code }
+    });
+    if (!voucher) return null;
+
+    const now = new Date();
+    if (voucher.status !== 'ACTIVE') return null;
+    if (voucher.starts_at && voucher.starts_at > now) return null;
+    if (voucher.ends_at && voucher.ends_at < now) return null;
+    if (voucher.max_redemptions !== null && voucher.max_redemptions !== undefined && voucher.redemptions_count >= voucher.max_redemptions) {
+        return null;
+    }
+
+    return voucher;
+}
+
+async function applyPromoVoucherRedemption(params: {
+    voucherId: string;
+    userId: string;
+    workspaceId: string;
+    workspaceName: string;
+}) {
+    const now = new Date();
+
+    return prisma.$transaction(async (tx) => {
+        const voucher = await tx.promoVoucher.findUnique({
+            where: { id: params.voucherId }
+        });
+
+        if (!voucher) {
+            throw new Error('PROMO_VOUCHER_NOT_FOUND');
+        }
+
+        if (voucher.status !== 'ACTIVE') {
+            throw new Error('PROMO_VOUCHER_INACTIVE');
+        }
+
+        if (voucher.starts_at && voucher.starts_at > now) {
+            throw new Error('PROMO_VOUCHER_NOT_STARTED');
+        }
+
+        if (voucher.ends_at && voucher.ends_at < now) {
+            throw new Error('PROMO_VOUCHER_EXPIRED');
+        }
+
+        if (voucher.max_redemptions !== null && voucher.max_redemptions !== undefined && voucher.redemptions_count >= voucher.max_redemptions) {
+            throw new Error('PROMO_VOUCHER_EXHAUSTED');
+        }
+
+        const effectivePlan = normalizePlanCode(voucher.plan_code);
+        const plan = getPlanDefinition(effectivePlan);
+        const endsAt = new Date(now);
+        endsAt.setDate(endsAt.getDate() + Math.max(1, voucher.duration_days));
+        const existingSubscription = await tx.workspaceSubscription.findUnique({
+            where: { workspace_id: params.workspaceId }
+        });
+        const currentMetadata = existingSubscription?.metadata && typeof existingSubscription.metadata === 'object' && !Array.isArray(existingSubscription.metadata)
+            ? { ...(existingSubscription.metadata as Record<string, unknown>) }
+            : {};
+        const history = Array.isArray(currentMetadata.promo_redemptions)
+            ? currentMetadata.promo_redemptions as Array<Record<string, unknown>>
+            : [];
+        const redemption = {
+            code: voucher.code,
+            label: voucher.label || null,
+            redeemed_at: now.toISOString(),
+            duration_days: voucher.duration_days,
+            plan_code: plan.code,
+            billing_interval: voucher.billing_interval,
+            note: voucher.note || null,
+        };
+        const nextMetadata = {
+            ...currentMetadata,
+            promo_redemptions: [redemption, ...history].slice(0, 25),
+            access_override: {
+                type: 'PROMO_VOUCHER',
+                code: voucher.code,
+                active: true,
+                starts_at: now.toISOString(),
+                ends_at: endsAt.toISOString(),
+                note: voucher.note || null,
+            }
+        };
+
+        await tx.workspaceSubscription.upsert({
+            where: { workspace_id: params.workspaceId },
+            update: {
+                plan_code: plan.code,
+                display_name: plan.displayName,
+                billing_provider: 'MANUAL',
+                status: 'ACTIVE',
+                billing_interval: voucher.billing_interval,
+                is_trial: true,
+                trial_ends_at: endsAt,
+                current_period_start: now,
+                current_period_end: endsAt,
+                cancel_at_period_end: false,
+                metadata: nextMetadata,
+            },
+            create: {
+                workspace_id: params.workspaceId,
+                plan_code: plan.code,
+                display_name: plan.displayName,
+                billing_provider: 'MANUAL',
+                status: 'ACTIVE',
+                billing_interval: voucher.billing_interval,
+                is_trial: true,
+                trial_ends_at: endsAt,
+                current_period_start: now,
+                current_period_end: endsAt,
+                cancel_at_period_end: false,
+                metadata: nextMetadata,
+            }
+        });
+
+        await tx.account.update({
+            where: { id: params.workspaceId },
+            data: {
+                plan_id: plan.code,
+                status: 'ACTIVE',
+            }
+        });
+
+        await tx.promoVoucher.update({
+            where: { id: voucher.id },
+            data: {
+                redemptions_count: { increment: 1 },
+                last_redeemed_at: now,
+            }
+        });
+
+        await tx.auditLog.create({
+            data: {
+                actor_id: params.userId,
+                actor_type: 'USER',
+                action: 'REDEEM_PROMO_VOUCHER',
+                resource: 'PromoVoucher',
+                resource_id: voucher.id,
+                workspace_id: params.workspaceId,
+                meta: JSON.stringify({
+                    code: voucher.code,
+                    workspace_name: params.workspaceName,
+                    duration_days: voucher.duration_days,
+                    plan_code: plan.code,
+                }),
+            }
+        });
+
+        return {
+            code: voucher.code,
+            duration_days: voucher.duration_days,
+            plan_code: plan.code,
+            billing_interval: voucher.billing_interval,
+            ends_at: endsAt.toISOString(),
+        };
+    });
 }
 
 function authContextPayload(user: { email_verified_at: Date | null }) {
@@ -54,12 +220,18 @@ authRouter.get('/trust-links', (_req, res) => {
 authRouter.post('/signup', async (req, res) => {
     try {
         const { email, password, workspace_name } = req.body;
+        const voucherCode = normalizeVoucherCode(req.body?.voucher_code);
 
         if (!email || !password || !workspace_name) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        if (!isSignupAllowed(email)) {
+        const voucher = voucherCode ? await findRedeemablePromoVoucher(voucherCode) : null;
+        if (voucherCode && !voucher) {
+            return res.status(400).json({ error: 'Voucher is invalid, inactive, expired, or fully redeemed' });
+        }
+
+        if (!isSignupAllowed(email, Boolean(voucher))) {
             return res.status(403).json({ error: 'Signup is closed for this beta cohort' });
         }
 
@@ -69,6 +241,15 @@ authRouter.post('/signup', async (req, res) => {
             workspace_name,
             { createSession: false }
         );
+
+        const redemption = voucher
+            ? await applyPromoVoucherRedemption({
+                voucherId: voucher.id,
+                userId: user.id,
+                workspaceId: account.id,
+                workspaceName: account.name,
+            })
+            : null;
 
         const verification = await AuthTokenService.issue(
             user.id,
@@ -88,6 +269,7 @@ authRouter.post('/signup', async (req, res) => {
             status: 'verification_required',
             message: 'Check your inbox to verify your email before signing in.',
             email: user.email,
+            voucher: redemption,
             delivery,
             ...EmailService.getTrustLinks(),
         });

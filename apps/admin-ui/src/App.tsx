@@ -916,8 +916,10 @@ function PolicyView({ payload }: { payload: any }) {
 
 function BillingView({ payload }: { payload: any }) {
   const items = payload.items || [];
+  const vouchers = payload.vouchers || [];
   return (
     <Section title="Billing / Plan / Usage Controls">
+      <PromoVoucherCenter vouchers={vouchers} />
       <div className="dashboard-grid">
         {items.map((workspace: any) => (
           <div key={workspace.id} className="panel nested-panel">
@@ -935,7 +937,6 @@ function BillingView({ payload }: { payload: any }) {
               { label: 'Installs', value: formatMetric(workspace._count?.installs || 0) },
             ]} />
             <TagList items={formatUsageCounters(workspace.usage_counters)} emptyText="No usage counters" />
-            <TagList items={formatVoucherItems(workspace.subscription?.metadata)} emptyText="No vouchers issued" />
             <TagList items={formatFreeAccessItems(workspace.subscription)} emptyText="No free-access grant" />
             <BillingAccessControls workspace={workspace} />
             <div className="action-row">
@@ -950,31 +951,104 @@ function BillingView({ payload }: { payload: any }) {
   );
 }
 
-function BillingAccessControls({ workspace }: { workspace: any }) {
-  const [voucherDays, setVoucherDays] = useState('30');
-  const [freeDays, setFreeDays] = useState('30');
+function PromoVoucherCenter({ vouchers }: { vouchers: any[] }) {
+  const [code, setCode] = useState('');
+  const [label, setLabel] = useState('');
+  const [durationDays, setDurationDays] = useState('30');
+  const [planCode, setPlanCode] = useState('STARTER');
+  const [interval, setInterval] = useState('MONTHLY');
+  const [maxRedemptions, setMaxRedemptions] = useState('');
   const [note, setNote] = useState('');
-  const [interval, setInterval] = useState((workspace.subscription?.billing_interval || 'MONTHLY').toUpperCase());
   const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState<'voucher' | 'free' | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  async function generateVoucher() {
-    setBusy('voucher');
+  async function createVoucher() {
+    setBusy('create');
     setMessage(null);
     try {
-      const payload = await adminRequest(`/billing/workspaces/${workspace.id}/vouchers`, {
+      const payload = await adminRequest('/vouchers', {
         method: 'POST',
         body: JSON.stringify({
-          duration_days: Number(voucherDays || 30),
+          code,
+          label,
+          duration_days: Number(durationDays || 30),
+          plan_code: planCode,
           billing_interval: interval,
+          max_redemptions: Number(maxRedemptions || 0),
           note,
         }),
       });
-      setMessage(`Voucher created: ${payload.voucher.code} (${payload.voucher.duration_days} days).`);
+      setMessage(`Promo voucher created: ${payload.voucher.code}`);
+      setCode('');
+      setLabel('');
+      setMaxRedemptions('');
+      setNote('');
     } finally {
       setBusy(null);
     }
   }
+
+  return (
+    <div className="panel nested-panel" style={{ marginBottom: '20px' }}>
+      <div className="section-title">Promo Voucher Center</div>
+      <div className="admin-muted">Create reusable campaign vouchers for promotions, KOL partnerships, and referral pushes. These codes are redeemable during signup and are not tied to a single workspace.</div>
+      <div className="multi-column three" style={{ marginTop: '12px' }}>
+        <label>
+          <div className="eyebrow-label">Voucher code</div>
+          <input className="surface-input" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="Optional custom code" />
+        </label>
+        <label>
+          <div className="eyebrow-label">Label</div>
+          <input className="surface-input" value={label} onChange={(event) => setLabel(event.target.value)} placeholder="KOL name or campaign" />
+        </label>
+        <label>
+          <div className="eyebrow-label">Duration (days)</div>
+          <input className="surface-input" value={durationDays} onChange={(event) => setDurationDays(event.target.value)} />
+        </label>
+      </div>
+      <div className="multi-column three" style={{ marginTop: '12px' }}>
+        <label>
+          <div className="eyebrow-label">Plan</div>
+          <select className="surface-input" value={planCode} onChange={(event) => setPlanCode(event.target.value)}>
+            <option value="STARTER">Starter</option>
+            <option value="GROWTH">Growth</option>
+            <option value="PRO">Pro</option>
+            <option value="AGENCY">Agency</option>
+          </select>
+        </label>
+        <label>
+          <div className="eyebrow-label">Billing interval</div>
+          <select className="surface-input" value={interval} onChange={(event) => setInterval(event.target.value)}>
+            <option value="MONTHLY">Monthly</option>
+            <option value="YEARLY">Yearly</option>
+          </select>
+        </label>
+        <label>
+          <div className="eyebrow-label">Max redemptions</div>
+          <input className="surface-input" value={maxRedemptions} onChange={(event) => setMaxRedemptions(event.target.value)} placeholder="Leave blank for unlimited" />
+        </label>
+      </div>
+      <label style={{ marginTop: '12px', display: 'block' }}>
+        <div className="eyebrow-label">Internal note</div>
+        <input className="surface-input" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Campaign note, owner, or usage context" />
+      </label>
+      {message ? <div className="status-badge success" style={{ marginTop: '12px' }}>{message}</div> : null}
+      <div className="action-row" style={{ marginTop: '12px' }}>
+        <button className="secondary-button" type="button" disabled={busy !== null} onClick={() => void createVoucher()}>
+          {busy === 'create' ? 'Creating...' : 'Create Promo Voucher'}
+        </button>
+      </div>
+      <TagList items={formatGlobalVoucherItems(vouchers)} emptyText="No promo vouchers created yet" />
+    </div>
+  );
+}
+
+function BillingAccessControls({ workspace }: { workspace: any }) {
+  const [freeDays, setFreeDays] = useState('30');
+  const [note, setNote] = useState('');
+  const [interval, setInterval] = useState((workspace.subscription?.billing_interval || 'MONTHLY').toUpperCase());
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState<'free' | null>(null);
 
   async function grantFreeAccess() {
     setBusy('free');
@@ -997,12 +1071,8 @@ function BillingAccessControls({ workspace }: { workspace: any }) {
   return (
     <div className="panel nested-panel">
       <div className="section-title">Beta Access Controls</div>
-      <div className="admin-muted">Issue internal vouchers or set a timed free-access window for beta testers and special cases.</div>
+      <div className="admin-muted">Grant timed free access directly to this workspace for beta testers, internal pilots, or special-case recovery.</div>
       <div className="multi-column two" style={{ marginTop: '12px' }}>
-        <label>
-          <div className="eyebrow-label">Voucher duration (days)</div>
-          <input className="surface-input" value={voucherDays} onChange={(event) => setVoucherDays(event.target.value)} />
-        </label>
         <label>
           <div className="eyebrow-label">Free access duration (days)</div>
           <input className="surface-input" value={freeDays} onChange={(event) => setFreeDays(event.target.value)} />
@@ -1023,9 +1093,6 @@ function BillingAccessControls({ workspace }: { workspace: any }) {
       </div>
       {message ? <div className="status-badge success" style={{ marginTop: '12px' }}>{message}</div> : null}
       <div className="action-row" style={{ marginTop: '12px' }}>
-        <button className="secondary-button" type="button" disabled={busy !== null} onClick={() => void generateVoucher()}>
-          {busy === 'voucher' ? 'Generating...' : 'Generate Voucher'}
-        </button>
         <button className="secondary-button" type="button" disabled={busy !== null} onClick={() => void grantFreeAccess()}>
           {busy === 'free' ? 'Granting...' : 'Grant Free Access'}
         </button>
@@ -1305,9 +1372,12 @@ function formatCell(value: any) {
   return String(value);
 }
 
-function formatVoucherItems(metadata: any) {
-  const vouchers = Array.isArray(metadata?.vouchers) ? metadata.vouchers : [];
-  return vouchers.slice(0, 3).map((voucher: any) => `${voucher.code} · ${voucher.duration_days} days · ${voucher.status || 'ACTIVE'}`);
+function formatGlobalVoucherItems(vouchers: any[]) {
+  return (vouchers || []).slice(0, 8).map((voucher: any) => {
+    const cap = voucher.max_redemptions ? `${voucher.redemptions_count}/${voucher.max_redemptions}` : `${voucher.redemptions_count}/unlimited`;
+    const label = voucher.label ? ` · ${voucher.label}` : '';
+    return `${voucher.code}${label} · ${voucher.plan_code} ${voucher.billing_interval.toLowerCase()} · ${voucher.duration_days} days · redeemed ${cap} · ${voucher.status}`;
+  });
 }
 
 function formatFreeAccessItems(subscription: any) {

@@ -5,6 +5,13 @@ interface SignupResponse {
     status: 'verification_required';
     email: string;
     message: string;
+    voucher?: {
+        code: string;
+        duration_days: number;
+        plan_code: string;
+        billing_interval: string;
+        ends_at: string;
+    } | null;
     support_email: string;
     privacy_url: string;
     terms_url: string;
@@ -14,6 +21,7 @@ export function Signup() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [workspaceName, setWorkspaceName] = useState('');
+    const [voucherCode, setVoucherCode] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<SignupResponse | null>(null);
@@ -26,7 +34,8 @@ export function Signup() {
             const response = await Client.post('/auth/signup', {
                 email,
                 password,
-                workspace_name: workspaceName
+                workspace_name: workspaceName,
+                voucher_code: voucherCode,
             });
             setResult(response);
         } catch (err: any) {
@@ -45,6 +54,12 @@ export function Signup() {
                         We sent a verification link to <strong>{result.email}</strong>. You need to verify your email before signing in.
                     </p>
                     <p className="text-sm text-gray-600 mb-6">{result.message}</p>
+                    {result.voucher ? (
+                        <div className="bg-green-50 border border-green-200 text-green-800 rounded p-3 mb-4 text-sm">
+                            Voucher <strong>{result.voucher.code}</strong> applied:
+                            {' '}<strong>{result.voucher.plan_code}</strong> access for {result.voucher.duration_days} days.
+                        </div>
+                    ) : null}
                     <div className="space-y-3">
                         <a href="/login" className="block w-full text-center bg-blue-600 text-white p-2 rounded hover:bg-blue-700">
                             Go To Login
@@ -106,6 +121,16 @@ export function Signup() {
                         />
                     </div>
                     <div>
+                        <label className="block text-sm font-medium mb-1">Promo Voucher Code <span className="text-gray-400">(optional)</span></label>
+                        <input
+                            type="text"
+                            className="w-full p-2 border rounded uppercase"
+                            value={voucherCode}
+                            onChange={e => setVoucherCode(e.target.value.toUpperCase())}
+                            placeholder="KOLNAME, RAMADAN2026, EARLYBIRD"
+                        />
+                    </div>
+                    <div>
                         <label className="block text-sm font-medium mb-1">Password</label>
                         <input
                             type="password"
@@ -126,6 +151,9 @@ export function Signup() {
                 </form>
                 <div className="mt-4 text-center text-sm text-gray-600">
                     Already have an account? <a href="/login" className="text-blue-600 hover:underline">Log in</a>
+                </div>
+                <div className="mt-3 text-xs text-gray-500 text-center">
+                    Have a promo code from a KOL or campaign? Enter it above to unlock the matching free access offer.
                 </div>
                 <div className="mt-6 text-xs text-gray-500 text-center">
                     By signing up, you agree to our <a href="https://syntraeai.com/terms" className="text-blue-600 hover:underline">Terms</a> and <a href="https://syntraeai.com/privacy" className="text-blue-600 hover:underline">Privacy Policy</a>.

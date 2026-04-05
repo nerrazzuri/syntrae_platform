@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { randomBytes } from 'crypto';
 import { Prisma } from '@syntrae/prisma-schema';
+import { getPlanDefinition, normalizePlanCode } from '@syntrae/commercial-plans';
 import { prisma } from '../db';
 import { AdminAuthService } from '../services/admin_auth.service';
 import { requireAdmin } from '../middleware/admin_auth';
@@ -18,6 +19,11 @@ function normalizeBillingInterval(value: unknown): string {
 
 function generateVoucherCode() {
     return `SYN-${randomBytes(4).toString('hex').toUpperCase()}`;
+}
+
+function normalizeVoucherCode(value: unknown) {
+    const raw = String(value || '').trim().toUpperCase();
+    return raw.replace(/[^A-Z0-9_-]/g, '');
 }
 
 function serializeAdmin(admin: any) {
@@ -630,33 +636,115 @@ router.get('/policies', requireAdmin, async (req, res) => {
 });
 
 router.get('/billing', requireAdmin, async (_req, res) => {
-    const items = await prisma.account.findMany({
-        take: 100,
-        orderBy: { created_at: 'desc' },
-        include: {
-            subscription: true,
-            _count: {
-                select: {
-                    brands: true,
-                    installs: true,
-                    leads: true,
-                }
-            },
-            usage_counters: {
-                take: 20,
-                orderBy: { period_start: 'desc' },
-                select: {
-                    metric_code: true,
-                    period_type: true,
-                    period_start: true,
-                    current_value: true,
-                    blocked_at: true,
-                    block_reason_code: true,
+    const [items, vouchers] = await Promise.all([
+        prisma.account.findMany({
+            take: 100,
+            orderBy: { created_at: 'desc' },
+            include: {
+                subscription: true,
+                _count: {
+                    select: {
+                        brands: true,
+                        installs: true,
+                        leads: true,
+                    }
+                },
+                usage_counters: {
+                    take: 20,
+                    orderBy: { period_start: 'desc' },
+                    select: {
+                        metric_code: true,
+                        period_type: true,
+                        period_start: true,
+                        current_value: true,
+                        blocked_at: true,
+                        block_reason_code: true,
+                    }
                 }
             }
-        }
+        }),
+        prisma.promoVoucher.findMany({
+            take: 100,
+            orderBy: { created_at: 'desc' },
+        }),
+    ]);
+    res.json({ items, vouchers });
+});
+
+router.get('/vouchers', requireAdmin, async (_req, res) => {
+    const items = await prisma.promoVoucher.findMany({
+        take: 100,
+        orderBy: { created_at: 'desc' },
     });
     res.json({ items });
+});
+
+router.post('/vouchers', requireAdmin, async (req, res) => {
+    const requestedCode = normalizeVoucherCode(req.body?.code);
+    const label = String(req.body?.label || '').trim();
+    const note = String(req.body?.note || '').trim();
+    const durationDays = Math.max(1, Number(req.body?.duration_days || 30));
+    const maxRedemptionsRaw = Number(req.body?.max_redemptions || 0);
+    const maxRedemptions = Number.isFinite(maxRedemptionsRaw) && maxRedemptionsRaw > 0 ? Math.floor(maxRedemptionsRaw) : null;
+    const billingInterval = normalizeBillingInterval(req.body?.billing_interval);
+    const planCode = normalizePlanCode(String(req.body?.plan_code || 'STARTER').trim().toUpperCase());
+    const plan = getPlanDefinition(planCode);
+    const code = requestedCode || generateVoucherCode();
+
+    const voucher = await prisma.promoVoucher.create({
+        data: {
+            code,
+            label: label || null,
+            plan_code: plan.code,
+            billing_interval: billingInterval,
+            duration_days: durationDays,
+            max_redemptions: maxRedemptions,
+            note: note || null,
+            created_by_admin_id: req.admin!.id,
+        }
+    });
+
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'CREATE_PROMO_VOUCHER',
+            resource: 'PromoVoucher',
+            resource_id: voucher.id,
+            meta: JSON.stringify({
+                code: voucher.code,
+                label: voucher.label,
+                plan_code: voucher.plan_code,
+                billing_interval: voucher.billing_interval,
+                duration_days: voucher.duration_days,
+                max_redemptions: voucher.max_redemptions,
+            }),
+            ip: req.ip || 'unknown',
+        }
+    });
+
+    res.json({ status: 'ok', voucher });
+});
+
+router.post('/vouchers/:id/disable', requireAdmin, async (req, res) => {
+    const voucher = await prisma.promoVoucher.update({
+        where: { id: req.params.id },
+        data: { status: 'DISABLED' },
+    });
+
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'DISABLE_PROMO_VOUCHER',
+            resource: 'PromoVoucher',
+            resource_id: voucher.id,
+            meta: JSON.stringify({ code: voucher.code }),
+            ip: req.ip || 'unknown',
+        }
+    });
+
+    res.json({ status: 'ok', voucher });
 });
 
 router.post('/workspaces/:id/force-stop-runs', requireAdmin, async (req, res) => {
