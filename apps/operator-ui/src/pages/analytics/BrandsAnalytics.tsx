@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 
@@ -16,7 +15,7 @@ export const BrandsAnalytics = () => {
         try {
             const end = new Date();
             const start = new Date();
-            start.setDate(end.getDate() - parseInt(range));
+            start.setDate(end.getDate() - parseInt(range, 10));
 
             const res = await api.analytics.getBrands({
                 from: start.toISOString(),
@@ -32,13 +31,15 @@ export const BrandsAnalytics = () => {
 
     if (loading && brands.length === 0) return <div className="p-8">Loading brands...</div>;
 
-    // Find max for scaling bars
     const maxLeads = Math.max(...brands.map(b => b.metrics.total_leads), 1);
 
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold tracking-tight">Brand Performance</h1>
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight">Brand Performance</h1>
+                    <p className="text-sm text-gray-500">Compare which brands turn comment demand into worked pipeline and revenue.</p>
+                </div>
                 <select
                     value={range}
                     onChange={e => setRange(e.target.value)}
@@ -55,9 +56,11 @@ export const BrandsAnalytics = () => {
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Leads</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qualified</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Conv. Rate</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Leads</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contacted</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Converted</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Conversion Rate</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Top Intent</th>
                         </tr>
                     </thead>
@@ -65,10 +68,7 @@ export const BrandsAnalytics = () => {
                         {brands.map((brand) => (
                             <tr key={brand.id}>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="flex items-center">
-                                        <div className="text-sm font-medium text-gray-900">{brand.name}</div>
-                                    </div>
-                                    {/* Mini Bar Chart */}
+                                    <div className="text-sm font-medium text-gray-900">{brand.name}</div>
                                     <div className="w-24 mt-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
                                         <div
                                             className="bg-indigo-500 h-1.5 rounded-full"
@@ -76,14 +76,14 @@ export const BrandsAnalytics = () => {
                                         />
                                     </div>
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {brand.metrics.total_leads}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {brand.metrics.ready_leads}
-                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{brand.metrics.total_leads}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{brand.metrics.contacted_leads}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{brand.metrics.converted_leads}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     {((brand.metrics.conversion_rate || 0) * 100).toFixed(1)}%
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(brand.metrics.estimated_revenue || 0)}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     {brand.intents[0] ? (

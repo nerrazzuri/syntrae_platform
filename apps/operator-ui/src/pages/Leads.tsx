@@ -1,21 +1,81 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Client } from '../lib/api';
-import { Target, Sparkles, ShieldCheck, ExternalLink } from 'lucide-react';
+import { Target, Sparkles, ShieldCheck, ExternalLink, ArrowUpRight } from 'lucide-react';
+
+type LeadStatus = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'LOST';
+type OutcomeSource = 'MANUAL' | 'INTEGRATED' | 'ESTIMATED';
+
+interface LeadRecord {
+    id: string;
+    platform: string;
+    video_id: string;
+    comment_id: string;
+    user_handle?: string | null;
+    user_profile_url?: string | null;
+    intent: string;
+    buyer_stage: string;
+    confidence: number;
+    recommended_action: string;
+    lead_status: LeadStatus;
+    urgency_score: number;
+    source_event_id: string;
+    created_at: string;
+    followed_up_at?: string | null;
+    converted_at?: string | null;
+    deal_value?: number | null;
+    outcome_reason?: string | null;
+    outcome_source: OutcomeSource;
+    original_comment?: string | null;
+    thread_reference?: {
+        thread_url?: string | null;
+    };
+}
+
+interface UsageData {
+    features: Record<string, boolean>;
+}
+
+function formatDate(dateStr?: string | null) {
+    if (!dateStr) return 'Not set';
+    const d = new Date(dateStr);
+    return `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
+}
+
+function formatDateTimeInput(dateStr?: string | null) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const offset = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - offset * 60 * 1000);
+    return local.toISOString().slice(0, 16);
+}
+
+function currency(value?: number | null) {
+    return new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(value || 0);
+}
 
 export function Leads() {
-    const [leads, setLeads] = useState<any[]>([]);
+    const [leads, setLeads] = useState<LeadRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [total, setTotal] = useState(0);
-    const [selectedLead, setSelectedLead] = useState<any | null>(null);
+    const [selectedLead, setSelectedLead] = useState<LeadRecord | null>(null);
     const [draftGenerationLoadingId, setDraftGenerationLoadingId] = useState<string | null>(null);
+    const [savingOutcome, setSavingOutcome] = useState(false);
+    const [leadError, setLeadError] = useState<string | null>(null);
+    const [leadNotice, setLeadNotice] = useState<string | null>(null);
+    const [usage, setUsage] = useState<UsageData | null>(null);
 
     const loadData = async () => {
         try {
             setLoading(true);
-            const data = await Client.get('/leads');
-            setLeads(data.items || []);
-            setTotal(data.total || 0);
+            const [leadData, usageData] = await Promise.all([
+                Client.get('/leads'),
+                Client.get('/analytics/usage'),
+            ]);
+            setLeads(leadData.items || []);
+            setTotal(leadData.total || 0);
+            setUsage(usageData);
         } catch (e) {
             console.error(e);
         } finally {
@@ -27,18 +87,13 @@ export function Leads() {
         loadData();
     }, []);
 
-    const formatDate = (dateStr: string) => {
-        const d = new Date(dateStr);
-        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
-    };
-
-    const commentPreview = (lead: any) => {
+    const commentPreview = (lead: LeadRecord) => {
         if (lead.original_comment) return lead.original_comment;
         if (lead.comment_id) return `Comment ID: ${lead.comment_id}`;
         return 'No comment available';
     };
 
-    const stageBadge = (stage: string) => {
+    const buyerStageBadge = (stage: string) => {
         const colors: Record<string, string> = {
             AWARENESS: 'bg-sky-100 text-sky-700',
             EVALUATING: 'bg-amber-100 text-amber-700',
@@ -47,19 +102,56 @@ export function Leads() {
         return colors[stage] || 'bg-slate-100 text-slate-700';
     };
 
-    const readyCount = leads.filter(lead => lead.buyer_stage === 'READY').length;
+    const lifecycleBadge = (status: LeadStatus) => {
+        const colors: Record<LeadStatus, string> = {
+            NEW: 'bg-slate-100 text-slate-700',
+            CONTACTED: 'bg-indigo-100 text-indigo-700',
+            QUALIFIED: 'bg-teal-100 text-teal-700',
+            CONVERTED: 'bg-emerald-100 text-emerald-700',
+            LOST: 'bg-rose-100 text-rose-700',
+        };
+        return colors[status];
+    };
+
+    const highIntentCount = useMemo(() => leads.filter((lead) => lead.buyer_stage === 'READY' || lead.recommended_action === 'PRIORITY_DM').length, [leads]);
+    const convertedCount = useMemo(() => leads.filter((lead) => lead.lead_status === 'CONVERTED').length, [leads]);
+    const revenueTotal = useMemo(() => leads.reduce((sum, lead) => sum + Number(lead.deal_value || 0), 0), [leads]);
 
     const generateReply = async (leadId: string) => {
         setDraftGenerationLoadingId(leadId);
+        setLeadError(null);
         try {
             await Client.post(`/leads/${leadId}/draft`, {});
             window.location.href = '/replies';
         } catch (e: any) {
-            alert(e.message || 'Failed to generate reply');
+            setLeadError(e.message || 'Failed to generate reply');
         } finally {
             setDraftGenerationLoadingId(null);
         }
     };
+
+    const refreshSelectedLead = (leadId: string, updatedLead: LeadRecord) => {
+        setLeads((current) => current.map((lead) => (lead.id === leadId ? updatedLead : lead)));
+        setSelectedLead(updatedLead);
+    };
+
+    const updateLeadOutcome = async (updates: Partial<LeadRecord>) => {
+        if (!selectedLead) return;
+        setSavingOutcome(true);
+        setLeadError(null);
+        setLeadNotice(null);
+        try {
+            const updated = await Client.patch(`/leads/${selectedLead.id}/outcome`, updates);
+            refreshSelectedLead(selectedLead.id, updated);
+            setLeadNotice('Lead outcome updated.');
+        } catch (e: any) {
+            setLeadError(e.message || 'Failed to update lead outcome');
+        } finally {
+            setSavingOutcome(false);
+        }
+    };
+
+    const exportLocked = usage ? !usage.features.exportEnabled : false;
 
     return (
         <div className="space-y-6">
@@ -67,36 +159,58 @@ export function Leads() {
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                     <div>
                         <div className="hero-kicker">Lead Opportunities</div>
-                        <h1 className="hero-title mt-3">Focus on potential buyers, not just activity.</h1>
+                        <h1 className="hero-title mt-3">Move leads from captured comments to commercial outcomes.</h1>
                         <p className="hero-copy">
-                            Each row below is a buyer-signal record tied back to the original comment so the operator can judge urgency without guessing.
+                            Treat each lead as a pipeline record: review the original comment, decide whether it was contacted,
+                            and record conversion value when it turns into revenue.
                         </p>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-3">
                         <div className="metric-panel min-w-[180px]">
                             <div className="text-sm font-semibold text-slate-500">Total Leads</div>
                             <div className="mt-2 text-3xl font-bold">{total}</div>
                         </div>
                         <div className="metric-panel min-w-[180px]">
-                            <div className="text-sm font-semibold text-slate-500">Ready to Buy</div>
-                            <div className="mt-2 text-3xl font-bold">{readyCount}</div>
+                            <div className="text-sm font-semibold text-slate-500">High-Intent</div>
+                            <div className="mt-2 text-3xl font-bold">{highIntentCount}</div>
+                        </div>
+                        <div className="metric-panel min-w-[180px]">
+                            <div className="text-sm font-semibold text-slate-500">Reported Value</div>
+                            <div className="mt-2 text-3xl font-bold">{currency(revenueTotal)}</div>
                         </div>
                     </div>
                 </div>
             </section>
 
+            {exportLocked && highIntentCount > 0 && (
+                <section className="panel border border-amber-200 bg-amber-50 p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                            <div className="text-sm font-semibold text-amber-900">Export is locked on the current plan</div>
+                            <p className="mt-2 text-sm leading-6 text-amber-800">
+                                You already have {highIntentCount} high-intent leads in the queue. Upgrade to Growth to export qualified leads and work them outside the console.
+                            </p>
+                        </div>
+                        <Link to="/billing" className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900">
+                            View upgrade options
+                            <ArrowUpRight className="h-4 w-4" />
+                        </Link>
+                    </div>
+                </section>
+            )}
+
             <section className="grid gap-4 md:grid-cols-3">
                 <div className="panel flex items-center gap-3 p-5">
                     <Target className="h-5 w-5 text-teal-700" />
-                    <div className="text-sm text-slate-600">The original comment stays primary. IDs are secondary metadata.</div>
+                    <div className="text-sm text-slate-600">The original comment stays primary. IDs are only supporting metadata.</div>
                 </div>
                 <div className="panel flex items-center gap-3 p-5">
                     <Sparkles className="h-5 w-5 text-amber-600" />
-                    <div className="text-sm text-slate-600">Lead stage should help the operator choose outreach speed, not replace judgment.</div>
+                    <div className="text-sm text-slate-600">Lead status should reflect actual operator follow-up, not just model classification.</div>
                 </div>
                 <div className="panel flex items-center gap-3 p-5">
                     <ShieldCheck className="h-5 w-5 text-emerald-700" />
-                    <div className="text-sm text-slate-600">Confidence is shown as a signal weight, not as a guarantee.</div>
+                    <div className="text-sm text-slate-600">Deal value is manual first, so revenue reporting stays honest even without full CRM sync.</div>
                 </div>
             </section>
 
@@ -110,11 +224,11 @@ export function Leads() {
                         <thead className="table-head border-b border-slate-200">
                             <tr>
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Platform</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Video</th>
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Original Comment</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Intent</th>
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Stage</th>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Lifecycle</th>
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Confidence</th>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Deal Value</th>
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Created</th>
                                 <th className="px-4 py-4"></th>
                             </tr>
@@ -127,17 +241,23 @@ export function Leads() {
                                     onClick={() => setSelectedLead(lead)}
                                 >
                                     <td className="px-4 py-4 text-sm font-semibold uppercase text-slate-600">{lead.platform}</td>
-                                    <td className="px-4 py-4 text-xs font-mono text-slate-500">{lead.video_id?.substring(0, 16)}...</td>
                                     <td className="px-4 py-4 max-w-md text-sm text-slate-800">
                                         <div className="line-clamp-2" title={commentPreview(lead)}>
                                             {commentPreview(lead)}
                                         </div>
-                                        {lead.user_handle && <div className="mt-2 text-xs text-slate-500">@{lead.user_handle}</div>}
+                                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                            {lead.user_handle && <span>@{lead.user_handle}</span>}
+                                            <span>{lead.intent || 'N/A'}</span>
+                                        </div>
                                     </td>
-                                    <td className="px-4 py-4 text-sm font-semibold text-slate-700">{lead.intent || 'N/A'}</td>
                                     <td className="px-4 py-4 text-sm">
-                                        <span className={`status-pill ${stageBadge(lead.buyer_stage)}`}>
+                                        <span className={`status-pill ${buyerStageBadge(lead.buyer_stage)}`}>
                                             {lead.buyer_stage}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-4 text-sm">
+                                        <span className={`status-pill ${lifecycleBadge(lead.lead_status)}`}>
+                                            {lead.lead_status}
                                         </span>
                                     </td>
                                     <td className="px-4 py-4 text-sm">
@@ -145,6 +265,7 @@ export function Leads() {
                                             {(lead.confidence * 100).toFixed(0)}%
                                         </span>
                                     </td>
+                                    <td className="px-4 py-4 text-sm whitespace-nowrap text-slate-700">{lead.deal_value != null ? currency(lead.deal_value) : 'Not set'}</td>
                                     <td className="px-4 py-4 text-sm whitespace-nowrap text-slate-500">{formatDate(lead.created_at)}</td>
                                     <td className="px-4 py-4 text-right">
                                         <div className="flex items-center justify-end gap-2">
@@ -173,42 +294,28 @@ export function Leads() {
             </section>
 
             {selectedLead && (
-                <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4"
-                    onClick={() => setSelectedLead(null)}
-                >
-                    <div
-                        className="panel-strong max-h-[80vh] w-full max-w-3xl overflow-auto"
-                        onClick={(e) => e.stopPropagation()}
-                    >
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4" onClick={() => setSelectedLead(null)}>
+                    <div className="panel-strong max-h-[85vh] w-full max-w-4xl overflow-auto" onClick={(e) => e.stopPropagation()}>
                         <div className="border-b border-slate-200 p-6">
                             <div className="hero-kicker">Lead Detail</div>
-                            <h3 className="mt-2 text-xl font-bold">Buyer-signal review</h3>
+                            <h3 className="mt-2 text-xl font-bold">Buyer-signal and outcome review</h3>
                         </div>
                         <div className="space-y-5 p-6">
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <DetailField label="Platform" value={selectedLead.platform} />
-                                <DetailField
-                                    label="Buyer Stage"
-                                    value={<span className={`status-pill ${stageBadge(selectedLead.buyer_stage)}`}>{selectedLead.buyer_stage}</span>}
-                                />
-                                <DetailField label="Intent" value={selectedLead.intent || 'N/A'} />
+                            {leadError && <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{leadError}</div>}
+                            {leadNotice && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{leadNotice}</div>}
+
+                            <div className="grid gap-4 md:grid-cols-3">
+                                <DetailField label="Buyer Stage" value={<span className={`status-pill ${buyerStageBadge(selectedLead.buyer_stage)}`}>{selectedLead.buyer_stage}</span>} />
+                                <DetailField label="Lifecycle Status" value={<span className={`status-pill ${lifecycleBadge(selectedLead.lead_status)}`}>{selectedLead.lead_status}</span>} />
                                 <DetailField label="Confidence" value={`${(selectedLead.confidence * 100).toFixed(1)}%`} />
                             </div>
 
-                            <DetailField label="Video ID" value={<div className="font-mono text-sm">{selectedLead.video_id}</div>} />
                             <DetailField label="Original Comment" value={<div className="whitespace-pre-wrap text-sm leading-7">{commentPreview(selectedLead)}</div>} />
-                            <DetailField label="Comment ID" value={<div className="font-mono text-sm">{selectedLead.comment_id}</div>} />
                             {selectedLead.thread_reference?.thread_url && (
                                 <DetailField
                                     label="Original Thread"
                                     value={
-                                        <a
-                                            href={selectedLead.thread_reference.thread_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-2 text-sm font-semibold text-teal-700"
-                                        >
+                                        <a href={selectedLead.thread_reference.thread_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-teal-700">
                                             <ExternalLink className="h-4 w-4" />
                                             Open original post or thread
                                         </a>
@@ -216,49 +323,103 @@ export function Leads() {
                                 />
                             )}
 
-                            {selectedLead.user_handle && (
-                                <DetailField
-                                    label="User"
-                                    value={
-                                        <div className="text-sm">
-                                            @{selectedLead.user_handle}
-                                            {selectedLead.user_profile_url && (
-                                                <a
-                                                    href={selectedLead.user_profile_url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="ml-2 font-semibold text-teal-700"
-                                                >
-                                                    View Profile
-                                                </a>
-                                            )}
-                                        </div>
-                                    }
-                                />
-                            )}
-
                             <div className="grid gap-4 md:grid-cols-2">
-                                <DetailField label="Recommended Action" value={selectedLead.recommended_action || 'N/A'} />
-                                <DetailField label="Created At" value={formatDate(selectedLead.created_at)} />
+                                <label className="panel p-4">
+                                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Lead Status</div>
+                                    <select
+                                        className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2.5"
+                                        value={selectedLead.lead_status}
+                                        onChange={(e) => setSelectedLead({ ...selectedLead, lead_status: e.target.value as LeadStatus })}
+                                    >
+                                        <option value="NEW">New</option>
+                                        <option value="CONTACTED">Contacted</option>
+                                        <option value="QUALIFIED">Qualified</option>
+                                        <option value="CONVERTED">Converted</option>
+                                        <option value="LOST">Lost</option>
+                                    </select>
+                                </label>
+                                <label className="panel p-4">
+                                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Outcome Source</div>
+                                    <select
+                                        className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2.5"
+                                        value={selectedLead.outcome_source || 'MANUAL'}
+                                        onChange={(e) => setSelectedLead({ ...selectedLead, outcome_source: e.target.value as OutcomeSource })}
+                                    >
+                                        <option value="MANUAL">Manual</option>
+                                        <option value="INTEGRATED">Integrated</option>
+                                        <option value="ESTIMATED">Estimated</option>
+                                    </select>
+                                </label>
+                                <label className="panel p-4">
+                                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Followed Up At</div>
+                                    <input
+                                        type="datetime-local"
+                                        className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2.5"
+                                        value={formatDateTimeInput(selectedLead.followed_up_at)}
+                                        onChange={(e) => setSelectedLead({ ...selectedLead, followed_up_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                                    />
+                                </label>
+                                <label className="panel p-4">
+                                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Converted At</div>
+                                    <input
+                                        type="datetime-local"
+                                        className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2.5"
+                                        value={formatDateTimeInput(selectedLead.converted_at)}
+                                        onChange={(e) => setSelectedLead({ ...selectedLead, converted_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                                    />
+                                </label>
+                                <label className="panel p-4">
+                                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Deal Value (MYR)</div>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2.5"
+                                        value={selectedLead.deal_value ?? ''}
+                                        onChange={(e) => setSelectedLead({ ...selectedLead, deal_value: e.target.value ? Number(e.target.value) : null })}
+                                    />
+                                </label>
+                                <label className="panel p-4 md:col-span-2">
+                                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Outcome Note</div>
+                                    <textarea
+                                        className="mt-3 min-h-[96px] w-full rounded-xl border border-slate-200 px-3 py-2.5"
+                                        value={selectedLead.outcome_reason || ''}
+                                        onChange={(e) => setSelectedLead({ ...selectedLead, outcome_reason: e.target.value })}
+                                        placeholder="Reason for outcome, conversion details, or context for the next operator."
+                                    />
+                                </label>
                             </div>
 
-                            <DetailField label="Source Event" value={<div className="font-mono text-sm text-slate-600">{selectedLead.source_event_id}</div>} />
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <DetailField label="Created At" value={formatDate(selectedLead.created_at)} />
+                                <DetailField label="Current Deal Value" value={selectedLead.deal_value != null ? currency(selectedLead.deal_value) : 'Not set'} />
+                            </div>
 
-                            <div className="flex gap-3">
+                            <div className="flex flex-wrap gap-3">
+                                <button
+                                    onClick={() => updateLeadOutcome({
+                                        lead_status: selectedLead.lead_status,
+                                        followed_up_at: selectedLead.followed_up_at,
+                                        converted_at: selectedLead.converted_at,
+                                        deal_value: selectedLead.deal_value,
+                                        outcome_reason: selectedLead.outcome_reason,
+                                        outcome_source: selectedLead.outcome_source,
+                                    })}
+                                    disabled={savingOutcome}
+                                    className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
+                                >
+                                    {savingOutcome ? 'Saving...' : 'Save Outcome'}
+                                </button>
                                 <button
                                     onClick={() => generateReply(selectedLead.id)}
                                     disabled={draftGenerationLoadingId === selectedLead.id}
-                                    className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
+                                    className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-teal-700 transition hover:bg-teal-50"
                                 >
                                     {draftGenerationLoadingId === selectedLead.id ? 'Generating...' : 'Generate Reply'}
                                 </button>
                             </div>
                         </div>
                         <div className="border-t border-slate-200 p-6 text-right">
-                            <button
-                                onClick={() => setSelectedLead(null)}
-                                className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                            >
+                            <button onClick={() => setSelectedLead(null)} className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                                 Close
                             </button>
                         </div>

@@ -594,6 +594,24 @@ class RecommendedAction(str, enum.Enum):
     PRIORITY_DM = "PRIORITY_DM"
 
 
+class LeadStatus(str, enum.Enum):
+    """Operator-confirmed commercial lifecycle for a lead."""
+
+    NEW = "NEW"
+    CONTACTED = "CONTACTED"
+    QUALIFIED = "QUALIFIED"
+    CONVERTED = "CONVERTED"
+    LOST = "LOST"
+
+
+class OutcomeSource(str, enum.Enum):
+    """How a commercial outcome was recorded."""
+
+    MANUAL = "MANUAL"
+    INTEGRATED = "INTEGRATED"
+    ESTIMATED = "ESTIMATED"
+
+
 class LeadOpportunity(Base):
     """Lead opportunity model for qualified buyer interception."""
 
@@ -658,11 +676,25 @@ class LeadOpportunity(Base):
         Enum(RecommendedAction, name="RecommendedAction", schema="core", create_type=False),
         nullable=False
     )
+    lead_status = Column(
+        Enum(LeadStatus, name="LeadStatus", schema="core", create_type=False),
+        nullable=False,
+        default=LeadStatus.NEW,
+    )
     urgency_score = Column(postgresql.DOUBLE_PRECISION, default=0.0)
     risk_level = Column(String(20), default="LOW")
     source_event_id = Column(String(36), nullable=False)  # ID from EngagementEvent
     account_id = Column(String(36), nullable=False)  # Tenant/Account ownership
     created_at = Column(DateTime, default=func.now())
+    followed_up_at = Column(DateTime, nullable=True)
+    converted_at = Column(DateTime, nullable=True)
+    deal_value = Column(postgresql.DOUBLE_PRECISION, nullable=True)
+    outcome_reason = Column(Text, nullable=True)
+    outcome_source = Column(
+        Enum(OutcomeSource, name="OutcomeSource", schema="core", create_type=False),
+        nullable=False,
+        default=OutcomeSource.MANUAL,
+    )
 
     brand_id = Column(String(36), ForeignKey("core.Brand.id"), nullable=False)
     brand = relationship("Brand", back_populates="leads")

@@ -1,15 +1,25 @@
-import { prisma } from '../db';
+import { prisma, LeadStatus, OutcomeSource } from '../db';
 import { OwnerSettingsService } from './owner/owner_settings_service';
 import { buildThreadReference } from '../utils/thread_reference';
 
 export interface LeadFilters {
     buyer_stage?: 'AWARENESS' | 'EVALUATING' | 'READY';
     recommended_action?: 'SILENT_CAPTURE' | 'RECOMMEND_DM' | 'PRIORITY_DM';
+    lead_status?: 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'LOST';
     min_confidence?: number;
     platform?: string;
     brand_id?: string; // Phase 37.4
     created_after?: string;
     created_before?: string;
+}
+
+export interface LeadOutcomeUpdateInput {
+    lead_status?: LeadStatus;
+    followed_up_at?: string | null;
+    converted_at?: string | null;
+    deal_value?: number | null;
+    outcome_reason?: string | null;
+    outcome_source?: OutcomeSource;
 }
 
 export class LeadService {
@@ -26,6 +36,7 @@ export class LeadService {
         if (filters.brand_id) where.brand_id = filters.brand_id;
         if (filters.buyer_stage) where.buyer_stage = filters.buyer_stage;
         if (filters.recommended_action) where.recommended_action = filters.recommended_action;
+        if (filters.lead_status) where.lead_status = filters.lead_status;
         if (filters.platform) where.platform = filters.platform;
 
         if (filters.min_confidence) {
@@ -57,8 +68,14 @@ export class LeadService {
                     buyer_stage: true,
                     confidence: true,
                     recommended_action: true,
+                    lead_status: true,
                     urgency_score: true,
                     risk_level: true,
+                    followed_up_at: true,
+                    converted_at: true,
+                    deal_value: true,
+                    outcome_reason: true,
+                    outcome_source: true,
                     source_event_id: true,
                     created_at: true,
                     event: {
@@ -100,6 +117,14 @@ export class LeadService {
                         content_text: true,
                         metadata: true,
                     }
+                },
+                drafts: {
+                    select: {
+                        id: true,
+                        status: true,
+                        created_at: true,
+                        sent_at: true,
+                    }
                 }
             }
         });
@@ -137,6 +162,7 @@ export class LeadService {
         if (filters.brand_id) where.brand_id = filters.brand_id;
         if (filters.buyer_stage) where.buyer_stage = filters.buyer_stage;
         if (filters.recommended_action) where.recommended_action = filters.recommended_action;
+        if (filters.lead_status) where.lead_status = filters.lead_status;
         if (filters.platform) where.platform = filters.platform;
         if (filters.min_confidence) where.confidence = { gte: filters.min_confidence };
 
@@ -159,7 +185,13 @@ export class LeadService {
                 intent: true,
                 confidence: true,
                 recommended_action: true,
+                lead_status: true,
                 urgency_score: true,
+                followed_up_at: true,
+                converted_at: true,
+                deal_value: true,
+                outcome_reason: true,
+                outcome_source: true,
                 user_handle: true,
                 user_profile_url: true,
                 video_id: true,
@@ -281,5 +313,83 @@ export class LeadService {
                 }
             }
         });
+    }
+
+    static async updateOutcome(accountId: string, leadId: string, updates: LeadOutcomeUpdateInput) {
+        const lead = await prisma.leadOpportunity.findFirst({
+            where: { id: leadId, account_id: accountId },
+        });
+
+        if (!lead) {
+            throw new Error('Lead not found or access denied');
+        }
+
+        const nextStatus = updates.lead_status ?? lead.lead_status;
+        const followedUpAt = updates.followed_up_at === undefined
+            ? lead.followed_up_at
+            : updates.followed_up_at === null
+                ? null
+                : new Date(updates.followed_up_at);
+        const convertedAt = updates.converted_at === undefined
+            ? lead.converted_at
+            : updates.converted_at === null
+                ? null
+                : new Date(updates.converted_at);
+        const dealValue = updates.deal_value === undefined ? lead.deal_value : updates.deal_value;
+        const outcomeReason = updates.outcome_reason === undefined ? lead.outcome_reason : updates.outcome_reason;
+        const outcomeSource = updates.outcome_source ?? lead.outcome_source;
+
+        if (nextStatus === LeadStatus.CONTACTED && !followedUpAt) {
+            throw new Error('Contacted leads require a follow-up timestamp');
+        }
+        if (nextStatus === LeadStatus.CONVERTED) {
+            if (!convertedAt) throw new Error('Converted leads require a conversion timestamp');
+            if (dealValue == null || Number(dealValue) < 0) throw new Error('Converted leads require a non-negative deal value');
+        }
+        if (nextStatus === LeadStatus.LOST && !outcomeReason?.trim()) {
+            throw new Error('Lost leads require an outcome reason');
+        }
+
+        const updated = await prisma.leadOpportunity.update({
+            where: { id: leadId },
+            data: {
+                lead_status: nextStatus,
+                followed_up_at: followedUpAt,
+                converted_at: convertedAt,
+                deal_value: dealValue == null ? null : Number(dealValue),
+                outcome_reason: outcomeReason?.trim() || null,
+                outcome_source: outcomeSource,
+            },
+            include: {
+                event: {
+                    select: {
+                        content_text: true,
+                        metadata: true,
+                    }
+                },
+                drafts: {
+                    select: {
+                        id: true,
+                        status: true,
+                        created_at: true,
+                        sent_at: true,
+                    }
+                }
+            }
+        });
+
+        const { event, ...rest } = updated;
+        return {
+            ...rest,
+            original_comment: event?.content_text || null,
+            thread_reference: buildThreadReference({
+                platform: rest.platform,
+                videoId: rest.video_id,
+                commentId: rest.comment_id,
+                userHandle: rest.user_handle,
+                userProfileUrl: rest.user_profile_url,
+                metadata: event?.metadata,
+            })
+        };
     }
 }

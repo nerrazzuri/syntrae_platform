@@ -17,6 +17,7 @@ router.get('/', async (req: Request, res: Response) => {
         const filters: LeadFilters = {
             buyer_stage: req.query.buyer_stage as any,
             recommended_action: req.query.recommended_action as any,
+            lead_status: req.query.lead_status as any,
             platform: req.query.platform as string,
             created_after: req.query.created_after as string,
             created_before: req.query.created_before as string,
@@ -45,6 +46,7 @@ router.get('/export', async (req: Request, res: Response) => {
         const filters: LeadFilters = {
             buyer_stage: req.query.buyer_stage as any,
             recommended_action: req.query.recommended_action as any,
+            lead_status: req.query.lead_status as any,
             platform: req.query.platform as string,
         };
         if (req.query.min_confidence) {
@@ -57,11 +59,17 @@ router.get('/export', async (req: Request, res: Response) => {
         // Columns: platform, buyer_stage, intent, confidence, recommended_action, urgency_score, user_handle, video_id, comment_id, original_comment, created_at
         const headers = [
             'platform',
+            'lead_status',
             'buyer_stage',
             'intent',
             'confidence',
             'recommended_action',
             'urgency_score',
+            'followed_up_at',
+            'converted_at',
+            'deal_value',
+            'outcome_reason',
+            'outcome_source',
             'user_handle',
             'user_profile_url',
             'video_id',
@@ -80,11 +88,17 @@ router.get('/export', async (req: Request, res: Response) => {
         for (const lead of leads) {
             const row = [
                 lead.platform,
+                lead.lead_status,
                 lead.buyer_stage,
                 lead.intent,
                 lead.confidence.toFixed(2),
                 lead.recommended_action,
                 lead.urgency_score.toFixed(2),
+                lead.followed_up_at ? lead.followed_up_at.toISOString() : '',
+                lead.converted_at ? lead.converted_at.toISOString() : '',
+                lead.deal_value ?? '',
+                `"${String(lead.outcome_reason || '').replace(/"/g, '""')}"`,
+                lead.outcome_source,
                 `"${(lead.user_handle || '').replace(/"/g, '""')}"`, // Escape quotes
                 lead.user_profile_url || '',
                 lead.video_id,
@@ -146,6 +160,22 @@ router.post('/:id/draft', async (req: Request, res: Response) => {
         } else {
             res.status(500).json({ error: 'Failed to generate draft: ' + err.message });
         }
+    }
+});
+
+router.patch('/:id/outcome', async (req: Request, res: Response) => {
+    try {
+        const accountId = req.activeWorkspaceId!;
+        const leadId = req.params.id;
+        const lead = await LeadService.updateOutcome(accountId, leadId, req.body || {});
+        res.json(lead);
+    } catch (err: any) {
+        console.error('[Leads] Outcome Update Error:', err);
+        if (err.message?.includes('not found')) {
+            res.status(404).json({ error: err.message });
+            return;
+        }
+        res.status(400).json({ error: err.message || 'Failed to update lead outcome' });
     }
 });
 

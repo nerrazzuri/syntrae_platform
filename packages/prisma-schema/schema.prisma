@@ -477,6 +477,24 @@ enum RecommendedAction {
   @@schema("core")
 }
 
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  LOST
+
+  @@schema("core")
+}
+
+enum OutcomeSource {
+  MANUAL
+  INTEGRATED
+  ESTIMATED
+
+  @@schema("core")
+}
+
 model LeadOpportunity {
   id                String            @id @default(uuid())
   platform          String
@@ -489,10 +507,16 @@ model LeadOpportunity {
   confidence        Float
   preferences       Json?
   recommended_action RecommendedAction
+  lead_status       LeadStatus        @default(NEW)
   urgency_score     Float             @default(0.0)
   risk_level        String            @default("LOW") // LOW, MEDIUM, HIGH
   source_event_id   String
   account_id        String
+  followed_up_at    DateTime?
+  converted_at      DateTime?
+  deal_value        Float?
+  outcome_reason    String?
+  outcome_source    OutcomeSource     @default(MANUAL)
 
   created_at        DateTime          @default(now())
 
@@ -511,6 +535,8 @@ model LeadOpportunity {
 
   @@unique([platform, comment_id])
   @@index([brand_id])
+  @@index([account_id, lead_status, created_at])
+  @@index([account_id, converted_at])
   @@schema("core")
 }
 

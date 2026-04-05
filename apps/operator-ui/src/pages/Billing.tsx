@@ -32,18 +32,29 @@ interface SubscriptionSummary {
     blocked: Array<{ code: string; message: string }>;
 }
 
+interface UsageSnapshot {
+    leads_captured_month: number;
+    high_intent_leads_month: number;
+    converted_leads_month: number;
+    estimated_revenue_month: number;
+    automation_runs_daily_used: number;
+    automation_runs_daily_limit: number;
+    features: Record<string, boolean>;
+}
+
 const PLAN_ORDER: PlanCode[] = ['BASIC', 'STARTER', 'GROWTH', 'PRO', 'AGENCY'];
 
 const PLAN_COPY: Record<PlanCode, string> = {
     BASIC: 'Free tier with 1 brand, 1 automation run daily, and up to 5 videos with 2 comments each.',
-    STARTER: 'Manual, single-brand starter package.',
-    GROWTH: 'Higher volume with scoring, drafts, and exports.',
-    PRO: 'Rule-ready automation for up to 3 brands, each with its own active market strategy.',
-    AGENCY: 'Multi-brand, team-aware package for client isolation.',
+    STARTER: 'Single-brand comment-to-lead workflow with manual review and lightweight automation.',
+    GROWTH: 'Higher-volume lead handling with exports, scoring, and assisted reply drafting.',
+    PRO: 'Automation-ready, multi-brand workflow for teams running comment-driven pipeline.',
+    AGENCY: 'Multi-client, multi-brand operating layer with team and client isolation.',
 };
 
 export function BillingPage() {
     const [summary, setSummary] = useState<SubscriptionSummary | null>(null);
+    const [usage, setUsage] = useState<UsageSnapshot | null>(null);
     const [brands, setBrands] = useState<any[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
@@ -55,8 +66,12 @@ export function BillingPage() {
 
     const loadSummary = async () => {
         try {
-            const data = await api.get('/billing/subscription') as SubscriptionSummary;
+            const [data, usageData] = await Promise.all([
+                api.get('/billing/subscription') as Promise<SubscriptionSummary>,
+                api.analytics.getUsage() as Promise<UsageSnapshot>,
+            ]);
             setSummary(data);
+            setUsage(usageData);
             setBillingInterval(data.billing_interval || 'MONTHLY');
             setSelectedIntervals(() => {
                 const next: Partial<Record<PlanCode, BillingInterval>> = {};
@@ -157,6 +172,21 @@ export function BillingPage() {
 
     if (!summary) return <div className="p-8">Loading subscription...</div>;
 
+    const upgradePrompts = usage ? [
+        !usage.features.exportEnabled && usage.high_intent_leads_month >= 3
+            ? `You captured ${usage.high_intent_leads_month} high-intent leads this month. Upgrade to Growth to export and work them outside Syntrae.`
+            : null,
+        !usage.features.assistedReplyDrafts && usage.high_intent_leads_month >= 3
+            ? 'Upgrade to Growth to turn qualified leads into assisted reply drafts faster.'
+            : null,
+        usage.automation_runs_daily_limit > 0 && usage.automation_runs_daily_used >= usage.automation_runs_daily_limit && summary.plan_code !== 'PRO' && summary.plan_code !== 'AGENCY'
+            ? 'Your workspace is hitting daily automation limits. Upgrade to Pro to scale multi-brand workflows.'
+            : null,
+        usage.converted_leads_month > 0 && summary.plan_code !== 'AGENCY'
+            ? `This workspace already reports ${usage.converted_leads_month} converted leads${usage.estimated_revenue_month ? ` and ${new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(usage.estimated_revenue_month)} in value` : ''}. Consider a higher plan before manual work becomes the bottleneck.`
+            : null,
+    ].filter(Boolean) as string[] : [];
+
     if (brands.length > 0) {
         return (
             <div className="p-8 max-w-2xl mx-auto">
@@ -228,7 +258,40 @@ export function BillingPage() {
                         <div className="text-xl font-bold">{summary.usage.automation_runs_daily.used} / {summary.usage.automation_runs_daily.limit}</div>
                     </div>
                 </div>
+                {usage && (
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4 text-sm">
+                        <div className="rounded border p-4">
+                            <div className="text-gray-500">Leads This Month</div>
+                            <div className="text-xl font-bold">{usage.leads_captured_month}</div>
+                        </div>
+                        <div className="rounded border p-4">
+                            <div className="text-gray-500">High-Intent Leads</div>
+                            <div className="text-xl font-bold">{usage.high_intent_leads_month}</div>
+                        </div>
+                        <div className="rounded border p-4">
+                            <div className="text-gray-500">Converted Leads</div>
+                            <div className="text-xl font-bold">{usage.converted_leads_month}</div>
+                        </div>
+                        <div className="rounded border p-4">
+                            <div className="text-gray-500">Reported Deal Value</div>
+                            <div className="text-xl font-bold">
+                                {new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(usage.estimated_revenue_month || 0)}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
+
+            {upgradePrompts.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded p-6">
+                    <h2 className="text-lg font-semibold text-amber-800 mb-3">Upgrade Opportunities</h2>
+                    <div className="space-y-2 text-sm text-amber-900">
+                        {upgradePrompts.map((message) => (
+                            <div key={message}>{message}</div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className="bg-white p-6 rounded shadow">
                 <div className="flex items-center justify-between gap-4 mb-4">
