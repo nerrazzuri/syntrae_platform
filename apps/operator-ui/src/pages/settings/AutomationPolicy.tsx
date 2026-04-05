@@ -20,6 +20,24 @@ interface Policy {
     notes?: string;
 }
 
+function statusBadge(status: Policy['status']) {
+    if (status === 'ACTIVE') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+    if (status === 'PAUSED') return 'bg-amber-100 text-amber-800 border-amber-200';
+    if (status === 'DRAFT') return 'bg-slate-100 text-slate-700 border-slate-200';
+    return 'bg-slate-100 text-slate-500 border-slate-200';
+}
+
+function modeLabel(mode: Policy['mode']) {
+    if (mode === 'SAFE') return 'Lower-risk capture profile with tighter decision gates.';
+    if (mode === 'BALANCED') return 'Balanced policy for routine discovery and lead qualification.';
+    return 'Higher-volume mode with looser capture thresholds.';
+}
+
+function numberValue(value: string) {
+    const parsed = parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export const AutomationPolicySettings: React.FC = () => {
     const { brandId } = useParams<{ brandId: string }>();
     const [policy, setPolicy] = useState<Policy | null>(null);
@@ -72,125 +90,200 @@ export const AutomationPolicySettings: React.FC = () => {
         setPolicy({ ...policy, [field]: value });
     };
 
-    if (loading) return <div>Loading Policy...</div>;
-    if (!policy) return <div>No Policy Found</div>;
+    if (loading) {
+        return <div className="p-8 text-slate-600">Loading automation policy...</div>;
+    }
+    if (!policy) {
+        return <div className="p-8 text-slate-600">No automation policy found.</div>;
+    }
 
     return (
-        <div className="p-6 max-w-4xl mx-auto bg-white shadow rounded">
-            <h2 className="text-2xl font-bold mb-4">Automation Policy</h2>
-
-            <div className="mb-6 p-4 bg-gray-50 rounded border">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <span className="text-sm text-gray-500">Current Version: {policy.version}</span>
-                        <div className="flex items-center gap-2 mt-1">
-                            <span className={`px-2 py-1 text-xs font-bold rounded ${policy.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                {policy.status}
-                            </span>
-                            <span className="text-xs font-mono">{policy.mode} MODE</span>
-                        </div>
+        <div className="mx-auto max-w-6xl px-6 py-8">
+            <div className="rounded-3xl border border-slate-200 bg-[linear-gradient(135deg,#eff6ff,#ffffff_55%,#f8fafc)] p-8 shadow-sm">
+                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Brand Safety Controls</div>
+                <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="max-w-3xl">
+                        <h1 className="text-3xl font-bold text-slate-900">Automation Policy</h1>
+                        <p className="mt-3 text-sm leading-6 text-slate-600">
+                            Control how aggressively Syntrae discovers content, filters relevance, and caps capture volume for this brand.
+                            Each save creates a new current policy version so run behavior stays auditable.
+                        </p>
                     </div>
-                    <button
-                        onClick={() => handleChange('status', policy.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE')}
-                        className={`px-4 py-2 rounded text-white font-bold ${policy.status === 'ACTIVE' ? 'bg-red-500' : 'bg-green-500'}`}
-                    >
-                        {policy.status === 'ACTIVE' ? 'PAUSE AUTOMATION' : 'ACTIVATE AUTOMATION'}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${statusBadge(policy.status)}`}>
+                            {policy.status}
+                        </span>
+                        <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                            {policy.mode} MODE
+                        </span>
+                        <button
+                            onClick={() => {
+                                setNotice(null);
+                                handleChange('status', policy.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE');
+                            }}
+                            className={`inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold text-white transition ${
+                                policy.status === 'ACTIVE'
+                                    ? 'bg-rose-600 hover:bg-rose-700'
+                                    : 'bg-emerald-600 hover:bg-emerald-700'
+                            }`}
+                        >
+                            {policy.status === 'ACTIVE' ? 'Pause Automation' : 'Activate Automation'}
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>}
+            <div className="mt-6 grid gap-4 md:grid-cols-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Version</div>
+                    <div className="mt-3 text-2xl font-bold text-slate-900">v{policy.version}</div>
+                    <p className="mt-2 text-sm text-slate-500">Current policy revision used for upcoming runs.</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Relevance Gate</div>
+                    <div className="mt-3 text-2xl font-bold text-slate-900">{policy.relevance_min_score}</div>
+                    <p className="mt-2 text-sm text-slate-500">Minimum relevance score required before capture continues.</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Intent Gate</div>
+                    <div className="mt-3 text-2xl font-bold text-slate-900">{policy.intent_min_score}</div>
+                    <p className="mt-2 text-sm text-slate-500">Minimum intent threshold for downstream lead qualification.</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Current Mode</div>
+                    <div className="mt-3 text-lg font-bold text-slate-900">{policy.mode}</div>
+                    <p className="mt-2 text-sm text-slate-500">{modeLabel(policy.mode)}</p>
+                </div>
+            </div>
+
+            {error && <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
             {notice && (
-                <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
                     {notice}
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* GATING */}
-                <section>
-                    <h3 className="text-lg font-semibold mb-3">Relevance Gates</h3>
-                    <div className="space-y-4">
+            <div className="mt-6 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+                <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Decision Gates</div>
+                            <h2 className="mt-2 text-xl font-bold text-slate-900">Relevance and intent thresholds</h2>
+                            <p className="mt-2 text-sm text-slate-600">
+                                These controls determine how strict the brand is before content becomes eligible for capture and lead evaluation.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 grid gap-5 md:grid-cols-2">
                         <label className="block">
-                            <span className="text-gray-700">Relevance Min Score (0-100)</span>
+                            <span className="text-sm font-medium text-slate-700">Relevance Min Score (0-100)</span>
                             <input
                                 type="number"
                                 value={policy.relevance_min_score}
-                                onChange={(e) => handleChange('relevance_min_score', parseInt(e.target.value))}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2"
+                                onChange={(e) => handleChange('relevance_min_score', numberValue(e.target.value))}
+                                className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
                             />
+                            <span className="mt-2 block text-xs text-slate-500">Higher values reduce noisy discovery and keep matching tighter.</span>
                         </label>
                         <label className="block">
-                            <span className="text-gray-700">Intent Min Score (0-100)</span>
+                            <span className="text-sm font-medium text-slate-700">Intent Min Score (0-100)</span>
                             <input
                                 type="number"
                                 value={policy.intent_min_score}
-                                onChange={(e) => handleChange('intent_min_score', parseInt(e.target.value))}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2"
+                                onChange={(e) => handleChange('intent_min_score', numberValue(e.target.value))}
+                                className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
                             />
+                            <span className="mt-2 block text-xs text-slate-500">Raise this if you want fewer low-confidence buying signals to pass through.</span>
                         </label>
-                        <label className="flex items-center gap-2">
+                    </div>
+
+                    <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <label className="flex items-start gap-3">
                             <input
                                 type="checkbox"
                                 checked={policy.allow_capture_seen_events}
                                 onChange={(e) => handleChange('allow_capture_seen_events', e.target.checked)}
+                                className="mt-1 h-4 w-4 rounded border-slate-300"
                             />
-                            <span>Log "Seen" events even if rejected</span>
+                            <span>
+                                <span className="block text-sm font-semibold text-slate-900">Keep rejected events in the audit trail</span>
+                                <span className="mt-1 block text-sm text-slate-600">Use this when you want visibility into what the system saw, even if the event was filtered out.</span>
+                            </span>
                         </label>
                     </div>
                 </section>
 
-                {/* LIMITS */}
-                <section>
-                    <h3 className="text-lg font-semibold mb-3">Rate Limits</h3>
-                    <div className="space-y-4">
+                <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Operational Limits</div>
+                    <h2 className="mt-2 text-xl font-bold text-slate-900">Run pacing and capture caps</h2>
+                    <p className="mt-2 text-sm text-slate-600">
+                        These settings protect the brand from overly aggressive automation and keep discovery within expected workload bounds.
+                    </p>
+
+                    <div className="mt-6 space-y-4">
                         <label className="block">
-                            <span className="text-gray-700">Max Videos / Hour</span>
+                            <span className="text-sm font-medium text-slate-700">Max Videos / Hour</span>
                             <input
                                 type="number"
                                 value={policy.max_videos_per_hour}
-                                onChange={(e) => handleChange('max_videos_per_hour', parseInt(e.target.value))}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2"
+                                onChange={(e) => handleChange('max_videos_per_hour', numberValue(e.target.value))}
+                                className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
                             />
                         </label>
                         <label className="block">
-                            <span className="text-gray-700">Max Comments / Video</span>
+                            <span className="text-sm font-medium text-slate-700">Max Comments / Video</span>
                             <input
                                 type="number"
                                 value={policy.max_comments_per_video}
-                                onChange={(e) => handleChange('max_comments_per_video', parseInt(e.target.value))}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2"
+                                onChange={(e) => handleChange('max_comments_per_video', numberValue(e.target.value))}
+                                className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
                             />
                         </label>
                         <label className="block">
-                            <span className="text-gray-700">Max Leads / Day</span>
+                            <span className="text-sm font-medium text-slate-700">Max Comments / Hour</span>
+                            <input
+                                type="number"
+                                value={policy.max_comments_per_hour}
+                                onChange={(e) => handleChange('max_comments_per_hour', numberValue(e.target.value))}
+                                className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-sm font-medium text-slate-700">Max Leads / Day</span>
                             <input
                                 type="number"
                                 value={policy.max_leads_per_day}
-                                onChange={(e) => handleChange('max_leads_per_day', parseInt(e.target.value))}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2"
+                                onChange={(e) => handleChange('max_leads_per_day', numberValue(e.target.value))}
+                                className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
                             />
                         </label>
                         <label className="block">
-                            <span className="text-gray-700">Action Pacing (ms)</span>
+                            <span className="text-sm font-medium text-slate-700">Action Pacing (ms)</span>
                             <input
                                 type="number"
                                 value={policy.cooldown_ms_between_actions}
-                                onChange={(e) => handleChange('cooldown_ms_between_actions', parseInt(e.target.value))}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2"
+                                onChange={(e) => handleChange('cooldown_ms_between_actions', numberValue(e.target.value))}
+                                className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
                             />
                         </label>
+                    </div>
+
+                    <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                        <div className="text-sm font-semibold text-blue-900">Current mode guidance</div>
+                        <p className="mt-2 text-sm leading-6 text-blue-800">{modeLabel(policy.mode)}</p>
                     </div>
                 </section>
             </div>
 
-            <div className="mt-8 flex justify-end">
+            <div className="mt-6 flex items-center justify-end gap-3">
+                <span className="text-sm text-slate-500">Saving creates a new version and preserves policy history.</span>
                 <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="bg-blue-600 text-white px-6 py-2 rounded font-bold hover:bg-blue-700 disabled:opacity-50"
+                    className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                    {saving ? 'Saving...' : 'Save New Version'}
+                    {saving ? 'Saving Policy...' : 'Save New Version'}
                 </button>
             </div>
         </div>
