@@ -15,6 +15,8 @@ for (const entry of [
   'sitemap.xml',
   'manifest.webmanifest',
   'icon.svg',
+  'logo-mark.svg',
+  'logo-mark-mono.svg',
   'og-image.svg',
 ]) {
   cpSync(resolve(root, entry), resolve(dist, entry));
