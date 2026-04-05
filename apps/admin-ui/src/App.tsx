@@ -935,6 +935,9 @@ function BillingView({ payload }: { payload: any }) {
               { label: 'Installs', value: formatMetric(workspace._count?.installs || 0) },
             ]} />
             <TagList items={formatUsageCounters(workspace.usage_counters)} emptyText="No usage counters" />
+            <TagList items={formatVoucherItems(workspace.subscription?.metadata)} emptyText="No vouchers issued" />
+            <TagList items={formatFreeAccessItems(workspace.subscription)} emptyText="No free-access grant" />
+            <BillingAccessControls workspace={workspace} />
             <div className="action-row">
               <MutationButton label="Grant temporary credits" action={() => adminRequest(`/workspaces/${workspace.id}/reset-automation-quota`, { method: 'POST', body: JSON.stringify({}) })} />
               <MutationButton label="Pause for non-payment" kind="danger" action={() => adminRequest(`/billing/workspaces/${workspace.id}/pause`, { method: 'POST', body: JSON.stringify({}) })} />
@@ -944,6 +947,90 @@ function BillingView({ payload }: { payload: any }) {
         ))}
       </div>
     </Section>
+  );
+}
+
+function BillingAccessControls({ workspace }: { workspace: any }) {
+  const [voucherDays, setVoucherDays] = useState('30');
+  const [freeDays, setFreeDays] = useState('30');
+  const [note, setNote] = useState('');
+  const [interval, setInterval] = useState((workspace.subscription?.billing_interval || 'MONTHLY').toUpperCase());
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState<'voucher' | 'free' | null>(null);
+
+  async function generateVoucher() {
+    setBusy('voucher');
+    setMessage(null);
+    try {
+      const payload = await adminRequest(`/billing/workspaces/${workspace.id}/vouchers`, {
+        method: 'POST',
+        body: JSON.stringify({
+          duration_days: Number(voucherDays || 30),
+          billing_interval: interval,
+          note,
+        }),
+      });
+      setMessage(`Voucher created: ${payload.voucher.code} (${payload.voucher.duration_days} days).`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function grantFreeAccess() {
+    setBusy('free');
+    setMessage(null);
+    try {
+      const payload = await adminRequest(`/billing/workspaces/${workspace.id}/free-access`, {
+        method: 'POST',
+        body: JSON.stringify({
+          duration_days: Number(freeDays || 30),
+          billing_interval: interval,
+          note,
+        }),
+      });
+      setMessage(`Free access granted until ${formatDate(payload.grant.ends_at)}.`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="panel nested-panel">
+      <div className="section-title">Beta Access Controls</div>
+      <div className="admin-muted">Issue internal vouchers or set a timed free-access window for beta testers and special cases.</div>
+      <div className="multi-column two" style={{ marginTop: '12px' }}>
+        <label>
+          <div className="eyebrow-label">Voucher duration (days)</div>
+          <input className="surface-input" value={voucherDays} onChange={(event) => setVoucherDays(event.target.value)} />
+        </label>
+        <label>
+          <div className="eyebrow-label">Free access duration (days)</div>
+          <input className="surface-input" value={freeDays} onChange={(event) => setFreeDays(event.target.value)} />
+        </label>
+      </div>
+      <div className="multi-column two" style={{ marginTop: '12px' }}>
+        <label>
+          <div className="eyebrow-label">Billing interval</div>
+          <select className="surface-input" value={interval} onChange={(event) => setInterval(event.target.value)}>
+            <option value="MONTHLY">Monthly</option>
+            <option value="YEARLY">Yearly</option>
+          </select>
+        </label>
+        <label>
+          <div className="eyebrow-label">Internal note</div>
+          <input className="surface-input" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Beta tester, founder intro, special handling" />
+        </label>
+      </div>
+      {message ? <div className="status-badge success" style={{ marginTop: '12px' }}>{message}</div> : null}
+      <div className="action-row" style={{ marginTop: '12px' }}>
+        <button className="secondary-button" type="button" disabled={busy !== null} onClick={() => void generateVoucher()}>
+          {busy === 'voucher' ? 'Generating...' : 'Generate Voucher'}
+        </button>
+        <button className="secondary-button" type="button" disabled={busy !== null} onClick={() => void grantFreeAccess()}>
+          {busy === 'free' ? 'Granting...' : 'Grant Free Access'}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1216,6 +1303,16 @@ function formatCell(value: any) {
   if (typeof value === 'string' && /\d{4}-\d{2}-\d{2}T/.test(value)) return formatDate(value);
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+}
+
+function formatVoucherItems(metadata: any) {
+  const vouchers = Array.isArray(metadata?.vouchers) ? metadata.vouchers : [];
+  return vouchers.slice(0, 3).map((voucher: any) => `${voucher.code} · ${voucher.duration_days} days · ${voucher.status || 'ACTIVE'}`);
+}
+
+function formatFreeAccessItems(subscription: any) {
+  if (!subscription?.is_trial || !subscription?.trial_ends_at) return [];
+  return [`Free access until ${formatDate(subscription.trial_ends_at)}`];
 }
 
 function humanizeKey(value: string) {

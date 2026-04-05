@@ -7,6 +7,19 @@ import { requireAdmin } from '../middleware/admin_auth';
 
 const router = Router();
 
+function jsonObject(value: unknown): Record<string, any> {
+    return value && typeof value === 'object' && !Array.isArray(value) ? { ...(value as Record<string, any>) } : {};
+}
+
+function normalizeBillingInterval(value: unknown): string {
+    const normalized = String(value || 'MONTHLY').trim().toUpperCase();
+    return normalized === 'YEARLY' ? 'YEARLY' : 'MONTHLY';
+}
+
+function generateVoucherCode() {
+    return `SYN-${randomBytes(4).toString('hex').toUpperCase()}`;
+}
+
 function serializeAdmin(admin: any) {
     return {
         id: admin.id,
@@ -1103,6 +1116,166 @@ router.post('/billing/workspaces/:workspaceId/enterprise-override', requireAdmin
         }
     });
     res.json({ status: 'ok', subscription });
+});
+
+router.post('/billing/workspaces/:workspaceId/vouchers', requireAdmin, async (req, res) => {
+    const workspaceId = req.params.workspaceId;
+    const durationDays = Math.max(1, Number(req.body?.duration_days || 30));
+    const note = String(req.body?.note || '').trim();
+    const requestedPlan = String(req.body?.plan_code || '').trim().toUpperCase();
+    const billingInterval = normalizeBillingInterval(req.body?.billing_interval);
+    const workspace = await prisma.account.findUnique({
+        where: { id: workspaceId },
+        include: { subscription: true }
+    });
+    if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
+
+    const voucher = {
+        code: generateVoucherCode(),
+        created_at: new Date().toISOString(),
+        created_by: req.admin!.email,
+        duration_days: durationDays,
+        plan_code: requestedPlan || (workspace.subscription?.plan_code || workspace.plan_id),
+        billing_interval: billingInterval,
+        note: note || null,
+        status: 'ACTIVE',
+        workspace_id: workspaceId,
+    };
+
+    const currentMetadata = jsonObject(workspace.subscription?.metadata);
+    const existingVouchers = Array.isArray(currentMetadata.vouchers) ? currentMetadata.vouchers : [];
+    const nextMetadata = {
+        ...currentMetadata,
+        vouchers: [voucher, ...existingVouchers].slice(0, 25),
+    };
+
+    const subscription = await prisma.workspaceSubscription.upsert({
+        where: { workspace_id: workspaceId },
+        update: {
+            metadata: nextMetadata as Prisma.InputJsonValue,
+        },
+        create: {
+            workspace_id: workspaceId,
+            plan_code: workspace.plan_id,
+            display_name: workspace.subscription?.display_name || workspace.plan_id,
+            billing_interval: billingInterval,
+            metadata: nextMetadata as Prisma.InputJsonValue,
+        }
+    });
+
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'GENERATE_VOUCHER',
+            resource: 'WorkspaceSubscription',
+            resource_id: workspaceId,
+            workspace_id: workspaceId,
+            meta: JSON.stringify(voucher),
+            ip: req.ip || 'unknown',
+        }
+    });
+
+    res.json({ status: 'ok', voucher, subscription });
+});
+
+router.post('/billing/workspaces/:workspaceId/free-access', requireAdmin, async (req, res) => {
+    const workspaceId = req.params.workspaceId;
+    const durationDays = Math.max(1, Number(req.body?.duration_days || 30));
+    const note = String(req.body?.note || '').trim();
+    const requestedPlan = String(req.body?.plan_code || '').trim().toUpperCase();
+    const billingInterval = normalizeBillingInterval(req.body?.billing_interval);
+    const workspace = await prisma.account.findUnique({
+        where: { id: workspaceId },
+        include: { subscription: true }
+    });
+    if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
+
+    const now = new Date();
+    const endsAt = new Date(now);
+    endsAt.setDate(endsAt.getDate() + durationDays);
+    const effectivePlan = requestedPlan || workspace.subscription?.plan_code || workspace.plan_id;
+
+    const currentMetadata = jsonObject(workspace.subscription?.metadata);
+    const grants = Array.isArray(currentMetadata.free_access_grants) ? currentMetadata.free_access_grants : [];
+    const grant = {
+        granted_at: now.toISOString(),
+        granted_by: req.admin!.email,
+        duration_days: durationDays,
+        starts_at: now.toISOString(),
+        ends_at: endsAt.toISOString(),
+        note: note || null,
+        plan_code: effectivePlan,
+        billing_interval: billingInterval,
+    };
+
+    const nextMetadata = {
+        ...currentMetadata,
+        free_access_grants: [grant, ...grants].slice(0, 25),
+        access_override: {
+            type: 'FREE_ACCESS',
+            active: true,
+            starts_at: now.toISOString(),
+            ends_at: endsAt.toISOString(),
+            note: note || null,
+            granted_by: req.admin!.email,
+        }
+    };
+
+    const subscription = await prisma.workspaceSubscription.upsert({
+        where: { workspace_id: workspaceId },
+        update: {
+            plan_code: effectivePlan,
+            display_name: workspace.subscription?.display_name || effectivePlan,
+            status: 'ACTIVE',
+            billing_provider: 'MANUAL',
+            billing_interval: billingInterval,
+            is_trial: true,
+            trial_ends_at: endsAt,
+            current_period_start: now,
+            current_period_end: endsAt,
+            cancel_at_period_end: false,
+            scheduled_plan_code: null,
+            metadata: nextMetadata as Prisma.InputJsonValue,
+        },
+        create: {
+            workspace_id: workspaceId,
+            plan_code: effectivePlan,
+            display_name: workspace.subscription?.display_name || effectivePlan,
+            billing_provider: 'MANUAL',
+            status: 'ACTIVE',
+            billing_interval: billingInterval,
+            is_trial: true,
+            trial_ends_at: endsAt,
+            current_period_start: now,
+            current_period_end: endsAt,
+            cancel_at_period_end: false,
+            metadata: nextMetadata as Prisma.InputJsonValue,
+        }
+    });
+
+    await prisma.account.update({
+        where: { id: workspaceId },
+        data: {
+            status: 'ACTIVE',
+            plan_id: effectivePlan,
+        }
+    });
+
+    await prisma.auditLog.create({
+        data: {
+            actor_id: req.admin!.id,
+            actor_type: 'ADMIN',
+            action: 'GRANT_FREE_ACCESS',
+            resource: 'WorkspaceSubscription',
+            resource_id: workspaceId,
+            workspace_id: workspaceId,
+            meta: JSON.stringify(grant),
+            ip: req.ip || 'unknown',
+        }
+    });
+
+    res.json({ status: 'ok', grant, subscription });
 });
 
 router.get('/audit', requireAdmin, async (_req, res) => {
