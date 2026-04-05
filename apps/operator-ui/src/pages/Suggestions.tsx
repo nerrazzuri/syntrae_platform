@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Client } from '../lib/api';
 import { SuggestionDetail } from '../components/SuggestionDetail';
-import { MessageSquareText, Wand2 } from 'lucide-react';
+import { ExternalLink, MessageSquareText, Wand2 } from 'lucide-react';
 
 export function Suggestions() {
     const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -127,9 +127,23 @@ export function Suggestions() {
                                         </span>
                                     </td>
                                     <td className="px-4 py-4 text-right">
-                                        <button className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-teal-700 transition hover:bg-teal-50">
-                                            Review
-                                        </button>
+                                        <div className="flex items-center justify-end gap-2">
+                                            {s.thread_reference?.thread_url && (
+                                                <a
+                                                    href={s.thread_reference.thread_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                                >
+                                                    <ExternalLink className="h-3.5 w-3.5" />
+                                                    Open thread
+                                                </a>
+                                            )}
+                                            <button className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-teal-700 transition hover:bg-teal-50">
+                                                Review
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

@@ -22,6 +22,7 @@ export interface UpdateProfileDTO extends Partial<CreateProfileDTO> {
 }
 
 const GENERIC_BANNED_TERMS = ['buy', 'sale', 'cheap', 'promo', 'offer', 'price', 'cost', 'money', 'cash', 'deal', 'discount', 'free'];
+const MAX_POSITIVE_KEYWORDS = 3;
 
 // Implicit Category Exclusions (Simple Static Map)
 const CATEGORY_EXCLUSIONS: Record<MarketCategory, string[]> = {
@@ -35,6 +36,21 @@ const CATEGORY_EXCLUSIONS: Record<MarketCategory, string[]> = {
 };
 
 export class MarketProfileService {
+    private static normalizeList(values: string[] | undefined): string[] {
+        const unique = new Set<string>();
+        for (const value of values || []) {
+            const cleaned = String(value || '').trim();
+            if (!cleaned) continue;
+            unique.add(cleaned);
+        }
+        return Array.from(unique);
+    }
+
+    private static assertPositiveKeywordLimit(keywords: string[]) {
+        if (keywords.length > MAX_POSITIVE_KEYWORDS) {
+            throw new Error(`Positive keywords are limited to ${MAX_POSITIVE_KEYWORDS}. Discovery only uses the first ${MAX_POSITIVE_KEYWORDS}.`);
+        }
+    }
 
     static async assertBrandAccess(brandId: string, workspaceId: string) {
         const brand = await prisma.brand.findFirst({
@@ -81,19 +97,29 @@ export class MarketProfileService {
 
     static async createProfile(brandId: string, workspaceId: string, data: CreateProfileDTO) {
         await this.assertBrandAccess(brandId, workspaceId);
-        const { validation_warnings, quality_score } = this.validateProfile(data);
+        const normalizedData: CreateProfileDTO = {
+            ...data,
+            languages: this.normalizeList(data.languages),
+            keywords_positive: this.normalizeList(data.keywords_positive),
+            keywords_negative: this.normalizeList(data.keywords_negative),
+            hashtags_positive: this.normalizeList(data.hashtags_positive),
+            hashtags_negative: this.normalizeList(data.hashtags_negative),
+            excluded_topics: this.normalizeList(data.excluded_topics),
+        };
+        this.assertPositiveKeywordLimit(normalizedData.keywords_positive);
+        const { validation_warnings, quality_score } = this.validateProfile(normalizedData);
 
         // Default weights if not provided
-        const weight_keyword = data.weight_keyword ?? 0.3;
-        const weight_hashtag = data.weight_hashtag ?? 0.2;
+        const weight_keyword = normalizedData.weight_keyword ?? 0.3;
+        const weight_hashtag = normalizedData.weight_hashtag ?? 0.2;
 
         // Calculate acceptance threshold based on intent
-        const acceptance_threshold = this.deriveThreshold(data.discovery_intent);
+        const acceptance_threshold = this.deriveThreshold(normalizedData.discovery_intent);
 
         return prisma.marketProfile.create({
             data: {
                 brand_id: brandId,
-                ...data,
+                ...normalizedData,
                 weight_keyword,
                 weight_hashtag,
                 acceptance_threshold,
@@ -113,17 +139,18 @@ export class MarketProfileService {
             name: data.name ?? existing.name,
             primary_category: data.primary_category ?? existing.primary_category as MarketCategory,
             target_audience: data.target_audience ?? existing.target_audience,
-            languages: data.languages ?? existing.languages,
-            keywords_positive: data.keywords_positive ?? existing.keywords_positive,
-            keywords_negative: data.keywords_negative ?? existing.keywords_negative,
-            hashtags_positive: data.hashtags_positive ?? existing.hashtags_positive,
-            hashtags_negative: data.hashtags_negative ?? existing.hashtags_negative,
-            excluded_topics: data.excluded_topics ?? existing.excluded_topics,
+            languages: this.normalizeList(data.languages ?? existing.languages),
+            keywords_positive: this.normalizeList(data.keywords_positive ?? existing.keywords_positive),
+            keywords_negative: this.normalizeList(data.keywords_negative ?? existing.keywords_negative),
+            hashtags_positive: this.normalizeList(data.hashtags_positive ?? existing.hashtags_positive),
+            hashtags_negative: this.normalizeList(data.hashtags_negative ?? existing.hashtags_negative),
+            excluded_topics: this.normalizeList(data.excluded_topics ?? existing.excluded_topics),
             discovery_intent: data.discovery_intent ?? existing.discovery_intent as DiscoveryIntent,
             weight_keyword: data.weight_keyword ?? existing.weight_keyword,
             weight_hashtag: data.weight_hashtag ?? existing.weight_hashtag,
         };
 
+        this.assertPositiveKeywordLimit(merged.keywords_positive);
         const { validation_warnings, quality_score } = this.validateProfile(merged);
 
         // Logic for Activation
@@ -144,6 +171,12 @@ export class MarketProfileService {
             where: { id },
             data: {
                 ...data,
+                ...(data.languages ? { languages: merged.languages } : {}),
+                ...(data.keywords_positive ? { keywords_positive: merged.keywords_positive } : {}),
+                ...(data.keywords_negative ? { keywords_negative: merged.keywords_negative } : {}),
+                ...(data.hashtags_positive ? { hashtags_positive: merged.hashtags_positive } : {}),
+                ...(data.hashtags_negative ? { hashtags_negative: merged.hashtags_negative } : {}),
+                ...(data.excluded_topics ? { excluded_topics: merged.excluded_topics } : {}),
                 acceptance_threshold,
                 quality_score,
                 validation_warnings,

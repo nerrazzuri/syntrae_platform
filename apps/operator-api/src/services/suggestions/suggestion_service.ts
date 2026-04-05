@@ -1,6 +1,7 @@
 
 import { prisma } from '../../db';
 import { Suggestion, Prisma } from '@syntrae/prisma-schema';
+import { buildThreadReference } from '../../utils/thread_reference';
 
 export enum SuggestionStatus {
     PENDING = 'PENDING',
@@ -33,7 +34,13 @@ export class SuggestionService {
 
         return suggestions.map((suggestion: any) => ({
             ...suggestion,
-            original_comment: suggestion.event?.content_text || null
+            original_comment: suggestion.event?.content_text || null,
+            thread_reference: buildThreadReference({
+                platform: suggestion.platform,
+                videoId: suggestion.video_id,
+                commentId: suggestion.comment_id,
+                metadata: suggestion.event?.metadata,
+            })
         })) as any;
     }
 
@@ -56,6 +63,12 @@ export class SuggestionService {
         return {
             ...suggestion,
             original_comment: suggestion.event?.content_text || null,
+            thread_reference: buildThreadReference({
+                platform: suggestion.platform,
+                videoId: suggestion.video_id,
+                commentId: suggestion.comment_id,
+                metadata: suggestion.event?.metadata,
+            }),
             explanation
         };
     }

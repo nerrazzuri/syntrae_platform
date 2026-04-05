@@ -3,32 +3,9 @@ import { Router } from 'express';
 import { prisma } from '../db';
 import { requireSession, requireWorkspace } from '../middleware/session_auth';
 import { FeedbackService, FeedbackAction } from '../services/feedback.service';
+import { buildThreadReference } from '../utils/thread_reference';
 
 const router = Router();
-
-function buildThreadUrl(platform: string, videoId?: string | null, metadata?: any): string | null {
-    const pageUrl = typeof metadata?.page?.url === 'string'
-        ? metadata.page.url
-        : typeof metadata?.page_url === 'string'
-            ? metadata.page_url
-            : null;
-    const videoUrl = typeof metadata?.video?.video_url === 'string'
-        ? metadata.video.video_url
-        : typeof metadata?.video_url === 'string'
-            ? metadata.video_url
-            : null;
-
-    if (pageUrl) return pageUrl;
-    if (videoUrl) return videoUrl;
-
-    if (!videoId) return null;
-
-    if (platform === 'rednote' || platform === 'xiaohongshu') {
-        return `https://www.xiaohongshu.com/explore/${videoId}`;
-    }
-
-    return null;
-}
 
 // Global Auth & Scoping
 router.use(requireSession);
@@ -81,14 +58,14 @@ router.get('/', async (req, res) => {
         res.json(drafts.map((draft) => ({
             ...draft,
             original_comment: draft.lead?.event?.content_text || null,
-            thread_reference: draft.lead ? {
+            thread_reference: draft.lead ? buildThreadReference({
                 platform: draft.lead.platform,
-                video_id: draft.lead.video_id,
-                comment_id: draft.lead.comment_id,
-                user_handle: draft.lead.user_handle || null,
-                user_profile_url: draft.lead.user_profile_url || null,
-                thread_url: buildThreadUrl(draft.lead.platform, draft.lead.video_id, draft.lead.event?.metadata),
-            } : null,
+                videoId: draft.lead.video_id,
+                commentId: draft.lead.comment_id,
+                userHandle: draft.lead.user_handle,
+                userProfileUrl: draft.lead.user_profile_url,
+                metadata: draft.lead.event?.metadata,
+            }) : null,
         })));
     } catch (error: any) {
         res.status(500).json({ error: error.message });

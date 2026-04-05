@@ -83,6 +83,19 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
 });
 
+// DELETE /brands/:id
+router.delete('/:id', async (req: Request, res: Response) => {
+    try {
+        const brandId = req.params.id;
+        const workspaceId = req.session?.active_workspace_id!;
+        const deleted = await BrandService.deleteBrand(workspaceId, brandId);
+        res.json({ status: 'ok', brand: deleted });
+    } catch (err: any) {
+        console.warn('[Brands] Delete Failed:', err.message);
+        res.status(400).json({ error: err.message });
+    }
+});
+
 // GET /brands/:brandId/leads (Phase 37.4)
 router.get('/:brandId/leads', async (req: Request, res: Response) => {
     try {

@@ -114,6 +114,18 @@ export const MarketProfiles: React.FC = () => {
             }
         });
 
+        if ((cleanProfile.keywords_positive || []).length < 3) {
+            setError('Positive keywords require at least 3 entries.');
+            setSaving(false);
+            return;
+        }
+
+        if ((cleanProfile.keywords_positive || []).length > 3) {
+            setError('Positive keywords are limited to exactly 3. Discovery only uses the first 3.');
+            setSaving(false);
+            return;
+        }
+
         try {
             if (isNew) {
                 await api.post(`/brands/${brandId}/market-profiles`, cleanProfile);
@@ -216,7 +228,7 @@ export const MarketProfiles: React.FC = () => {
 
                         <div className="mb-4">
                             <label className="block text-sm font-medium mb-1">Positive Keywords (Comma separated)</label>
-                            <span className="text-xs text-gray-500 block mb-1">Phrases to match in captions/bio. Min 3 required.</span>
+                            <span className="text-xs text-gray-500 block mb-1">Phrases to match in captions or bio. Use exactly 3 because discovery only uses 3 per run.</span>
                             <input className="w-full p-2 border rounded"
                                 value={getArrayString('keywords_positive')}
                                 onChange={e => handleArrayInput('keywords_positive', e.target.value)}

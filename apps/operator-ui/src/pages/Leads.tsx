@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Client } from '../lib/api';
-import { Target, Sparkles, ShieldCheck } from 'lucide-react';
+import { Target, Sparkles, ShieldCheck, ExternalLink } from 'lucide-react';
 
 export function Leads() {
     const [leads, setLeads] = useState<any[]>([]);
@@ -147,9 +147,23 @@ export function Leads() {
                                     </td>
                                     <td className="px-4 py-4 text-sm whitespace-nowrap text-slate-500">{formatDate(lead.created_at)}</td>
                                     <td className="px-4 py-4 text-right">
-                                        <button className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-teal-700 transition hover:bg-teal-50">
-                                            View
-                                        </button>
+                                        <div className="flex items-center justify-end gap-2">
+                                            {lead.thread_reference?.thread_url && (
+                                                <a
+                                                    href={lead.thread_reference.thread_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                                >
+                                                    <ExternalLink className="h-3.5 w-3.5" />
+                                                    Open thread
+                                                </a>
+                                            )}
+                                            <button className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-teal-700 transition hover:bg-teal-50">
+                                                View
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -185,6 +199,22 @@ export function Leads() {
                             <DetailField label="Video ID" value={<div className="font-mono text-sm">{selectedLead.video_id}</div>} />
                             <DetailField label="Original Comment" value={<div className="whitespace-pre-wrap text-sm leading-7">{commentPreview(selectedLead)}</div>} />
                             <DetailField label="Comment ID" value={<div className="font-mono text-sm">{selectedLead.comment_id}</div>} />
+                            {selectedLead.thread_reference?.thread_url && (
+                                <DetailField
+                                    label="Original Thread"
+                                    value={
+                                        <a
+                                            href={selectedLead.thread_reference.thread_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-2 text-sm font-semibold text-teal-700"
+                                        >
+                                            <ExternalLink className="h-4 w-4" />
+                                            Open original post or thread
+                                        </a>
+                                    }
+                                />
+                            )}
 
                             {selectedLead.user_handle && (
                                 <DetailField

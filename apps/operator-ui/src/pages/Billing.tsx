@@ -37,7 +37,7 @@ const PLAN_ORDER: PlanCode[] = ['STARTER', 'GROWTH', 'PRO', 'AGENCY'];
 const PLAN_COPY: Record<PlanCode, string> = {
     STARTER: 'Manual, single-brand starter package.',
     GROWTH: 'Higher volume with scoring, drafts, and exports.',
-    PRO: 'Rule-ready automation and priority processing for up to 3 brands.',
+    PRO: 'Rule-ready automation for up to 3 brands, each with its own active market strategy.',
     AGENCY: 'Multi-brand, team-aware package for client isolation.',
 };
 

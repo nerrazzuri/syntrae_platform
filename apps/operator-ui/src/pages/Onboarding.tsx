@@ -182,6 +182,10 @@ export function OnboardingPage() {
             setError('Add at least 3 positive keywords for the first market profile.');
             return;
         }
+        if (keywordsPositive.length > 3) {
+            setError('Use exactly 3 positive keywords. Syntrae discovery only uses the first 3.');
+            return;
+        }
         if (keywordsNegative.length < 1) {
             setError('Add at least 1 negative keyword for the first market profile.');
             return;
@@ -436,7 +440,7 @@ export function OnboardingPage() {
                                 placeholder="hydrating serum, sensitive skin, skin barrier repair, redness reduction"
                                 required
                             />
-                            <p className="mt-2 text-xs text-slate-500">Comma-separated. Add at least 3 phrases so the first profile can enter READY state immediately.</p>
+                            <p className="mt-2 text-xs text-slate-500">Comma-separated. Use exactly 3 phrases because discovery only uses 3 positive keywords per run.</p>
                         </div>
                         <div className="lg:col-span-2">
                             <button

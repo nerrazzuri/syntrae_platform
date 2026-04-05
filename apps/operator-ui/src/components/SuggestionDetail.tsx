@@ -52,6 +52,17 @@ export function SuggestionDetail({ suggestion, onClose, onUpdate }: Props) {
 
                 <div className="flex-1 space-y-6 overflow-y-auto p-6">
                     <div className="text-xs font-mono text-slate-400">ID: {suggestion.id}</div>
+                    {suggestion.thread_reference?.thread_url && (
+                        <a
+                            href={suggestion.thread_reference.thread_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-sm font-semibold text-teal-700"
+                        >
+                            <ExternalLink className="h-4 w-4" />
+                            Open original post or thread
+                        </a>
+                    )}
 
                     <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
                         <div className="panel p-4">

@@ -1,5 +1,6 @@
 import { prisma } from '../db';
 import { OwnerSettingsService } from './owner/owner_settings_service';
+import { buildThreadReference } from '../utils/thread_reference';
 
 export interface LeadFilters {
     buyer_stage?: 'AWARENESS' | 'EVALUATING' | 'READY';
@@ -62,7 +63,8 @@ export class LeadService {
                     created_at: true,
                     event: {
                         select: {
-                            content_text: true
+                            content_text: true,
+                            metadata: true,
                         }
                     },
                     // Exclude internal metadata/preferences for list view
@@ -72,7 +74,15 @@ export class LeadService {
 
         const items = rawItems.map(({ event, ...lead }) => ({
             ...lead,
-            original_comment: event?.content_text || null
+            original_comment: event?.content_text || null,
+            thread_reference: buildThreadReference({
+                platform: lead.platform,
+                videoId: lead.video_id,
+                commentId: lead.comment_id,
+                userHandle: lead.user_handle,
+                userProfileUrl: lead.user_profile_url,
+                metadata: event?.metadata,
+            })
         }));
 
         return { items, total, limit, offset };
@@ -87,7 +97,8 @@ export class LeadService {
             include: {
                 event: {
                     select: {
-                        content_text: true
+                        content_text: true,
+                        metadata: true,
                     }
                 }
             }
@@ -100,7 +111,15 @@ export class LeadService {
         const { event, ...rest } = lead;
         return {
             ...rest,
-            original_comment: event?.content_text || null
+            original_comment: event?.content_text || null,
+            thread_reference: buildThreadReference({
+                platform: rest.platform,
+                videoId: rest.video_id,
+                commentId: rest.comment_id,
+                userHandle: rest.user_handle,
+                userProfileUrl: rest.user_profile_url,
+                metadata: event?.metadata,
+            })
         };
     }
 
