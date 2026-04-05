@@ -22,6 +22,19 @@ interface Policy {
     notes?: string;
 }
 
+interface PolicyUpdatePayload {
+    status: Policy['status'];
+    mode: Policy['mode'];
+    enabled: boolean;
+    relevance_min_score: number;
+    intent_min_score: number;
+    max_source_posts_per_run: number;
+    max_comments_per_source_post: number;
+    cooldown_ms_between_actions: number;
+    allow_capture_seen_events: boolean;
+    notes?: string;
+}
+
 function statusBadge(status: Policy['status']) {
     if (status === 'ACTIVE') return 'bg-emerald-100 text-emerald-800 border-emerald-200';
     if (status === 'PAUSED') return 'bg-amber-100 text-amber-800 border-amber-200';
@@ -38,6 +51,10 @@ function modeLabel(mode: Policy['mode']) {
 function numberValue(value: string) {
     const parsed = parseInt(value, 10);
     return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function clamp(value: number, min: number, max: number) {
+    return Math.min(max, Math.max(min, value));
 }
 
 export const AutomationPolicySettings: React.FC = () => {
@@ -74,9 +91,20 @@ export const AutomationPolicySettings: React.FC = () => {
             setError(null);
             setNotice(null);
 
-            // Allow user to toggle status via a separate button or implicit?
-            // Here we just save updates.
-            const updated = await api.put(`/brands/${brandId}/automation-policy`, policy);
+            const payload: PolicyUpdatePayload = {
+                status: policy.status,
+                mode: policy.mode,
+                enabled: policy.enabled,
+                relevance_min_score: clamp(policy.relevance_min_score, 0, 100),
+                intent_min_score: clamp(policy.intent_min_score, 0, 100),
+                max_source_posts_per_run: clamp(policy.max_source_posts_per_run, 1, 60),
+                max_comments_per_source_post: clamp(policy.max_comments_per_source_post, 1, 10),
+                cooldown_ms_between_actions: Math.max(0, policy.cooldown_ms_between_actions),
+                allow_capture_seen_events: policy.allow_capture_seen_events,
+                notes: policy.notes?.trim() || undefined,
+            };
+
+            const updated = await api.put(`/brands/${brandId}/automation-policy`, payload);
             setPolicy(updated);
             setNotice(`Policy saved. Version ${updated.version} is now the current automation policy.`);
         } catch (err: any) {
@@ -157,9 +185,9 @@ export const AutomationPolicySettings: React.FC = () => {
                     <p className="mt-2 text-sm text-slate-500">{modeLabel(policy.mode)}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Discovery Cap</div>
-                    <div className="mt-3 text-2xl font-bold text-slate-900">{policy.max_source_posts_per_run}</div>
-                    <p className="mt-2 text-sm text-slate-500">Maximum source posts the current run can inspect before capture stops.</p>
+                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Discovery Cap</div>
+                        <div className="mt-3 text-2xl font-bold text-slate-900">{policy.max_source_posts_per_run}</div>
+                    <p className="mt-2 text-sm text-slate-500">Maximum videos the current run can inspect before capture stops.</p>
                 </div>
             </div>
 
@@ -223,67 +251,35 @@ export const AutomationPolicySettings: React.FC = () => {
 
                 <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                     <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Operational Limits</div>
-                    <h2 className="mt-2 text-xl font-bold text-slate-900">Run pacing and capture caps</h2>
+                    <h2 className="mt-2 text-xl font-bold text-slate-900">Discovery caps</h2>
                     <p className="mt-2 text-sm text-slate-600">
-                        These settings protect the brand from overly aggressive automation and keep discovery within expected workload bounds.
+                        Set how many videos a run can inspect and how many comments can be collected from each video. These are the only discovery limits applied in the current workflow.
                     </p>
 
                     <div className="mt-6 space-y-4">
                         <label className="block">
-                            <span className="text-sm font-medium text-slate-700">Max Videos / Hour</span>
-                            <input
-                                type="number"
-                                value={policy.max_videos_per_hour}
-                                onChange={(e) => handleChange('max_videos_per_hour', numberValue(e.target.value))}
-                                className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
-                            />
-                        </label>
-                        <label className="block">
-                            <span className="text-sm font-medium text-slate-700">Max Source Posts / Run</span>
+                            <span className="text-sm font-medium text-slate-700">Max Videos / Run</span>
                             <input
                                 type="number"
                                 value={policy.max_source_posts_per_run}
-                                onChange={(e) => handleChange('max_source_posts_per_run', numberValue(e.target.value))}
+                                min={1}
+                                max={60}
+                                onChange={(e) => handleChange('max_source_posts_per_run', clamp(numberValue(e.target.value), 1, 60))}
                                 className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
                             />
-                            <span className="mt-2 block text-xs text-slate-500">Controls how many Xiaohongshu source posts can be scanned in one automation run.</span>
-                        </label>
-                        <label className="block">
-                            <span className="text-sm font-medium text-slate-700">Max Comments / Source Post</span>
-                            <input
-                                type="number"
-                                value={policy.max_comments_per_source_post}
-                                onChange={(e) => handleChange('max_comments_per_source_post', numberValue(e.target.value))}
-                                className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
-                            />
-                            <span className="mt-2 block text-xs text-slate-500">Controls how many comments are collected from each discovered source post.</span>
+                            <span className="mt-2 block text-xs text-slate-500">Up to 60 videos can be scanned in one run. Basic tier will still be capped lower by plan rules.</span>
                         </label>
                         <label className="block">
                             <span className="text-sm font-medium text-slate-700">Max Comments / Video</span>
                             <input
                                 type="number"
-                                value={policy.max_comments_per_video}
-                                onChange={(e) => handleChange('max_comments_per_video', numberValue(e.target.value))}
+                                value={policy.max_comments_per_source_post}
+                                min={1}
+                                max={10}
+                                onChange={(e) => handleChange('max_comments_per_source_post', clamp(numberValue(e.target.value), 1, 10))}
                                 className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
                             />
-                        </label>
-                        <label className="block">
-                            <span className="text-sm font-medium text-slate-700">Max Comments / Hour</span>
-                            <input
-                                type="number"
-                                value={policy.max_comments_per_hour}
-                                onChange={(e) => handleChange('max_comments_per_hour', numberValue(e.target.value))}
-                                className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
-                            />
-                        </label>
-                        <label className="block">
-                            <span className="text-sm font-medium text-slate-700">Max Leads / Day</span>
-                            <input
-                                type="number"
-                                value={policy.max_leads_per_day}
-                                onChange={(e) => handleChange('max_leads_per_day', numberValue(e.target.value))}
-                                className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
-                            />
+                            <span className="mt-2 block text-xs text-slate-500">Up to 10 comments can be collected from each discovered video. Basic tier will still be capped lower by plan rules.</span>
                         </label>
                         <label className="block">
                             <span className="text-sm font-medium text-slate-700">Action Pacing (ms)</span>

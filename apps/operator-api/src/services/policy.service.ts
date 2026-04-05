@@ -149,21 +149,40 @@ export class PolicyService {
             // Filter out system fields from base
             const { id, created_at, updated_at, version, status, ...cleanBase } = base as any;
 
+            const maxSourcePostsPerRun = updates.max_source_posts_per_run ?? cleanBase.max_source_posts_per_run;
+            const maxCommentsPerSourcePost = updates.max_comments_per_source_post ?? cleanBase.max_comments_per_source_post;
+
+            const sanitizedUpdates: Partial<AutomationPolicy> = {
+                status: updates.status ?? current?.status ?? PolicyStatus.ACTIVE,
+                mode: updates.mode ?? cleanBase.mode,
+                enabled: updates.enabled ?? cleanBase.enabled,
+                relevance_min_score: updates.relevance_min_score ?? cleanBase.relevance_min_score,
+                intent_min_score: updates.intent_min_score ?? cleanBase.intent_min_score,
+                allow_capture_seen_events: updates.allow_capture_seen_events ?? cleanBase.allow_capture_seen_events,
+                max_source_posts_per_run: maxSourcePostsPerRun,
+                max_comments_per_source_post: maxCommentsPerSourcePost,
+                max_videos_per_hour: maxSourcePostsPerRun,
+                max_comments_per_video: maxCommentsPerSourcePost,
+                max_comments_per_hour: maxSourcePostsPerRun * maxCommentsPerSourcePost,
+                max_leads_per_day: updates.max_leads_per_day ?? cleanBase.max_leads_per_day,
+                cooldown_ms_between_actions: updates.cooldown_ms_between_actions ?? cleanBase.cooldown_ms_between_actions,
+                notes: updates.notes ?? cleanBase.notes
+            };
+
             const payload = {
                 ...cleanBase,
-                ...updates,
+                ...sanitizedUpdates,
                 brand_id: brandId,
                 version: newVersion,
                 created_by: userId
-                // status is in updates or default DRAFT if not specified? 
-                // If caller wants to activate immediately, they send status=ACTIVE
             };
 
             // Validate Bounds
             if (payload.relevance_min_score < 0 || payload.relevance_min_score > 100) throw new Error("Score must be 0-100");
-            if (payload.max_videos_per_hour > 500) throw new Error("Max videos/hr limit exceeded (500)");
-            if (payload.max_source_posts_per_run < 1 || payload.max_source_posts_per_run > 200) throw new Error("Max source posts/run must be between 1 and 200");
-            if (payload.max_comments_per_source_post < 1 || payload.max_comments_per_source_post > 50) throw new Error("Max comments/source post must be between 1 and 50");
+            if (payload.intent_min_score < 0 || payload.intent_min_score > 100) throw new Error("Score must be 0-100");
+            if (payload.max_source_posts_per_run < 1 || payload.max_source_posts_per_run > 60) throw new Error("Max videos/run must be between 1 and 60");
+            if (payload.max_comments_per_source_post < 1 || payload.max_comments_per_source_post > 10) throw new Error("Max comments/video must be between 1 and 10");
+            if (payload.cooldown_ms_between_actions < 0) throw new Error("Action pacing must be 0 or greater");
 
             return tx.automationPolicy.create({
                 data: payload
