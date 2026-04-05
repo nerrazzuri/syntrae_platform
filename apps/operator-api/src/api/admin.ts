@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { randomBytes } from 'crypto';
+import { Prisma } from '@syntrae/prisma-schema';
 import { prisma } from '../db';
 import { AdminAuthService } from '../services/admin_auth.service';
 import { requireAdmin } from '../middleware/admin_auth';
@@ -471,8 +472,14 @@ router.get('/drafts', requireAdmin, async (req, res) => {
 
 router.get('/discovery', requireAdmin, async (req, res) => {
     const workspaceId = String(req.query.workspace_id || '').trim();
+    const brandIds = workspaceId
+        ? (await prisma.brand.findMany({
+            where: { workspace_id: workspaceId },
+            select: { id: true }
+        })).map((brand) => brand.id)
+        : [];
     const runs = await prisma.automationRun.findMany({
-        where: workspaceId ? { brand: { workspace_id: workspaceId } } : undefined,
+        where: workspaceId ? { brand_id: { in: brandIds.length ? brandIds : [''] } } : undefined,
         take: 60,
         orderBy: { started_at: 'desc' },
         select: {
@@ -729,8 +736,10 @@ router.post('/runs/:id/retry', requireAdmin, async (req, res) => {
             discovery_intent: current.discovery_intent,
             status: 'PENDING',
             policy_id: current.policy_id,
-            policy_snapshot: current.policy_snapshot,
-            market_profile_snapshot: current.market_profile_snapshot,
+            policy_snapshot: (current.policy_snapshot ?? {}) as Prisma.InputJsonValue,
+            market_profile_snapshot: current.market_profile_snapshot == null
+                ? Prisma.JsonNull
+                : (current.market_profile_snapshot as Prisma.InputJsonValue),
             stats: {},
             attempt_count: (current.attempt_count || 0) + 1,
             last_error: null,
