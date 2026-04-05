@@ -16,6 +16,7 @@ STALE_MINUTES = int(os.getenv("AUTOMATION_STALE_MINUTES", "10"))
 STALE_RETRY_DELAY_SECONDS = int(os.getenv("AUTOMATION_STALE_RETRY_DELAY_SECONDS", "30"))
 STALE_MAX_ATTEMPTS = int(os.getenv("AUTOMATION_STALE_MAX_ATTEMPTS", "3"))
 STALE_SWEEP_LIMIT = int(os.getenv("AUTOMATION_STALE_SWEEP_LIMIT", "25"))
+MAX_CONCURRENT_JOBS = int(os.getenv("AUTOMATION_MAX_CONCURRENT_JOBS", "2"))
 STORAGE_ROOT = Path(os.getenv("AUTOMATION_STORAGE_ROOT", "/data/storage"))
 
 def normalize_session_platform(platform: str) -> str:
@@ -58,15 +59,78 @@ async def heartbeat_loop(client: IntegrationClient, run_id: str, claim_token: st
             logger.warning(f"Lease heartbeat failed for job {run_id}.")
             return
 
+async def execute_claimed_run(install_id: str, run_data: dict[str, object]):
+    run_id = run_data.get("id")
+    brand_id = run_data.get("brand_id")
+    platform = run_data.get("platform")
+    claim_token = run_data.get("claim_token")
+    workspace_id = run_data.get("workspace_id")
+    ingestion_install_id = run_data.get("ingestion_install_id")
+    ingestion_install_secret = run_data.get("ingestion_install_secret")
+
+    if not run_id or not brand_id or not platform or not claim_token:
+        logger.error(f"Claim response incomplete: {run_data}")
+        return
+
+    client = IntegrationClient(brand_id=brand_id, install_id=install_id)
+    client.set_ingestion_install(ingestion_install_id, ingestion_install_secret)
+    storage_path = resolve_storage_state_path(workspace_id, brand_id, platform)
+
+    if storage_path:
+        logger.info(f"Using Session File for {run_id}: {storage_path}")
+
+    heartbeat_task = asyncio.create_task(heartbeat_loop(client, run_id, claim_token))
+
+    try:
+        success = await run_automation(
+            platform,
+            "chromium",
+            True,
+            None,
+            brand_id,
+            install_id,
+            storage_state_path=storage_path,
+            existing_run_id=run_id,
+            claim_token=claim_token,
+            ingestion_install_id=ingestion_install_id,
+            ingestion_install_secret=ingestion_install_secret,
+        )
+
+        if not success:
+            await client.update_run_internal(
+                run_id=run_id,
+                status="FAILED",
+                abort_reason="AUTOMATION_FAILED",
+                claim_token=claim_token
+            )
+            logger.info(f"Job {run_id} finished with status FAILED.")
+        else:
+            logger.info(f"Job {run_id} finished via in-run lifecycle updates.")
+    finally:
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
+
 async def global_poll_loop(install_id):
     # Valid "Unbound" client for initial fetch
     client = IntegrationClient(brand_id="system", install_id=install_id)
     operator_url = client.operator_url
     logger.info(f"Global Worker {install_id} starting against {operator_url}...")
     last_sweep_at = 0.0
+    active_jobs: dict[str, asyncio.Task] = {}
 
     while True:
         try:
+            completed = [run_id for run_id, task in active_jobs.items() if task.done()]
+            for run_id in completed:
+                task = active_jobs.pop(run_id)
+                try:
+                    await task
+                except Exception as exc:
+                    logger.error(f"Claimed job {run_id} crashed: {exc}")
+
             now = asyncio.get_event_loop().time()
             if now - last_sweep_at >= SWEEP_INTERVAL_SECONDS:
                 sweep_result = await client.sweep_stale_runs(
@@ -84,65 +148,21 @@ async def global_poll_loop(install_id):
                         sweep_result.get("failed", 0)
                     )
 
+            if len(active_jobs) >= MAX_CONCURRENT_JOBS:
+                await asyncio.sleep(POLL_INTERVAL_SECONDS)
+                continue
+
             run_data = await client.claim_next_run(lease_seconds=DEFAULT_LEASE_SECONDS)
             if not run_data:
                 await asyncio.sleep(POLL_INTERVAL_SECONDS)
                 continue
 
-            run_id = run_data.get("id")
-            brand_id = run_data.get("brand_id")
-            platform = run_data.get("platform")
-            claim_token = run_data.get("claim_token")
-            workspace_id = run_data.get("workspace_id")
-            ingestion_install_id = run_data.get("ingestion_install_id")
-            ingestion_install_secret = run_data.get("ingestion_install_secret")
-
-            logger.info(f"🚀 Claimed Job {run_id} for Brand {brand_id}...")
-
-            if not run_id or not brand_id or not platform or not claim_token:
-                logger.error(f"Claim response incomplete: {run_data}")
-                await asyncio.sleep(5)
-                continue
-
-            storage_path = resolve_storage_state_path(workspace_id, brand_id, platform)
-            client.set_ingestion_install(ingestion_install_id, ingestion_install_secret)
-
-            if storage_path:
-                logger.info(f"Using Session File: {storage_path}")
-
-            heartbeat_task = asyncio.create_task(heartbeat_loop(client, run_id, claim_token))
-
-            try:
-                success = await run_automation(
-                    platform,
-                    "chromium",
-                    True,
-                    None,
-                    brand_id,
-                    install_id,
-                    storage_state_path=storage_path,
-                    existing_run_id=run_id,
-                    claim_token=claim_token,
-                    ingestion_install_id=ingestion_install_id,
-                    ingestion_install_secret=ingestion_install_secret,
-                )
-
-                if not success:
-                    await client.update_run_internal(
-                        run_id=run_id,
-                        status="FAILED",
-                        abort_reason="AUTOMATION_FAILED",
-                        claim_token=claim_token
-                    )
-                    logger.info(f"Job {run_id} finished with status FAILED.")
-                else:
-                    logger.info(f"Job {run_id} finished via in-run lifecycle updates.")
-            finally:
-                heartbeat_task.cancel()
-                try:
-                    await heartbeat_task
-                except asyncio.CancelledError:
-                    pass
+            run_id = str(run_data.get("id") or "").strip()
+            brand_id = str(run_data.get("brand_id") or "").strip()
+            logger.info(
+                f"🚀 Claimed Job {run_id} for Brand {brand_id}. Active jobs: {len(active_jobs) + 1}/{MAX_CONCURRENT_JOBS}"
+            )
+            active_jobs[run_id] = asyncio.create_task(execute_claimed_run(install_id, run_data))
         except Exception as e:
             logger.error(f"Global Poll Error: {e}")
         
