@@ -128,12 +128,41 @@ class DiscoveryEngine:
                         max_comments_per_post=comments_per_post_cap,
                     )
                     processed_source_posts += int(payload.get("source_posts_processed", 0))
+                    source_posts = payload.get("source_posts", [])
                     results = payload.get("events", [])
+                    source_post_geo_by_id = {}
 
-                    for item in results or []:
-                        geo_eval = qb.evaluate_geo_candidate(item, keyword)
+                    for post in source_posts or []:
+                        note_id = post.get("video_id")
+                        geo_eval = qb.evaluate_geo_candidate(post, keyword)
+                        source_post_geo_by_id[note_id] = geo_eval
                         if not geo_eval.get("allowed", True):
                             geo_filtered_posts += 1
+                            logger.info(
+                                "Skipping XHS note %s outside geo focus (%s): %s",
+                                note_id,
+                                geo_eval.get("status"),
+                                ", ".join(geo_eval.get("reasons", [])),
+                            )
+                            continue
+
+                        await self.client.record_discovery(self.run_id, {
+                            "video_id": note_id,
+                            "video_url": post.get("video_url"),
+                            "platform": post.get("platform", "rednote"),
+                            "caption": post.get("caption"),
+                            "hashtags": post.get("hashtags") or [],
+                            "search_keyword": post.get("search_keyword") or keyword,
+                            "source_post_author_name": post.get("video_author_name"),
+                            "decision": "ACCEPT",
+                            "market_score": 1.0 if geo_eval.get("status") == "CONFIRMED_MATCH" else 0.75,
+                            "reasons": geo_eval.get("reasons", []),
+                            "evaluation_performed": False,
+                        })
+
+                    for item in results or []:
+                        geo_eval = source_post_geo_by_id.get(item.get("video_id")) or qb.evaluate_geo_candidate(item, keyword)
+                        if not geo_eval.get("allowed", True):
                             logger.info(
                                 "Skipping XHS note %s outside geo focus (%s): %s",
                                 item.get("video_id"),

@@ -98,6 +98,7 @@ class XiaohongshuPlatform:
         logger.info("Extracted %s posts from XHS search results", len(posts))
 
         final_events = []
+        source_posts = []
         processed_note_ids = set()
         for post in posts[:posts_limit]:
             note_id = post["note_id"]
@@ -134,6 +135,7 @@ class XiaohongshuPlatform:
                 "page_url": post_url,
                 "page_timestamp": now,
             }
+            source_posts.append(base_event.copy())
 
             logger.info("Fetching real comments for note %s using XHS client...", note_id)
             real_comments = []
@@ -185,6 +187,7 @@ class XiaohongshuPlatform:
 
         return {
             "events": final_events,
+            "source_posts": source_posts,
             "source_posts_processed": len(processed_note_ids),
         }
 
