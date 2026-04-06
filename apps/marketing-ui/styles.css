@@ -153,6 +153,10 @@ img {
   position: relative;
   z-index: 1;
   margin-bottom: 34px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.95fr);
+  gap: 28px;
+  align-items: end;
 }
 
 .hero-grid {
@@ -187,9 +191,10 @@ h1 {
 }
 
 .hero-heading .hero-headline {
+  grid-column: 1 / -1;
   width: 100%;
-  max-width: none;
-  font-size: clamp(3rem, 4vw, 4.35rem);
+  max-width: 1120px;
+  font-size: clamp(3rem, 3.8vw, 4.15rem);
   line-height: 1;
   text-wrap: balance;
 }
@@ -199,10 +204,11 @@ h1 {
 }
 
 .hero-ribbon {
+  grid-column: 1;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 26px;
+  margin-top: 24px;
 }
 
 .hero-ribbon span {
@@ -748,6 +754,7 @@ h1 {
 }
 
 @media (max-width: 980px) {
+  .hero-heading,
   .hero-grid,
   .feature-layout,
   .pricing-shell,
