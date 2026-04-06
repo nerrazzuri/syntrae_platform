@@ -120,6 +120,14 @@ img {
   padding: 72px 0 48px;
 }
 
+.hero-heading {
+  margin-bottom: 32px;
+}
+
+.hero-heading h1 {
+  max-width: 980px;
+}
+
 .hero-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.95fr);
