@@ -1,5 +1,5 @@
 :root {
-  --bg: #f5efe5;
+  --bg: #f3eadb;
   --bg-deep: #10241f;
   --panel: rgba(255, 253, 248, 0.88);
   --ink: #152026;
@@ -10,6 +10,7 @@
   --accent-soft: rgba(13, 143, 116, 0.14);
   --warm: #cb7b36;
   --shadow: 0 24px 60px rgba(27, 40, 48, 0.08);
+  --shadow-strong: 0 34px 90px rgba(14, 34, 30, 0.16);
   --radius: 28px;
 }
 
@@ -26,9 +27,10 @@ body {
   color: var(--ink);
   font-family: "Manrope", "Segoe UI", sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(13, 143, 116, 0.14), transparent 24%),
-    radial-gradient(circle at top right, rgba(203, 123, 54, 0.12), transparent 26%),
-    linear-gradient(180deg, #fcf8f1 0%, var(--bg) 46%, #f0e8dc 100%);
+    radial-gradient(circle at 7% 8%, rgba(13, 143, 116, 0.18), transparent 24%),
+    radial-gradient(circle at 91% 4%, rgba(203, 123, 54, 0.16), transparent 28%),
+    radial-gradient(circle at 62% 54%, rgba(12, 110, 103, 0.08), transparent 22%),
+    linear-gradient(180deg, #fffaf1 0%, var(--bg) 44%, #efe4d5 100%);
 }
 
 a {
@@ -50,7 +52,7 @@ img {
   top: 0;
   z-index: 10;
   backdrop-filter: blur(14px);
-  background: rgba(252, 248, 241, 0.78);
+  background: rgba(252, 248, 241, 0.84);
   border-bottom: 1px solid rgba(21, 32, 38, 0.06);
 }
 
@@ -117,11 +119,40 @@ img {
 }
 
 .hero-section {
-  padding: 72px 0 48px;
+  position: relative;
+  overflow: hidden;
+  padding: 78px 0 58px;
+}
+
+.hero-section::before,
+.hero-section::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  border-radius: 999px;
+  filter: blur(4px);
+}
+
+.hero-section::before {
+  right: -120px;
+  top: 88px;
+  width: 430px;
+  height: 430px;
+  background: radial-gradient(circle, rgba(13, 143, 116, 0.18), transparent 68%);
+}
+
+.hero-section::after {
+  left: 42%;
+  top: 26px;
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(circle, rgba(203, 123, 54, 0.13), transparent 70%);
 }
 
 .hero-heading {
-  margin-bottom: 32px;
+  position: relative;
+  z-index: 1;
+  margin-bottom: 34px;
 }
 
 .hero-grid {
@@ -160,10 +191,29 @@ h1 {
   max-width: none;
   font-size: clamp(3rem, 4vw, 4.35rem);
   line-height: 1;
+  text-wrap: balance;
 }
 
 .hero-headline span {
   display: block;
+}
+
+.hero-ribbon {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.hero-ribbon span {
+  border: 1px solid rgba(13, 143, 116, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.74);
+  color: #31514b;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 10px 14px;
+  box-shadow: 0 14px 36px rgba(27, 40, 48, 0.06);
 }
 
 @media (min-width: 981px) {
@@ -217,8 +267,33 @@ h1 {
 }
 
 .hero-panel {
+  position: relative;
   display: grid;
   gap: 16px;
+}
+
+.pipeline-rail {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(13, 143, 116, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.74);
+  box-shadow: 0 18px 50px rgba(27, 40, 48, 0.08);
+}
+
+.pipeline-rail span {
+  display: inline-flex;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(13, 143, 116, 0.1);
+  color: #244842;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  padding: 8px 10px;
+  text-transform: uppercase;
 }
 
 .hero-panel-card,
@@ -234,7 +309,29 @@ h1 {
 }
 
 .hero-panel-card {
+  position: relative;
+  overflow: hidden;
   padding: 24px;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.hero-panel-card::after {
+  content: "";
+  position: absolute;
+  inset: auto 20px 0;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: linear-gradient(90deg, var(--accent), rgba(203, 123, 54, 0.85));
+  opacity: 0.5;
+}
+
+.hero-panel-card:hover,
+.problem-card:hover,
+.feature-card:hover,
+.pricing-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-strong);
+  border-color: rgba(13, 143, 116, 0.2);
 }
 
 .hero-panel-card strong {
@@ -262,7 +359,7 @@ h1 {
 }
 
 .proof-strip {
-  padding: 14px 0 40px;
+  padding: 14px 0 46px;
 }
 
 .proof-grid {
@@ -272,8 +369,11 @@ h1 {
 }
 
 .proof-grid div {
-  border-top: 1px solid rgba(21, 32, 38, 0.12);
-  padding-top: 16px;
+  border: 1px solid rgba(21, 32, 38, 0.1);
+  border-radius: 24px;
+  background: rgba(255, 253, 248, 0.66);
+  box-shadow: 0 18px 54px rgba(27, 40, 48, 0.06);
+  padding: 18px;
 }
 
 .proof-grid span {
@@ -292,6 +392,11 @@ h1 {
 
 .content-section {
   padding: 72px 0;
+}
+
+.content-section:nth-of-type(odd):not(.tone-deep):not(.pricing-band) {
+  background:
+    linear-gradient(90deg, rgba(13, 143, 116, 0.05), transparent 24%, rgba(203, 123, 54, 0.05));
 }
 
 .section-shell,
@@ -330,7 +435,32 @@ h1 {
 
 .problem-card,
 .feature-card {
+  position: relative;
+  overflow: hidden;
   padding: 26px;
+}
+
+.problem-card::before,
+.feature-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: linear-gradient(180deg, var(--accent), var(--warm));
+  opacity: 0.72;
+}
+
+.card-number {
+  display: inline-flex;
+  margin-bottom: 14px;
+  border-radius: 999px;
+  background: rgba(13, 143, 116, 0.1);
+  color: var(--accent-deep);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  padding: 7px 11px;
+  text-transform: uppercase;
 }
 
 .workflow-grid {
@@ -338,9 +468,28 @@ h1 {
 }
 
 .workflow-card {
+  position: relative;
+  overflow: hidden;
   padding: 24px;
   background: rgba(255, 255, 255, 0.08);
   color: #eef5f3;
+  transition: transform 180ms ease, background 180ms ease;
+}
+
+.workflow-card::after {
+  content: "";
+  position: absolute;
+  right: -36px;
+  top: -36px;
+  width: 110px;
+  height: 110px;
+  border-radius: 999px;
+  background: rgba(203, 123, 54, 0.14);
+}
+
+.workflow-card:hover {
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .workflow-card span {
@@ -359,8 +508,11 @@ h1 {
 }
 
 .tone-deep {
+  position: relative;
+  overflow: hidden;
   background:
-    radial-gradient(circle at top left, rgba(203, 123, 54, 0.16), transparent 18%),
+    radial-gradient(circle at top left, rgba(203, 123, 54, 0.22), transparent 18%),
+    radial-gradient(circle at 92% 18%, rgba(13, 143, 116, 0.22), transparent 24%),
     linear-gradient(180deg, #0f231f 0%, #132a25 100%);
 }
 
@@ -376,7 +528,10 @@ h1 {
 }
 
 .pricing-band {
-  padding-top: 16px;
+  padding-top: 26px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(13, 143, 116, 0.13), transparent 26%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.52), rgba(255, 253, 248, 0.14));
 }
 
 .pricing-grid {
@@ -429,6 +584,8 @@ h1 {
 }
 
 .pricing-card {
+  position: relative;
+  overflow: hidden;
   display: grid;
   grid-template-rows: auto 1fr auto;
   gap: 18px;
@@ -438,6 +595,16 @@ h1 {
   background: rgba(255, 253, 248, 0.92);
   box-shadow: var(--shadow);
   height: 100%;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.pricing-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 5px;
+  background: linear-gradient(90deg, rgba(13, 143, 116, 0.85), rgba(203, 123, 54, 0.55));
+  opacity: 0.42;
 }
 
 .featured-plan {
@@ -445,6 +612,11 @@ h1 {
     radial-gradient(circle at top right, rgba(13, 143, 116, 0.2), transparent 24%),
     rgba(255, 253, 248, 0.98);
   border-color: rgba(13, 143, 116, 0.28);
+  transform: translateY(-8px);
+}
+
+.featured-plan:hover {
+  transform: translateY(-11px);
 }
 
 .pricing-card-top {
@@ -586,6 +758,14 @@ h1 {
   .pricing-grid {
     grid-template-columns: 1fr;
   }
+
+  .featured-plan {
+    transform: none;
+  }
+
+  .featured-plan:hover {
+    transform: translateY(-3px);
+  }
 }
 
 @media (max-width: 720px) {
@@ -613,5 +793,10 @@ h1 {
 
   .hero-headline span {
     white-space: normal;
+  }
+
+  .hero-ribbon,
+  .pipeline-rail {
+    display: none;
   }
 }
