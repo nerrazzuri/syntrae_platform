@@ -156,7 +156,14 @@ h1 {
 }
 
 .hero-heading .hero-headline {
-  max-width: min(1080px, 100%);
+  width: 100%;
+  max-width: none;
+  font-size: clamp(3rem, 4.6vw, 5rem);
+  line-height: 1;
+}
+
+.hero-headline span {
+  display: block;
 }
 
 .hero-text,
