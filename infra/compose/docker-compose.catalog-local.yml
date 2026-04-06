@@ -20,6 +20,7 @@ services:
       - syntrae_local_qdrant:/qdrant/storage
 
   operator-api:
+    container_name: syntrae-local-operator-api
     env_file:
       - ../../.env.local
     environment:
@@ -40,6 +41,7 @@ services:
       - syntrae_local_storage:/data/storage
 
   operator-ui:
+    container_name: syntrae-local-operator-ui
     build:
       context: ../..
       dockerfile: infra/docker/operator-ui.Dockerfile
@@ -47,13 +49,18 @@ services:
         VITE_API_BASE_URL: https://api.localhost.com:8443
 
   admin-ui:
+    container_name: syntrae-local-admin-ui
     build:
       context: ../..
       dockerfile: infra/docker/admin-ui.Dockerfile
       args:
         VITE_ADMIN_API_BASE_URL: https://api.localhost.com:8443/admin
 
+  marketing-ui:
+    container_name: syntrae-local-marketing-ui
+
   nginx:
+    container_name: syntrae-local-nginx
     ports: !override
       - "8080:80"
       - "8443:443"
@@ -64,10 +71,12 @@ services:
       - ./nginx/proxy_params:/etc/nginx/proxy_params:ro
 
   certbot:
+    container_name: syntrae-local-certbot
     profiles:
       - live
 
   video-detection-engine:
+    container_name: syntrae-local-video-detection-engine
     environment:
       - OPENAI_API_KEY=${LOCAL_OPENAI_API_KEY:-}
     volumes:
@@ -85,10 +94,12 @@ services:
       - ./data/local/screenshots:/data/screenshots
 
   ai-core:
+    container_name: syntrae-local-ai-core
     environment:
       - OPENAI_API_KEY=${LOCAL_OPENAI_API_KEY:-}
 
   ingestion-service:
+    container_name: syntrae-local-ingestion-service
     environment:
       - OPENAI_API_KEY=${LOCAL_OPENAI_API_KEY:-}
 
