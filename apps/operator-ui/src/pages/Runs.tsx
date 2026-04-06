@@ -87,7 +87,7 @@ export function Runs() {
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Run ID</th>
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Brand</th>
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Status</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Videos</th>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Source Posts</th>
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Comments</th>
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Suppressed</th>
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Worker</th>
@@ -165,7 +165,7 @@ export function Runs() {
                             </div>
 
                             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                <MetricBox label="Videos Processed" value={selectedRun.stats?.videos_processed || 0} tone="sky" />
+                                <MetricBox label="Source Posts Reviewed" value={selectedRun.stats?.videos_processed || 0} tone="sky" />
                                 <MetricBox label="Comments Captured" value={selectedRun.stats?.comments_captured || 0} tone="amber" />
                                 <MetricBox label="Successfully Emitted" value={selectedRun.stats?.comments_emitted_success || 0} tone="green" />
                                 <MetricBox label="Emission Failures" value={selectedRun.stats?.comments_emitted_failed || 0} tone="rose" />

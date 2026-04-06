@@ -196,6 +196,7 @@ class GenerateDraftRequest(BaseModel):
     platform: Optional[str] = None
     buyer_stage: Optional[str] = None
     intent: Optional[str] = None
+    product_context: Optional[Dict[str, Any]] = None
 
 
 @router.post("/drafts/generate")
@@ -237,6 +238,7 @@ def generate_draft(
                 "platform": payload.platform,
                 "buyer_stage": payload.buyer_stage,
                 "intent": payload.intent,
+                "product_context": payload.product_context,
             }
         )
     except ValueError as e:

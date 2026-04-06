@@ -360,6 +360,10 @@ class DiscoveryEngine:
         base_payload = {
              "video_id": cand.video_id,
              "video_url": cand.video_url,
+             "caption": cand.caption,
+             "hashtags": cand.hashtags,
+             "source_post_author_name": cand.author_handle,
+             "search_keyword": getattr(cand, "search_keyword", None),
              "platform": cand.platform,
              "market_score": score,
              "decision": decision,

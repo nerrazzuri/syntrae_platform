@@ -1,6 +1,7 @@
 import hashlib
 import json as json_lib
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -67,10 +68,18 @@ class XiaohongshuPlatform:
                         or note_card.get("xsec_source")
                         or note_card.get("xsecSource")
                     )
+                    caption = self._normalize_text(
+                        note_card.get("display_title")
+                        or note_card.get("title")
+                        or note_card.get("desc")
+                        or keyword
+                    )
+                    hashtags = self._extract_hashtags(caption, note_card.get("desc"), note_card.get("tag_list"))
                     posts.append({
                         "note_id": note_id,
                         "note_ref": note_ref,
-                        "title": note_card.get("display_title", keyword),
+                        "title": caption,
+                        "hashtags": hashtags,
                         "author": note_card.get("user", {}).get("nickname", "unknown"),
                         "like_count": int(note_card.get("interact_info", {}).get("liked_count", 0)),
                         "xsec_token": xsec_token,
@@ -120,7 +129,8 @@ class XiaohongshuPlatform:
                 "video_author_name": post_author,
                 "like_count": post["like_count"],
                 "reply_count": 0,
-                "hashtags": [],
+                "hashtags": post.get("hashtags") or [],
+                "search_keyword": keyword,
                 "page_url": post_url,
                 "page_timestamp": now,
             }
@@ -252,6 +262,40 @@ class XiaohongshuPlatform:
         if value is None:
             return ""
         return str(value).strip()
+
+    @staticmethod
+    def _extract_hashtags(*values):
+        tags = []
+
+        for value in values:
+            if not value:
+                continue
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        tags.append(XiaohongshuPlatform._normalize_text(
+                            item.get("name") or item.get("tag_name") or item.get("tagName") or item.get("title")
+                        ))
+                    else:
+                        tags.append(XiaohongshuPlatform._normalize_text(item))
+                continue
+
+            text = XiaohongshuPlatform._normalize_text(value)
+            tags.extend(re.findall(r"#([\w\u4e00-\u9fff-]+)", text))
+
+        normalized = []
+        seen = set()
+        for tag in tags:
+            clean = XiaohongshuPlatform._normalize_text(tag).lstrip("#")
+            if not clean:
+                continue
+            key = clean.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            normalized.append(clean)
+
+        return normalized[:12]
 
     @staticmethod
     def _normalize_comment_id(value):

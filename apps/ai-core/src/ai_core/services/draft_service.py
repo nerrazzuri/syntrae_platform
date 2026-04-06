@@ -58,6 +58,21 @@ class DraftGenerationService:
         reply_cta_style = owner_settings.get("reply_cta_style", "SOFT")
         brand_name = owner_settings.get("brand_name") or "the brand"
         brand_domain = owner_settings.get("brand_domain") or ""
+        product_context = owner_settings.get("product_context") or {}
+        product_context_text = "N/A"
+        if isinstance(product_context, dict) and product_context.get("name"):
+            benefits = product_context.get("key_benefits") or []
+            objections = product_context.get("common_objections") or []
+            product_context_text = (
+                f"Name: {product_context.get('name')}; "
+                f"Category: {product_context.get('category') or 'N/A'}; "
+                f"Description: {product_context.get('description') or 'N/A'}; "
+                f"Price: {product_context.get('price_label') or 'N/A'}; "
+                f"Target Buyer: {product_context.get('target_buyer') or 'N/A'}; "
+                f"Benefits: {', '.join(benefits) if isinstance(benefits, list) else 'N/A'}; "
+                f"Objections: {', '.join(objections) if isinstance(objections, list) else 'N/A'}; "
+                f"CTA URL: {product_context.get('cta_url') or 'N/A'}"
+            )
 
         cta_map = {
             "STORE": "the brand's store",
@@ -79,6 +94,7 @@ class DraftGenerationService:
         Original Comment: {comment_text or "N/A"}
         Brand Name: {brand_name}
         Brand Domain: {brand_domain or "N/A"}
+        Matched Product / Offer: {product_context_text}
         
         TONE: {tone}
         LANGUAGE: {language}
@@ -94,8 +110,9 @@ class DraftGenerationService:
         6. NO cold DM invitation. NO "please DM us". NO robotic customer-service phrasing.
         7. NO pricing numbers unless explicitly present in the comment/context.
         8. NO absolute guarantees ("best", "cheapest", "guaranteed").
-        9. Keep it under 45 words unless Mandarin requires slightly more natural phrasing.
-        10. Output must be only the reply text, with no quotation marks or explanation.
+        9. If a matched product is provided, use it as context but do not overclaim or force a hard sell.
+        10. Keep it under 45 words unless Mandarin requires slightly more natural phrasing.
+        11. Output must be only the reply text, with no quotation marks or explanation.
         
         Draft:
         """

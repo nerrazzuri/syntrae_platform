@@ -31,6 +31,18 @@ interface LeadRecord {
     thread_reference?: {
         thread_url?: string | null;
     };
+    matched_catalog_item_name?: string | null;
+    catalog_match_score?: number | null;
+    catalog_match_reasons?: string[] | null;
+    matched_catalog_item?: {
+        id: string;
+        name: string;
+        category?: string | null;
+        description?: string | null;
+        price_label?: string | null;
+        cta_url?: string | null;
+        cta_label?: string | null;
+    } | null;
 }
 
 interface UsageData {
@@ -255,6 +267,11 @@ export function Leads() {
                                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                                             {lead.user_handle && <span>@{lead.user_handle}</span>}
                                             <span>{lead.intent || 'N/A'}</span>
+                                            {(lead.matched_catalog_item?.name || lead.matched_catalog_item_name) && (
+                                                <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
+                                                    {lead.matched_catalog_item?.name || lead.matched_catalog_item_name}
+                                                </span>
+                                            )}
                                         </div>
                                     </td>
                                     <td className="px-4 py-4 text-sm">
@@ -326,6 +343,26 @@ export function Leads() {
                                             <ExternalLink className="h-4 w-4" />
                                             Open original post or thread
                                         </a>
+                                    }
+                                />
+                            )}
+                            {(selectedLead.matched_catalog_item?.name || selectedLead.matched_catalog_item_name) && (
+                                <DetailField
+                                    label="Matched Product"
+                                    value={
+                                        <div className="space-y-2 text-sm leading-6">
+                                            <div className="font-bold text-slate-900">{selectedLead.matched_catalog_item?.name || selectedLead.matched_catalog_item_name}</div>
+                                            {selectedLead.matched_catalog_item?.category && <div>Category: {selectedLead.matched_catalog_item.category}</div>}
+                                            {selectedLead.matched_catalog_item?.price_label && <div>Price: {selectedLead.matched_catalog_item.price_label}</div>}
+                                            {selectedLead.catalog_match_score != null && <div>Match score: {(selectedLead.catalog_match_score * 100).toFixed(0)}%</div>}
+                                            {selectedLead.catalog_match_reasons?.length ? <div>Why: {selectedLead.catalog_match_reasons.join('; ')}</div> : null}
+                                            {selectedLead.matched_catalog_item?.cta_url && (
+                                                <a href={selectedLead.matched_catalog_item.cta_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 font-semibold text-teal-700">
+                                                    <ExternalLink className="h-4 w-4" />
+                                                    Open product CTA
+                                                </a>
+                                            )}
+                                        </div>
                                     }
                                 />
                             )}

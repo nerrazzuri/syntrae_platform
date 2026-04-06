@@ -194,7 +194,7 @@ export function RepliesPage() {
                                         </div>
                                     </div>
                                     <div>
-                                        <div className="font-semibold text-slate-900">Video ID</div>
+                                        <div className="font-semibold text-slate-900">Source Post ID</div>
                                         <div className="mt-1 break-all font-mono text-xs">{selectedDraft.thread_reference?.video_id || 'Unknown'}</div>
                                     </div>
                                     <div>

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { requireSession } from '../middleware/session_auth';
 import { BrandService } from '../services/brand.service';
 import { LeadService } from '../services/lead_service';
+import { CatalogService } from '../services/catalog.service';
 import { SubscriptionPolicyError } from '../services/billing/subscription_policy.service';
 
 const router = Router();
@@ -44,6 +45,74 @@ router.post('/', async (req: Request, res: Response) => {
         } else {
             res.status(500).json({ error: 'Internal Server Error' });
         }
+    }
+});
+
+// GET /brands/:brandId/catalog
+router.get('/:brandId/catalog', async (req: Request, res: Response) => {
+    try {
+        const workspaceId = req.session?.active_workspace_id;
+        if (!workspaceId) {
+            res.status(400).json({ error: 'No active workspace' });
+            return;
+        }
+
+        const items = await CatalogService.listItems(workspaceId, req.params.brandId);
+        res.json(items);
+    } catch (err: any) {
+        console.warn('[Brands] Catalog List Failed:', err.message);
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// POST /brands/:brandId/catalog
+router.post('/:brandId/catalog', async (req: Request, res: Response) => {
+    try {
+        const workspaceId = req.session?.active_workspace_id;
+        if (!workspaceId) {
+            res.status(400).json({ error: 'No active workspace' });
+            return;
+        }
+
+        const item = await CatalogService.createItem(workspaceId, req.params.brandId, req.body || {});
+        res.status(201).json(item);
+    } catch (err: any) {
+        console.warn('[Brands] Catalog Create Failed:', err.message);
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// PATCH /brands/:brandId/catalog/:itemId
+router.patch('/:brandId/catalog/:itemId', async (req: Request, res: Response) => {
+    try {
+        const workspaceId = req.session?.active_workspace_id;
+        if (!workspaceId) {
+            res.status(400).json({ error: 'No active workspace' });
+            return;
+        }
+
+        const item = await CatalogService.updateItem(workspaceId, req.params.brandId, req.params.itemId, req.body || {});
+        res.json(item);
+    } catch (err: any) {
+        console.warn('[Brands] Catalog Update Failed:', err.message);
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// DELETE /brands/:brandId/catalog/:itemId
+router.delete('/:brandId/catalog/:itemId', async (req: Request, res: Response) => {
+    try {
+        const workspaceId = req.session?.active_workspace_id;
+        if (!workspaceId) {
+            res.status(400).json({ error: 'No active workspace' });
+            return;
+        }
+
+        const item = await CatalogService.archiveItem(workspaceId, req.params.brandId, req.params.itemId);
+        res.json({ status: 'ok', item });
+    } catch (err: any) {
+        console.warn('[Brands] Catalog Archive Failed:', err.message);
+        res.status(400).json({ error: err.message });
     }
 });
 

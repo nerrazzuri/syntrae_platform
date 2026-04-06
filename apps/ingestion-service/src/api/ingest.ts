@@ -359,6 +359,11 @@ router.post('/events', async (req: Request, res: Response) => {
                 video_id: eventData.video.video_id,
                 comment_id: eventData.comment.comment_id,
                 content_text: eventData.comment.text,
+                source_post_caption: eventData.context.source_post?.caption || eventData.video.title || null,
+                source_post_hashtags: eventData.context.source_post?.hashtags || eventData.video.hashtags || [],
+                source_post_url: eventData.context.source_post?.url || eventData.video.video_url || eventData.page.url || null,
+                source_post_author_name: eventData.context.source_post?.author_name || eventData.video.author_name || null,
+                source_post_search_keyword: eventData.context.source_post?.search_keyword || eventData.context.search_keyword || null,
                 metadata: eventData as any,
                 status: initialStatus,
                 failure_reason: failureReason,
@@ -586,6 +591,89 @@ async function processAsyncIngest(eventId: string, rawData: any) {
     });
 }
 
+function jsonList(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map((item) => typeof item === 'string' ? item.trim() : '')
+        .filter(Boolean);
+}
+
+function tokenize(value: string): string[] {
+    return value
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s#-]/gu, ' ')
+        .split(/\s+/)
+        .map((token) => token.replace(/^#/, '').trim())
+        .filter((token) => token.length >= 2);
+}
+
+async function findCatalogMatch(event: any, payload: any) {
+    if (!event.account_id || !event.brand_id) return null;
+
+    const items = await prisma.productCatalogItem.findMany({
+        where: {
+            workspace_id: event.account_id,
+            brand_id: event.brand_id,
+            status: 'ACTIVE',
+        },
+        orderBy: [
+            { priority: 'desc' },
+            { updated_at: 'desc' },
+        ],
+        take: 50,
+    });
+
+    if (!items.length) return null;
+
+    const postHashtags = [
+        ...jsonList(payload.video?.hashtags),
+        ...jsonList(payload.context?.source_post?.hashtags),
+    ];
+    const sourceText = [
+        event.content_text,
+        payload.video?.title,
+        payload.context?.source_post?.caption,
+        postHashtags.join(' '),
+    ].filter(Boolean).join(' ');
+    const sourceTokens = new Set(tokenize(sourceText));
+    if (!sourceTokens.size) return null;
+
+    let best: any = null;
+    for (const item of items) {
+        const productText = [
+            item.name,
+            item.category,
+            item.description,
+            item.target_buyer,
+            item.price_label,
+            ...jsonList(item.key_benefits),
+            ...jsonList(item.common_objections),
+        ].filter(Boolean).join(' ');
+        const productTokens = new Set(tokenize(productText));
+        const matches = [...productTokens].filter((token) => sourceTokens.has(token));
+        const nameMatched = tokenize(item.name).some((token) => sourceTokens.has(token));
+        const categoryMatched = item.category ? tokenize(item.category).some((token) => sourceTokens.has(token)) : false;
+        const score = Math.min(1, (matches.length / Math.max(productTokens.size, 1)) + (nameMatched ? 0.35 : 0) + (categoryMatched ? 0.2 : 0) + Math.min(item.priority, 100) / 500);
+
+        if (!best || score > best.score) {
+            best = {
+                id: item.id,
+                name: item.name,
+                category: item.category,
+                cta_url: item.cta_url,
+                score: Number(score.toFixed(3)),
+                reasons: [
+                    ...(nameMatched ? ['product name matched source post or comment'] : []),
+                    ...(categoryMatched ? ['category matched source post or comment'] : []),
+                    ...(matches.length ? [`matched terms: ${matches.slice(0, 8).join(', ')}`] : []),
+                ],
+            };
+        }
+    }
+
+    return best && best.score >= 0.12 ? best : null;
+}
+
 async function persistLeadOpportunity(event: any, payload: any, trace: any, confidence: number) {
     const intent = trace?.intent;
     if (!intent?.intent || !event.comment_id || !event.account_id || !event.brand_id) {
@@ -625,6 +713,7 @@ async function persistLeadOpportunity(event: any, payload: any, trace: any, conf
     const leadConfidence = buyerStage === 'READY'
         ? Math.max(confidence || 0, 0.9)
         : Math.max(confidence || 0, 0.6);
+    const catalogMatch = await findCatalogMatch(event, payload);
 
     return prisma.leadOpportunity.create({
         data: {
@@ -642,10 +731,15 @@ async function persistLeadOpportunity(event: any, payload: any, trace: any, conf
             source_event_id: event.id,
             account_id: event.account_id,
             brand_id: event.brand_id,
+            matched_catalog_item_id: catalogMatch?.id ?? null,
+            matched_catalog_item_name: catalogMatch?.name ?? null,
+            catalog_match_score: catalogMatch?.score ?? null,
+            catalog_match_reasons: catalogMatch?.reasons ?? null,
             preferences: {
                 source: 'ingestion-service',
                 strength: intent.strength,
-                strategy: trace?.final_strategy || null
+                strategy: trace?.final_strategy || null,
+                catalog_match: catalogMatch
             }
         }
     });
@@ -679,6 +773,10 @@ async function triggerAutoSuggest(event: any, accountId: string, installId: stri
     }
 
     const eventPayload = Object.keys(payload || {}).length > 0 ? payload : extractPayloadFromEventMetadata(event);
+    const postHashtags = [
+        ...jsonList(eventPayload.video?.hashtags),
+        ...jsonList(eventPayload.context?.source_post?.hashtags),
+    ];
 
     // 1. Adapter
     const videoEvent: VideoEvent = {
@@ -687,8 +785,8 @@ async function triggerAutoSuggest(event: any, accountId: string, installId: stri
         creator_id: eventPayload.video?.author_id || 'unknown',
         creator_name: eventPayload.video?.author_name || 'unknown',
         video_title: eventPayload.video?.title || 'Untitled',
-        video_description: '',
-        video_tags: [],
+        video_description: eventPayload.context?.source_post?.caption || eventPayload.video?.title || '',
+        video_tags: postHashtags,
         timestamp: eventPayload.page?.timestamp || new Date().toISOString(),
         session_id: eventPayload.session?.session_id || 'unknown_session',
         install_id: installId,
@@ -943,8 +1041,11 @@ router.post('/suggestions', async (req: Request, res: Response) => {
             creator_id: rawMeta.video?.author_id || 'unknown',
             creator_name: rawMeta.video?.author_name || 'unknown',
             video_title: rawMeta.video?.title || 'Untitled Video',
-            video_description: '',
-            video_tags: [],
+            video_description: rawMeta.context?.source_post?.caption || rawMeta.video?.title || '',
+            video_tags: [
+                ...jsonList(rawMeta.video?.hashtags),
+                ...jsonList(rawMeta.context?.source_post?.hashtags),
+            ],
             timestamp: rawMeta.page?.timestamp || new Date().toISOString(),
             session_id: rawMeta.session?.session_id || 'unknown_session',
             install_id: installId,
