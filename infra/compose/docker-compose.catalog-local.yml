@@ -47,7 +47,7 @@ services:
       context: ../..
       dockerfile: infra/docker/operator-ui.Dockerfile
       args:
-        VITE_API_BASE_URL: https://api.localhost.com:8443
+        VITE_API_BASE_URL: /api
 
   admin-ui:
     container_name: syntrae-local-admin-ui

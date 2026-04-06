@@ -15,8 +15,10 @@ The local nginx edge listens on:
 
 ```text
 https://app.localhost.com:8443
-https://api.localhost.com:8443
 ```
+
+The operator UI calls the API through the same-origin path `https://app.localhost.com:8443/api`.
+`https://api.localhost.com:8443` remains available for direct API/admin testing.
 
 ## 2. Environment
 
@@ -41,14 +43,13 @@ docker compose --env-file ../../.env.local \
   up -d --build postgresql redis qdrant ai-core ingestion-service operator-api operator-ui nginx
 ```
 
-Apply feature-branch migrations:
+Apply migrations:
 
 ```bash
 docker compose --env-file ../../.env.local \
   -f docker-compose.yml \
   -f docker-compose.catalog-local.yml \
-  exec -T postgresql psql -U superuser -d syntrae_core \
-  < ../../packages/prisma-schema/migrations/20260406143000_product_catalog_post_context/migration.sql
+  run --rm --build db-migrate
 ```
 
 ## 4. Stop
