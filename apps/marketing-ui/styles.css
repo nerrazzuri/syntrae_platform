@@ -158,12 +158,18 @@ h1 {
 .hero-heading .hero-headline {
   width: 100%;
   max-width: none;
-  font-size: clamp(3rem, 4.6vw, 5rem);
+  font-size: clamp(3rem, 4vw, 4.35rem);
   line-height: 1;
 }
 
 .hero-headline span {
   display: block;
+}
+
+@media (min-width: 981px) {
+  .hero-headline span {
+    white-space: nowrap;
+  }
 }
 
 .hero-text,
@@ -599,5 +605,13 @@ h1 {
 
   h1 {
     max-width: none;
+  }
+
+  .hero-heading .hero-headline {
+    font-size: clamp(2.75rem, 13vw, 4rem);
+  }
+
+  .hero-headline span {
+    white-space: normal;
   }
 }
