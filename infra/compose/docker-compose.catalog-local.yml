@@ -27,6 +27,7 @@ services:
       - NODE_ENV=production
       - COOKIE_DOMAIN=.localhost.com
       - COOKIE_SECURE=true
+      - CORS_ALLOWED_ORIGINS=https://app.localhost.com:8443,https://api.localhost.com:8443
       - APP_BASE_URL=https://app.localhost.com:8443
       - PUBLIC_SITE_URL=https://app.localhost.com:8443
       - STRIPE_PORTAL_RETURN_URL=https://app.localhost.com:8443/billing
