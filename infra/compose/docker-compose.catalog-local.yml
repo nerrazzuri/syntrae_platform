@@ -1,0 +1,99 @@
+name: syntrae_local
+
+services:
+  postgresql:
+    ports:
+      - "15432:5432"
+    volumes:
+      - syntrae_local_postgres:/var/lib/postgresql/data
+
+  redis:
+    ports:
+      - "16379:6379"
+    volumes:
+      - syntrae_local_redis:/data
+
+  qdrant:
+    ports:
+      - "16333:6333"
+    volumes:
+      - syntrae_local_qdrant:/qdrant/storage
+
+  operator-api:
+    env_file:
+      - ../../.env.local
+    environment:
+      - NODE_ENV=production
+      - COOKIE_DOMAIN=.localhost.com
+      - COOKIE_SECURE=true
+      - APP_BASE_URL=https://app.localhost.com:8443
+      - PUBLIC_SITE_URL=https://app.localhost.com:8443
+      - STRIPE_PORTAL_RETURN_URL=https://app.localhost.com:8443/billing
+      - STRIPE_CHECKOUT_SUCCESS_URL=https://app.localhost.com:8443/billing?checkout=success
+      - STRIPE_CHECKOUT_CANCEL_URL=https://app.localhost.com:8443/billing?checkout=canceled
+      - BILLING_MANUAL_PLAN_CHANGES=${BILLING_MANUAL_PLAN_CHANGES:-1}
+      - BETA_SIGNUP_ENABLED=${BETA_SIGNUP_ENABLED:-true}
+      - AUTOMATION_STORAGE_ROOT=/data/storage
+      - AUTOMATION_API_URL=http://video-detection-engine:8000
+      - OPENAI_API_KEY=${LOCAL_OPENAI_API_KEY:-}
+    volumes:
+      - syntrae_local_storage:/data/storage
+
+  operator-ui:
+    build:
+      context: ../..
+      dockerfile: infra/docker/operator-ui.Dockerfile
+      args:
+        VITE_API_BASE_URL: https://api.localhost.com:8443
+
+  admin-ui:
+    build:
+      context: ../..
+      dockerfile: infra/docker/admin-ui.Dockerfile
+      args:
+        VITE_ADMIN_API_BASE_URL: https://api.localhost.com:8443/admin
+
+  nginx:
+    ports: !override
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./local-nginx/conf.d:/etc/nginx/conf.d:ro
+      - ../../infra/nginx/local:/etc/nginx/local:ro
+      - ./nginx/proxy_params:/etc/nginx/proxy_params:ro
+
+  certbot:
+    profiles:
+      - live
+
+  video-detection-engine:
+    environment:
+      - OPENAI_API_KEY=${LOCAL_OPENAI_API_KEY:-}
+    volumes:
+      - syntrae_local_storage:/data/storage
+      - ./data/local/screenshots:/data/screenshots
+
+  automation-worker:
+    env_file:
+      - ../../.env.local
+    environment:
+      - AUTOMATION_MAX_CONCURRENT_JOBS=${AUTOMATION_MAX_CONCURRENT_JOBS:-1}
+      - OPENAI_API_KEY=${LOCAL_OPENAI_API_KEY:-}
+    volumes:
+      - syntrae_local_storage:/data/storage
+      - ./data/local/screenshots:/data/screenshots
+
+  ai-core:
+    environment:
+      - OPENAI_API_KEY=${LOCAL_OPENAI_API_KEY:-}
+
+  ingestion-service:
+    environment:
+      - OPENAI_API_KEY=${LOCAL_OPENAI_API_KEY:-}
+
+volumes:
+  syntrae_local_postgres:
+  syntrae_local_redis:
+  syntrae_local_qdrant:
+  syntrae_local_storage:
