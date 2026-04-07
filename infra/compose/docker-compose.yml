@@ -13,6 +13,7 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
+      TZ: Asia/Kuala_Lumpur
       POSTGRES_DB: syntrae_core
       POSTGRES_USER: superuser
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -78,6 +79,7 @@ services:
       dockerfile: infra/docker/ai-core.Dockerfile
     restart: unless-stopped
     environment:
+      - TZ=Asia/Kuala_Lumpur
       # Adjusted to use 'postgresql' service and create user/db in init
       # Note: ai-core uses 'chatbot_user' which is the POSTGRES_USER.
       - DATABASE_URL=${DATABASE_URL}?options=-c%20search_path%3Dcore
@@ -120,6 +122,7 @@ services:
     networks:
       - syntrae_net
     environment:
+      - TZ=Asia/Kuala_Lumpur
       - LOG_LEVEL=info # Pilot: reduced from debug
       # - DEBUG=*  # Pilot: disabled verbose debugging
       - PORT=3005
@@ -147,6 +150,7 @@ services:
     networks:
       - syntrae_net
     environment:
+      - TZ=Asia/Kuala_Lumpur
       - PORT=3001
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}?schema=core
@@ -272,6 +276,7 @@ services:
       - /mnt/data/docker/video:/data/storage
       - ${HOME}/screenshots:/data/screenshots # Debug artifacts
     environment:
+      - TZ=Asia/Kuala_Lumpur
       - LOG_LEVEL=INFO
       - DEBUG_ARTIFACTS_DIR=/data/screenshots
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
@@ -301,6 +306,7 @@ services:
       - /mnt/data/docker/video:/data/storage
       - ${HOME}/screenshots:/data/screenshots # Debug artifacts
     environment:
+      - TZ=Asia/Kuala_Lumpur
       - LOG_LEVEL=INFO
       - DEBUG_ARTIFACTS_DIR=/data/screenshots
       # Needs to reach operator-api for polling
