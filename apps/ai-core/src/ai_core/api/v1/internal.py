@@ -1,7 +1,7 @@
 """
 Internal knowledge API with JWT-based RBAC.
 """
-from fastapi import APIRouter, Depends, HTTPException, Header, Request, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any, List
@@ -18,38 +18,12 @@ from shared.database.models import Document, KnowledgeBase
 import os
 import logging
 import json
+import re
 
 router = APIRouter(prefix="/v1/internal", tags=["internal-knowledge"])
 jwt_service = JWTService()
 normalization_service = NormalizationService()
-normalization_service = NormalizationService()
 dense_retriever = DenseRetriever()
-
-# ... existing endpoints (knowledge/list, etc.) ...
-
-# [OMITTED for brevity, assume existing endpoints exist] 
-# Need to be careful with replace_file_content context.
-# Since I selected a large range, I should preserve existing endpoints if I can't see them all or use multi-replace.
-# But I see the file content in context. I will reproduce the imports and add the new code at the end or replace relevance check.
-
-# Let's target specific blocks to be safe.
-# 1. Imports and Initialization at top.
-# 2. Add /normalize endpoint.
-# 3. Replace /relevance/check.
-
-# I will do this in chunks via multi_replace if needed, but here simple replace of the relevance section + adding imports/init is cleaner if I match lines.
-# The user's requested instruction is to modify internal.py.
-
-# Imports addition:
-# from ai_core.services.normalization_service import NormalizationService
-# normalization_service = NormalizationService()
-
-# New Endpoint:
-# @router.post("/normalize") ...
-
-# Relevance Check Update.
-
-# Let's use multi_replace for safety.
 
 
 def parse_bearer(auth: Optional[str]) -> str:
@@ -170,6 +144,216 @@ def infer_catalog_candidates(filename: str, data: bytes, svc: DocumentService) -
             candidates.append(candidate)
 
     return candidates[:50]
+
+
+def _derive_category(text: str, filename: str = "") -> Optional[str]:
+    haystack = f"{filename}\n{text}".lower()
+    keyword_map = [
+        ("tea", "Tea"),
+        ("serum", "Serum"),
+        ("supplement", "Supplement"),
+        ("skincare", "Skincare"),
+        ("cream", "Cream"),
+        ("capsule", "Supplement"),
+        ("drink", "Drink"),
+        ("herbal", "Herbal Wellness"),
+        ("草本", "Herbal Wellness"),
+        ("茶", "Tea"),
+        ("膏", "Topical Care"),
+        ("汤", "Wellness Drink"),
+        ("面膜", "Skincare"),
+    ]
+    for needle, label in keyword_map:
+        if needle in haystack:
+            return label
+    return None
+
+
+def _extract_name_from_text(text: str, title: str, filename: str) -> str:
+    non_empty_lines = [line.strip(" -*•\t") for line in text.splitlines() if line.strip()]
+    candidates = []
+    if title:
+        candidates.append(title.strip())
+    candidates.extend(non_empty_lines[:8])
+
+    for line in candidates:
+        if len(line) < 2:
+            continue
+        if any(marker in line for marker in ("适合人群", "不适宜人群", "成份", "ingredients", "suitable", "warning")):
+            continue
+        if len(line) <= 48:
+            return line
+    return title or os.path.splitext(filename)[0] or "Imported Product"
+
+
+def _extract_section_lines(text: str, markers: List[str], stop_markers: List[str] | None = None) -> List[str]:
+    lines = [line.strip(" -*•\t") for line in text.splitlines()]
+    stop_markers = stop_markers or []
+    hits: List[str] = []
+    collecting = False
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            if collecting and hits:
+                break
+            continue
+        if any(marker.lower() in line.lower() for marker in markers):
+            collecting = True
+            continue
+        if collecting and any(marker.lower() in line.lower() for marker in stop_markers):
+            break
+        if collecting:
+            hits.append(line)
+            if len(hits) >= 6:
+                break
+    return hits
+
+
+def infer_catalog_candidates_from_text(
+    filename: str,
+    title: str,
+    extracted_text: str,
+) -> List[Dict[str, Any]]:
+    text_block = (extracted_text or "").strip()
+    if not text_block:
+        return []
+
+    llm_client = LLMClient()
+    sample = text_block[:6000]
+
+    try:
+        if llm_client.client:
+            prompt = f"""
+You extract structured product catalog items from OCR or document text.
+Return strict JSON only in this shape:
+{{
+  "candidates": [
+    {{
+      "name": "string",
+      "category": "string or null",
+      "description": "string",
+      "price_label": "string or null",
+      "target_buyer": "string or null",
+      "key_benefits": ["string"],
+      "common_objections": ["string"],
+      "cta_url": "string or null",
+      "cta_label": "string or null",
+      "availability_status": "AVAILABLE",
+      "forbidden_claims": ["string"],
+      "priority": 50
+    }}
+  ]
+}}
+
+Rules:
+- Return at most 3 candidates.
+- If there is only one product, return one candidate.
+- Use factual product wording from the text.
+- Put safety/contraindication or unsuitable-user statements into forbidden_claims.
+- Do not invent pricing or URLs.
+- description must be concise and commercially usable.
+
+Filename: {filename}
+Suggested title: {title}
+Source text:
+{sample}
+"""
+            completion = llm_client.client.chat.completions.create(
+                model=llm_client.model,
+                temperature=0.1,
+                response_format={"type": "json_object"},
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw_content = (completion.choices[0].message.content or "").strip()
+            parsed = json.loads(raw_content)
+            candidates = parsed.get("candidates")
+            if isinstance(candidates, list):
+                normalized = []
+                for candidate in candidates[:3]:
+                    if not isinstance(candidate, dict):
+                        continue
+                    normalized.append({
+                        "name": _normalize_cell(candidate.get("name")),
+                        "category": _normalize_cell(candidate.get("category")),
+                        "description": _normalize_cell(candidate.get("description")),
+                        "price_label": _normalize_cell(candidate.get("price_label")),
+                        "target_buyer": _normalize_cell(candidate.get("target_buyer")),
+                        "key_benefits": _split_multi_value(",".join(candidate.get("key_benefits", []) if isinstance(candidate.get("key_benefits"), list) else [])),
+                        "common_objections": _split_multi_value(",".join(candidate.get("common_objections", []) if isinstance(candidate.get("common_objections"), list) else [])),
+                        "cta_url": _normalize_cell(candidate.get("cta_url")),
+                        "cta_label": _normalize_cell(candidate.get("cta_label")),
+                        "availability_status": _normalize_cell(candidate.get("availability_status")) or "AVAILABLE",
+                        "forbidden_claims": _split_multi_value(",".join(candidate.get("forbidden_claims", []) if isinstance(candidate.get("forbidden_claims"), list) else [])),
+                        "priority": candidate.get("priority"),
+                        "metadata": {
+                            "import_source": "ocr_llm",
+                            "import_filename": filename,
+                        },
+                    })
+                valid = [item for item in normalized if item.get("name") and item.get("description")]
+                if valid:
+                    return valid
+    except Exception:
+        pass
+
+    # Heuristic fallback for OCR / PDF text
+    name = _extract_name_from_text(text_block, title, filename)
+    benefit_lines = _extract_section_lines(
+        text_block,
+        markers=["benefits", "features", "highlights", "功效", "作用", "主打", "适合人群"],
+        stop_markers=["warning", "contraindication", "不适宜人群", "ingredients", "成份"],
+    )
+    unsuitable_lines = _extract_section_lines(
+        text_block,
+        markers=["not suitable", "warning", "contraindication", "不适宜人群", "禁忌", "孕妇禁用"],
+        stop_markers=["ingredients", "成份"],
+    )
+    ingredient_lines = _extract_section_lines(
+        text_block,
+        markers=["ingredients", "ingredient", "成份", "成分"],
+        stop_markers=["适合人群", "不适宜人群", "warning"],
+    )
+
+    first_paragraphs = [line.strip() for line in text_block.splitlines() if line.strip()]
+    description_parts = []
+    if benefit_lines:
+        description_parts.append(" ".join(benefit_lines[:2]))
+    if ingredient_lines:
+        description_parts.append(f"Key ingredients: {'; '.join(ingredient_lines[:3])}")
+    if not description_parts:
+        description_parts.append(" ".join(first_paragraphs[:3])[:280])
+
+    target_buyer = None
+    audience_lines = _extract_section_lines(
+        text_block,
+        markers=["target buyer", "suitable for", "适合人群"],
+        stop_markers=["not suitable", "warning", "contraindication", "不适宜人群"],
+    )
+    if audience_lines:
+        target_buyer = "; ".join(audience_lines[:3])
+
+    candidate = {
+        "name": name,
+        "category": _derive_category(text_block, filename),
+        "description": " ".join(part for part in description_parts if part).strip()[:600],
+        "price_label": None,
+        "target_buyer": target_buyer,
+        "key_benefits": benefit_lines[:8],
+        "common_objections": [],
+        "cta_url": None,
+        "cta_label": None,
+        "availability_status": "AVAILABLE",
+        "forbidden_claims": unsuitable_lines[:8],
+        "priority": 60,
+        "metadata": {
+            "import_source": "ocr_heuristic",
+            "import_filename": filename,
+        },
+    }
+
+    if candidate["name"] and candidate["description"]:
+        return [candidate]
+    return []
 
 
 @router.get("/knowledge/list")
@@ -360,7 +544,7 @@ async def import_catalog_document(
                 doc_meta=doc_meta,
             )
             preview_text = extracted[:500]
-            candidates = []
+            candidates = infer_catalog_candidates_from_text(filename, title, extracted)
     except HTTPException:
         raise
     except Exception as exc:
