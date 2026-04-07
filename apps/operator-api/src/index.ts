@@ -67,7 +67,7 @@ export function createApp() {
     app.use(cookieParser());
     // Stripe signs the raw request body, so this route must be mounted before JSON parsing.
     app.post('/billing/webhooks/stripe', express.raw({ type: 'application/json' }), stripeWebhookHandler);
-    app.use(express.json());
+    app.use(express.json({ limit: '25mb' }));
     app.use(morgan('dev'));
 
     app.get('/health', (req, res) => {

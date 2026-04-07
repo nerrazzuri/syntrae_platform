@@ -636,6 +636,22 @@ class DocumentService:
                 # Merge auto-headline detection with chunk-derived meta
                 chapter_meta = self._extract_chapter_info(chunk_text_val)
                 merged_meta = dict(meta_chunk)
+                try:
+                    dmeta = getattr(doc, "meta", {}) or {}
+                    if isinstance(dmeta, dict):
+                        for meta_key in (
+                            "brand_id",
+                            "workspace_id",
+                            "catalog_scope",
+                            "source_type",
+                            "original_filename",
+                            "mime_type",
+                        ):
+                            meta_val = dmeta.get(meta_key)
+                            if meta_val and meta_key not in merged_meta:
+                                merged_meta[meta_key] = meta_val
+                except Exception:
+                    pass
                 for k, v in chapter_meta.items():
                     if v and k not in merged_meta:
                         merged_meta[k] = v
@@ -1004,6 +1020,7 @@ class DocumentService:
         data: bytes,
         knowledge_base_id: str,
         progress_job_id: str | None = None,
+        doc_meta: Dict[str, Any] | None = None,
     ) -> Tuple[str, int]:
         """End-to-end: load file to DataFrame(s), convert to semantic docs, embed and store one chunk per doc.
         Returns (document_id_of_first, total_chunks).
@@ -1058,7 +1075,10 @@ class DocumentService:
             )
             # Optionally store flattened columns on meta
             try:
-                parent.meta = {"columns": list(df.columns)}
+                parent.meta = {
+                    **(doc_meta or {}),
+                    "columns": list(df.columns),
+                }
             except Exception:
                 pass
             self.db.add(parent)
@@ -1138,6 +1158,19 @@ class DocumentService:
                 total_chunks += 1
                 # Prepare optional vector payload
                 try:
+                    dmeta = getattr(doc, "meta", {}) or {}
+                    if isinstance(dmeta, dict):
+                        for meta_key in (
+                            "brand_id",
+                            "workspace_id",
+                            "catalog_scope",
+                            "source_type",
+                            "original_filename",
+                            "mime_type",
+                        ):
+                            meta_val = dmeta.get(meta_key)
+                            if meta_val and meta_key not in m:
+                                m[meta_key] = meta_val
                     qdrant_payload.append(
                         {
                             "id": str(chunk_id),

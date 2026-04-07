@@ -1,6 +1,7 @@
 import { prisma, LeadStatus, OutcomeSource } from '../db';
 import { OwnerSettingsService } from './owner/owner_settings_service';
 import { buildThreadReference } from '../utils/thread_reference';
+import { CatalogImportService } from './catalog_import.service';
 
 export interface LeadFilters {
     buyer_stage?: 'AWARENESS' | 'EVALUATING' | 'READY';
@@ -318,6 +319,18 @@ export class LeadService {
         // 2. Call AI Core (Pure Generation)
         const aiCoreUrl = process.env.AI_CORE_BASE_URL || 'http://ai-core:8000';
         const secret = process.env.AI_CORE_INTERNAL_SECRET;
+        const knowledgeQuery = [
+            lead.event?.content_text || '',
+            lead.intent || '',
+            lead.matched_catalog_item_name || '',
+            lead.brand?.name || '',
+        ].filter(Boolean).join('\n');
+        const knowledgeContext = await CatalogImportService.searchKnowledge(
+            accountId,
+            lead.brand_id,
+            knowledgeQuery,
+            3
+        );
         // @ts-ignore
         const response = await fetch(`${aiCoreUrl}/v1/internal/drafts/generate`, {
             method: 'POST',
@@ -358,6 +371,7 @@ export class LeadService {
                     match_score: lead.catalog_match_score,
                     match_reasons: lead.catalog_match_reasons,
                 } : null,
+                knowledge_context: knowledgeContext,
             })
         });
 
@@ -403,6 +417,7 @@ export class LeadService {
                         cta_url: lead.matched_catalog_item.cta_url,
                         cta_label: lead.matched_catalog_item.cta_label,
                     } : null,
+                    imported_knowledge: knowledgeContext,
                 }
             }
         });

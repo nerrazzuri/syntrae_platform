@@ -10,7 +10,9 @@ export class Client {
 
     static async request(endpoint: string, options: RequestInit = {}) {
         const headers = new Headers(options.headers);
-        headers.set('Content-Type', 'application/json');
+        if (!(options.body instanceof FormData)) {
+            headers.set('Content-Type', 'application/json');
+        }
 
         const res = await fetch(`${API_BASE}${endpoint}`, {
             ...options,
@@ -62,6 +64,13 @@ export class Client {
     static delete(endpoint: string) {
         return this.request(endpoint, {
             method: 'DELETE',
+        });
+    }
+
+    static upload(endpoint: string, body: FormData) {
+        return this.request(endpoint, {
+            method: 'POST',
+            body,
         });
     }
 }

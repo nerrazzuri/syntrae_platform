@@ -3,6 +3,7 @@ import { requireSession } from '../middleware/session_auth';
 import { BrandService } from '../services/brand.service';
 import { LeadService } from '../services/lead_service';
 import { CatalogService } from '../services/catalog.service';
+import { CatalogImportService } from '../services/catalog_import.service';
 import { SubscriptionPolicyError } from '../services/billing/subscription_policy.service';
 
 const router = Router();
@@ -95,6 +96,74 @@ router.patch('/:brandId/catalog/:itemId', async (req: Request, res: Response) =>
         res.json(item);
     } catch (err: any) {
         console.warn('[Brands] Catalog Update Failed:', err.message);
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// GET /brands/:brandId/catalog/documents
+router.get('/:brandId/catalog/documents', async (req: Request, res: Response) => {
+    try {
+        const workspaceId = req.session?.active_workspace_id;
+        if (!workspaceId) {
+            res.status(400).json({ error: 'No active workspace' });
+            return;
+        }
+
+        const documents = await CatalogImportService.listDocuments(workspaceId, req.params.brandId);
+        res.json(documents);
+    } catch (err: any) {
+        console.warn('[Brands] Catalog Documents List Failed:', err.message);
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// POST /brands/:brandId/catalog/import
+router.post('/:brandId/catalog/import', async (req: Request, res: Response) => {
+    try {
+        const workspaceId = req.session?.active_workspace_id;
+        if (!workspaceId) {
+            res.status(400).json({ error: 'No active workspace' });
+            return;
+        }
+        const contentBase64 = typeof req.body?.content_base64 === 'string' ? req.body.content_base64 : '';
+        const fileName = typeof req.body?.file_name === 'string' ? req.body.file_name : 'catalog-upload';
+        const mimeType = typeof req.body?.mime_type === 'string' ? req.body.mime_type : 'application/octet-stream';
+        if (!contentBase64) {
+            res.status(400).json({ error: 'Import file is required' });
+            return;
+        }
+
+        const result = await CatalogImportService.importDocument(workspaceId, req.params.brandId, {
+            title: String(req.body?.title || fileName || 'Catalog Import'),
+            sourceType: String(req.body?.source_type || 'FILE'),
+            file: {
+                buffer: Buffer.from(contentBase64, 'base64'),
+                originalname: fileName,
+                mimetype: mimeType,
+                size: Number(req.body?.file_size_bytes || 0) || undefined,
+            },
+        });
+
+        res.status(201).json(result);
+    } catch (err: any) {
+        console.warn('[Brands] Catalog Import Failed:', err.message);
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// DELETE /brands/:brandId/catalog/documents/:documentId
+router.delete('/:brandId/catalog/documents/:documentId', async (req: Request, res: Response) => {
+    try {
+        const workspaceId = req.session?.active_workspace_id;
+        if (!workspaceId) {
+            res.status(400).json({ error: 'No active workspace' });
+            return;
+        }
+
+        const document = await CatalogImportService.archiveDocument(workspaceId, req.params.brandId, req.params.documentId);
+        res.json({ status: 'ok', document });
+    } catch (err: any) {
+        console.warn('[Brands] Catalog Document Archive Failed:', err.message);
         res.status(400).json({ error: err.message });
     }
 });

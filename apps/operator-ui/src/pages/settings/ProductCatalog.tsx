@@ -21,6 +21,17 @@ type CatalogItem = {
     updated_at: string;
 };
 
+type CatalogDocument = {
+    id: string;
+    title: string;
+    original_filename: string;
+    mime_type?: string | null;
+    source_type: string;
+    ai_core_chunk_count?: number | null;
+    preview_text?: string | null;
+    created_at: string;
+};
+
 type CatalogForm = {
     name: string;
     category: string;
@@ -96,25 +107,45 @@ function formToPayload(form: CatalogForm) {
     };
 }
 
+async function fileToBase64(file: File): Promise<string> {
+    const buffer = await file.arrayBuffer();
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary);
+}
+
 export function ProductCatalogPage() {
     const { brandId } = useParams();
     const [items, setItems] = useState<CatalogItem[]>([]);
+    const [documents, setDocuments] = useState<CatalogDocument[]>([]);
     const [form, setForm] = useState<CatalogForm>(emptyForm);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [importing, setImporting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [importTitle, setImportTitle] = useState('');
+    const [importFile, setImportFile] = useState<File | null>(null);
 
     const activeCount = useMemo(() => items.filter((item) => item.status === 'ACTIVE').length, [items]);
+    const importedKnowledgeCount = documents.length;
 
     const loadItems = async () => {
         if (!brandId) return;
         setLoading(true);
         setError(null);
         try {
-            const data = await api.get(`/brands/${brandId}/catalog`);
-            setItems(data);
+            const [catalogItems, importedDocs] = await Promise.all([
+                api.get(`/brands/${brandId}/catalog`),
+                api.get(`/brands/${brandId}/catalog/documents`),
+            ]);
+            setItems(catalogItems);
+            setDocuments(importedDocs);
         } catch (err: any) {
             setError(err.message || 'Failed to load product catalog');
         } finally {
@@ -173,6 +204,51 @@ export function ProductCatalogPage() {
         }
     };
 
+    const archiveDocument = async (documentId: string) => {
+        if (!brandId) return;
+        setError(null);
+        setSuccess(null);
+        try {
+            await api.delete(`/brands/${brandId}/catalog/documents/${documentId}`);
+            setSuccess('Imported knowledge archived.');
+            await loadItems();
+        } catch (err: any) {
+            setError(err.message || 'Failed to archive imported knowledge');
+        }
+    };
+
+    const importKnowledge = async (event: FormEvent) => {
+        event.preventDefault();
+        if (!brandId || !importFile) return;
+        setImporting(true);
+        setError(null);
+        setSuccess(null);
+        try {
+            const contentBase64 = await fileToBase64(importFile);
+            const result = await api.post(`/brands/${brandId}/catalog/import`, {
+                title: importTitle.trim() || importFile.name,
+                source_type: importFile.type.startsWith('image/') ? 'IMAGE' : 'FILE',
+                file_name: importFile.name,
+                mime_type: importFile.type || 'application/octet-stream',
+                file_size_bytes: importFile.size,
+                content_base64: contentBase64,
+            });
+            const importedItems = Number(result?.imported_item_count || 0);
+            if (importedItems > 0) {
+                setSuccess(`Knowledge imported. ${importedItems} catalog items were created from the spreadsheet rows.`);
+            } else {
+                setSuccess('Knowledge imported. Syntrae can now use this document as product context during drafting.');
+            }
+            setImportTitle('');
+            setImportFile(null);
+            await loadItems();
+        } catch (err: any) {
+            setError(err.message || 'Failed to import knowledge');
+        } finally {
+            setImporting(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 p-8">
             <div className="mx-auto max-w-6xl space-y-6">
@@ -190,6 +266,7 @@ export function ProductCatalogPage() {
                     <div className="rounded-2xl border border-emerald-100 bg-white px-5 py-4 shadow-sm">
                         <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Active Offers</div>
                         <div className="mt-1 text-3xl font-bold text-slate-950">{activeCount}</div>
+                        <div className="mt-3 text-xs font-medium text-slate-500">{importedKnowledgeCount} imported knowledge sources</div>
                     </div>
                 </div>
 
@@ -200,20 +277,21 @@ export function ProductCatalogPage() {
                 )}
 
                 <div className="grid gap-6 lg:grid-cols-[1fr_1.25fr]">
-                    <form onSubmit={saveItem} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <h2 className="text-xl font-bold text-slate-950">{editingId ? 'Edit catalog item' : 'Add catalog item'}</h2>
-                                <p className="mt-1 text-sm text-slate-500">Keep entries concise and factual. The AI will use this as reply context.</p>
+                    <div className="space-y-6">
+                        <form onSubmit={saveItem} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-950">{editingId ? 'Edit catalog item' : 'Add catalog item'}</h2>
+                                    <p className="mt-1 text-sm text-slate-500">Keep entries concise and factual. The AI will use this as reply context.</p>
+                                </div>
+                                {editingId && (
+                                    <button type="button" onClick={resetForm} className="text-sm font-semibold text-slate-500 hover:text-slate-900">
+                                        Cancel
+                                    </button>
+                                )}
                             </div>
-                            {editingId && (
-                                <button type="button" onClick={resetForm} className="text-sm font-semibold text-slate-500 hover:text-slate-900">
-                                    Cancel
-                                </button>
-                            )}
-                        </div>
 
-                        <div className="mt-6 space-y-4">
+                            <div className="mt-6 space-y-4">
                             <label className="block">
                                 <span className="text-sm font-semibold text-slate-700">Product / offer name</span>
                                 <input required value={form.name} onChange={(e) => updateField('name', e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500" placeholder="Sensitive Skin Starter Kit" />
@@ -273,11 +351,70 @@ export function ProductCatalogPage() {
                             <button disabled={saving} type="submit" className="w-full rounded-full bg-emerald-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60">
                                 {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Add to Catalog'}
                             </button>
-                        </div>
-                    </form>
+                            </div>
+                        </form>
+
+                        <form onSubmit={importKnowledge} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-950">Import Product Knowledge</h2>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    Upload spreadsheets, PDFs, brochures, or product images. CSV/XLSX imports can create catalog items automatically. PDFs and images are indexed as brand knowledge for drafting.
+                                </p>
+                            </div>
+                            <div className="mt-6 space-y-4">
+                                <label className="block">
+                                    <span className="text-sm font-semibold text-slate-700">Import title</span>
+                                    <input value={importTitle} onChange={(e) => setImportTitle(e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500" placeholder="April product brochure" />
+                                </label>
+                                <label className="block">
+                                    <span className="text-sm font-semibold text-slate-700">File</span>
+                                    <input
+                                        type="file"
+                                        accept=".csv,.xlsx,.pdf,.png,.jpg,.jpeg,.bmp,.tiff,.docx,.pptx"
+                                        onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                                        className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 file:mr-4 file:rounded-full file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:font-semibold file:text-slate-700"
+                                    />
+                                </label>
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                                    Best for structured import: <strong>CSV/XLSX</strong>. Best for contextual product knowledge: <strong>PDF and images</strong>.
+                                </div>
+                                <button disabled={importing || !importFile} type="submit" className="w-full rounded-full bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-slate-950 disabled:cursor-not-allowed disabled:opacity-60">
+                                    {importing ? 'Importing...' : 'Import Knowledge'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
 
                     <div className="space-y-4">
                         {loading && <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading catalog...</div>}
+                        {!loading && documents.length > 0 && (
+                            <section className="space-y-4">
+                                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                                    <h2 className="text-lg font-bold text-slate-950">Imported Knowledge</h2>
+                                    <p className="mt-2 text-sm text-slate-500">These files are indexed for brand-aware drafting. Spreadsheet imports may also create manual catalog items automatically.</p>
+                                </div>
+                                {documents.map((document) => (
+                                    <article key={document.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                                            <div>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <h3 className="text-lg font-bold text-slate-950">{document.title}</h3>
+                                                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{document.source_type}</span>
+                                                    {document.ai_core_chunk_count != null && <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{document.ai_core_chunk_count} chunks</span>}
+                                                </div>
+                                                <div className="mt-2 text-sm text-slate-500">{document.original_filename}</div>
+                                                {document.preview_text && <p className="mt-3 text-sm leading-6 text-slate-600">{document.preview_text}</p>}
+                                            </div>
+                                            <div className="flex shrink-0 gap-2">
+                                                <button onClick={() => archiveDocument(document.id)} className="rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">
+                                                    Archive
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </article>
+                                ))}
+                            </section>
+                        )}
                         {!loading && items.length === 0 && (
                             <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
                                 No catalog items yet. Add the first offer so Syntrae can match comments to what the business actually sells.

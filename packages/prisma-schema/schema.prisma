@@ -33,6 +33,7 @@ model Account {
   platform_connections BrandPlatformConnection[]
   platform_connection_challenges PlatformConnectionChallenge[]
   product_catalog_items ProductCatalogItem[]
+  product_catalog_documents ProductCatalogDocument[]
 
   suggestions        Suggestion[]
   decisions          SuggestionDecision[]
@@ -65,6 +66,7 @@ model Brand {
   platform_connections BrandPlatformConnection[]
   platform_connection_challenges PlatformConnectionChallenge[]
   product_catalog_items ProductCatalogItem[]
+  product_catalog_documents ProductCatalogDocument[]
 
   @@index([workspace_id])
   @@schema("core")
@@ -72,6 +74,14 @@ model Brand {
 
 enum ProductCatalogStatus {
   ACTIVE
+  ARCHIVED
+
+  @@schema("core")
+}
+
+enum ProductCatalogDocumentStatus {
+  IMPORTED
+  FAILED
   ARCHIVED
 
   @@schema("core")
@@ -104,6 +114,31 @@ model ProductCatalogItem {
 
   @@index([workspace_id, brand_id, status])
   @@index([brand_id, priority])
+  @@schema("core")
+}
+
+model ProductCatalogDocument {
+  id                  String                       @id @default(uuid())
+  workspace_id        String
+  brand_id            String
+  title               String
+  original_filename   String
+  mime_type           String?
+  source_type         String                       @default("FILE")
+  file_size_bytes     Int?
+  ai_core_document_id String?
+  ai_core_chunk_count Int?
+  preview_text        String?
+  status              ProductCatalogDocumentStatus @default(IMPORTED)
+  metadata            Json                         @default("{}")
+  created_at          DateTime                     @default(now())
+  updated_at          DateTime                     @updatedAt
+
+  account             Account                      @relation(fields: [workspace_id], references: [id])
+  brand               Brand                        @relation(fields: [brand_id], references: [id])
+
+  @@index([workspace_id, brand_id, status])
+  @@index([brand_id, created_at])
   @@schema("core")
 }
 

@@ -59,6 +59,7 @@ class DraftGenerationService:
         brand_name = owner_settings.get("brand_name") or "the brand"
         brand_domain = owner_settings.get("brand_domain") or ""
         product_context = owner_settings.get("product_context") or {}
+        knowledge_context = owner_settings.get("knowledge_context") or []
         product_context_text = "N/A"
         if isinstance(product_context, dict) and product_context.get("name"):
             benefits = product_context.get("key_benefits") or []
@@ -73,6 +74,18 @@ class DraftGenerationService:
                 f"Objections: {', '.join(objections) if isinstance(objections, list) else 'N/A'}; "
                 f"CTA URL: {product_context.get('cta_url') or 'N/A'}"
             )
+        knowledge_context_text = "N/A"
+        if isinstance(knowledge_context, list) and knowledge_context:
+            lines = []
+            for item in knowledge_context[:3]:
+                if not isinstance(item, dict):
+                    continue
+                title = item.get("document_title") or "Imported knowledge"
+                content = str(item.get("content") or "").strip()
+                if content:
+                    lines.append(f"{title}: {content[:240]}")
+            if lines:
+                knowledge_context_text = "\n".join(lines)
 
         cta_map = {
             "STORE": "the brand's store",
@@ -95,6 +108,8 @@ class DraftGenerationService:
         Brand Name: {brand_name}
         Brand Domain: {brand_domain or "N/A"}
         Matched Product / Offer: {product_context_text}
+        Imported Product Knowledge:
+        {knowledge_context_text}
         
         TONE: {tone}
         LANGUAGE: {language}
@@ -110,9 +125,10 @@ class DraftGenerationService:
         6. NO cold DM invitation. NO "please DM us". NO robotic customer-service phrasing.
         7. NO pricing numbers unless explicitly present in the comment/context.
         8. NO absolute guarantees ("best", "cheapest", "guaranteed").
-        9. If a matched product is provided, use it as context but do not overclaim or force a hard sell.
-        10. Keep it under 45 words unless Mandarin requires slightly more natural phrasing.
-        11. Output must be only the reply text, with no quotation marks or explanation.
+        9. If a matched product or imported knowledge is provided, use it as context but do not overclaim or force a hard sell.
+        10. Never repeat medical, guaranteed, or unsafe claims just because they appear in imported material.
+        11. Keep it under 45 words unless Mandarin requires slightly more natural phrasing.
+        12. Output must be only the reply text, with no quotation marks or explanation.
         
         Draft:
         """

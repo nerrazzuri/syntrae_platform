@@ -1,7 +1,7 @@
 """
 Internal knowledge API with JWT-based RBAC.
 """
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, UploadFile, File, Form, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any, List
@@ -9,16 +9,21 @@ from shared.database.session import get_db
 from ai_core.services.internal_knowledge_service import InternalKnowledgeService
 from ai_core.services.internal_knowledge_service import InternalKnowledgeService
 from ai_core.services.draft_service import DraftGenerationService
+from ai_core.services.document_service import DocumentService
 from ai_core.services.normalization_service import NormalizationService
+from ai_core.pipeline.retriever.dense_retriever import DenseRetriever
 from ai_core.pipeline.llm.llm_client import LLMClient
 from shared.security.jwt import JWTService
+from shared.database.models import Document, KnowledgeBase
 import os
 import logging
+import json
 
 router = APIRouter(prefix="/v1/internal", tags=["internal-knowledge"])
 jwt_service = JWTService()
 normalization_service = NormalizationService()
 normalization_service = NormalizationService()
+dense_retriever = DenseRetriever()
 
 # ... existing endpoints (knowledge/list, etc.) ...
 
@@ -62,6 +67,109 @@ def extract_internal_secret(request: Request) -> Optional[str]:
         headers.get("x-internal-secret")
         or headers.get("x_internal_secret")
     )
+
+
+def require_internal_catalog_access(request: Request, account_id: str) -> None:
+    secret_header = extract_internal_secret(request)
+    env_secret = os.getenv("AI_CORE_INTERNAL_SECRET")
+    if not env_secret or secret_header != env_secret:
+        raise HTTPException(status_code=401, detail="Invalid internal secret")
+
+    account_header = request.headers.get("X-Account-Id")
+    if not account_header:
+        raise HTTPException(status_code=400, detail="Missing X-Account-Id header")
+    if account_header != account_id:
+        raise HTTPException(status_code=403, detail="Account ID mismatch between header and payload")
+
+
+def _normalize_cell(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _pick_first(row: Dict[str, Any], *keys: str) -> Optional[str]:
+    normalized = {str(k).strip().lower(): v for k, v in row.items()}
+    for key in keys:
+        if key in normalized:
+            value = _normalize_cell(normalized[key])
+            if value:
+                return value
+    return None
+
+
+def _split_multi_value(value: Optional[str]) -> List[str]:
+    if not value:
+        return []
+    items = []
+    for piece in re.split(r"[\n,;|]+", value):
+        clean = piece.strip()
+        if clean:
+            items.append(clean)
+    return items[:20]
+
+
+def infer_catalog_candidates(filename: str, data: bytes, svc: DocumentService) -> List[Dict[str, Any]]:
+    name = (filename or "").lower()
+    if not (name.endswith(".csv") or name.endswith(".xlsx")):
+        return []
+
+    candidates: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+    dataframes = svc.load_file_to_dataframes(filename, data)
+    for sheet_name, df in dataframes.items():
+        try:
+            normalized_df = svc.normalize_headers(df).fillna("")
+        except Exception:
+            normalized_df = df.fillna("")
+
+        for _, series in normalized_df.head(100).iterrows():
+            row = {str(k).strip().lower(): v for k, v in series.to_dict().items()}
+            item_name = _pick_first(row, "name", "product", "product_name", "title", "offer", "item")
+            description = _pick_first(row, "description", "details", "product_description", "summary", "intro")
+            if not item_name:
+                continue
+
+            key = f"{sheet_name}:{item_name.lower()}"
+            if key in seen:
+                continue
+            seen.add(key)
+
+            if not description:
+                benefits_text = _pick_first(row, "benefits", "key_benefits", "features", "highlights")
+                description = benefits_text or f"Imported from {sheet_name}"
+
+            candidate = {
+                "name": item_name,
+                "category": _pick_first(row, "category", "type", "product_type"),
+                "description": description,
+                "price_label": _pick_first(row, "price", "price_label", "amount", "price_range"),
+                "target_buyer": _pick_first(row, "target_buyer", "audience", "suitable_for", "for_who"),
+                "key_benefits": _split_multi_value(_pick_first(row, "benefits", "key_benefits", "features", "highlights")),
+                "common_objections": _split_multi_value(_pick_first(row, "common_objections", "objections", "concerns", "faq")),
+                "cta_url": _pick_first(row, "cta_url", "url", "product_url", "link"),
+                "cta_label": _pick_first(row, "cta_label", "cta", "button_text"),
+                "availability_status": _pick_first(row, "availability_status", "availability", "stock_status", "status") or "AVAILABLE",
+                "forbidden_claims": _split_multi_value(_pick_first(row, "forbidden_claims", "restrictions", "prohibited_claims")),
+                "priority": None,
+                "metadata": {
+                    "sheet": sheet_name,
+                    "import_source": "tabular",
+                    "import_filename": filename,
+                },
+            }
+
+            priority_text = _pick_first(row, "priority", "rank", "score")
+            if priority_text:
+                try:
+                    candidate["priority"] = max(0, min(100, int(float(priority_text))))
+                except Exception:
+                    candidate["priority"] = None
+
+            candidates.append(candidate)
+
+    return candidates[:50]
 
 
 @router.get("/knowledge/list")
@@ -197,6 +305,129 @@ class GenerateDraftRequest(BaseModel):
     buyer_stage: Optional[str] = None
     intent: Optional[str] = None
     product_context: Optional[Dict[str, Any]] = None
+    knowledge_context: Optional[List[Dict[str, Any]]] = None
+
+
+@router.post("/catalog/import")
+async def import_catalog_document(
+    request: Request,
+    account_id: str = Form(...),
+    brand_id: str = Form(...),
+    title: str = Form(...),
+    source_type: str = Form("FILE"),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    require_internal_catalog_access(request, account_id)
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="File is empty")
+
+    svc = DocumentService(db)
+    filename = file.filename or "catalog-upload"
+    mime_type = file.content_type or "application/octet-stream"
+    doc_meta = {
+        "catalog_scope": "product_catalog",
+        "brand_id": brand_id,
+        "workspace_id": account_id,
+        "source_type": source_type,
+        "original_filename": filename,
+        "mime_type": mime_type,
+    }
+
+    try:
+        if filename.lower().endswith(".csv") or filename.lower().endswith(".xlsx"):
+            document_id, chunk_count = svc.process_pandas_and_store(
+                account_id,
+                title,
+                filename,
+                data,
+                "00000000-0000-0000-0000-000000000000",
+                doc_meta=doc_meta,
+            )
+            preview_text = svc.extract_text_from_file(filename, data)[:500]
+            candidates = infer_catalog_candidates(filename, data, svc)
+        else:
+            extracted = svc.extract_text_from_file(filename, data)
+            if not extracted or not extracted.strip():
+                raise HTTPException(status_code=400, detail="No text content could be extracted from the file")
+            document_id, chunk_count = svc.process_and_store(
+                account_id,
+                title,
+                extracted,
+                "00000000-0000-0000-0000-000000000000",
+                doc_meta=doc_meta,
+            )
+            preview_text = extracted[:500]
+            candidates = []
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Catalog import failed: {exc}")
+
+    return {
+        "documentId": document_id,
+        "chunkCount": chunk_count,
+        "status": "INDEXED",
+        "previewText": preview_text,
+        "candidates": candidates,
+    }
+
+
+class CatalogSearchRequest(BaseModel):
+    account_id: str
+    brand_id: str
+    query: str
+    limit: int = 4
+
+
+@router.post("/catalog/search")
+def search_catalog_knowledge(
+    payload: CatalogSearchRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    require_internal_catalog_access(request, payload.account_id)
+    query = (payload.query or "").strip()
+    if not query:
+        return {"items": []}
+
+    document_ids = [
+        str(row.id)
+        for row in (
+            db.query(Document.id)
+            .join(KnowledgeBase, Document.knowledge_base_id == KnowledgeBase.id)
+            .filter(KnowledgeBase.tenant_id == payload.account_id)
+            .filter(Document.meta["catalog_scope"].astext == "product_catalog")
+            .filter(Document.meta["brand_id"].astext == payload.brand_id)
+            .all()
+        )
+    ]
+
+    if not document_ids:
+        return {"items": []}
+
+    results = dense_retriever.search_rich(
+        query=query,
+        tenant_id=payload.account_id,
+        top_k=max(1, min(int(payload.limit or 4), 6)),
+        role="ADMIN",
+        allowed_document_ids=document_ids,
+    )
+
+    items = [
+        {
+            "content": item.get("content"),
+            "document_id": item.get("document_id"),
+            "document_title": item.get("document_title"),
+            "score": item.get("score"),
+            "meta": item.get("meta") or {},
+        }
+        for item in results
+        if item.get("content")
+    ]
+    return {"items": items}
 
 
 @router.post("/drafts/generate")
@@ -239,6 +470,7 @@ def generate_draft(
                 "buyer_stage": payload.buyer_stage,
                 "intent": payload.intent,
                 "product_context": payload.product_context,
+                "knowledge_context": payload.knowledge_context,
             }
         )
     except ValueError as e:
