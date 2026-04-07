@@ -7,6 +7,9 @@ export function RepliesPage() {
     const [selectedDraft, setSelectedDraft] = useState<any | null>(null);
     const [editText, setEditText] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [sendError, setSendError] = useState<string | null>(null);
+    const [sendSuccess, setSendSuccess] = useState<string | null>(null);
+    const [sending, setSending] = useState(false);
     const [filter, setFilter] = useState('PENDING');
 
     async function loadDrafts() {
@@ -34,6 +37,8 @@ export function RepliesPage() {
     function openDraft(draft: any) {
         setSelectedDraft(draft);
         setEditText(draft.edited_text || draft.draft_text || '');
+        setSendError(null);
+        setSendSuccess(null);
     }
 
     async function saveEdit() {
@@ -57,13 +62,19 @@ export function RepliesPage() {
 
     async function sendDraft() {
         if (!selectedDraft) return;
+        setSendError(null);
+        setSendSuccess(null);
+        setSending(true);
         try {
             await api.post(`/drafts/${selectedDraft.id}/send`, {});
+            setSendSuccess('Reply sent to the live thread.');
         } catch (err: any) {
-            alert(err.message || 'Direct sending is not configured yet');
+            setSendError(err.message || 'Failed to send thread reply.');
+            setSending(false);
             return;
         }
         await loadDrafts();
+        setSending(false);
     }
 
     return (
@@ -202,6 +213,11 @@ export function RepliesPage() {
                                         <div className="mt-1 break-all font-mono text-xs">{selectedDraft.thread_reference?.comment_id || 'Unknown'}</div>
                                     </div>
                                 </div>
+                                {String(selectedDraft.thread_reference?.comment_id || '').startsWith('xhs-cmt-fb-') && (
+                                    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                        This XHS item uses a fallback comment identifier from discovery capture. Direct thread reply may not be available unless the platform returned a stable comment ID.
+                                    </div>
+                                )}
                                 {selectedDraft.thread_reference?.thread_url && (
                                     <div className="mt-4">
                                         <a
@@ -232,13 +248,27 @@ export function RepliesPage() {
                                 <button onClick={approveDraft} className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white">
                                     Approve
                                 </button>
-                                <button onClick={sendDraft} className="rounded-2xl border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-semibold text-teal-700">
-                                    Send to Thread
+                                <button
+                                    onClick={sendDraft}
+                                    disabled={sending}
+                                    className="rounded-2xl border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-semibold text-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {sending ? 'Sending…' : 'Send to Thread'}
                                 </button>
                                 <button onClick={rejectDraft} className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700">
                                     Reject
                                 </button>
                             </div>
+                            {sendError && (
+                                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                                    {sendError}
+                                </div>
+                            )}
+                            {sendSuccess && (
+                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                                    {sendSuccess}
+                                </div>
+                            )}
                             <div className="text-xs text-slate-500">
                                 The queue is live. Direct thread delivery still needs a real platform connector; until then, the send action will tell you whether delivery is configured.
                             </div>
