@@ -100,6 +100,23 @@ router.patch('/:brandId/catalog/:itemId', async (req: Request, res: Response) =>
     }
 });
 
+// PATCH /brands/:brandId/catalog/:itemId/activate
+router.patch('/:brandId/catalog/:itemId/activate', async (req: Request, res: Response) => {
+    try {
+        const workspaceId = req.session?.active_workspace_id;
+        if (!workspaceId) {
+            res.status(400).json({ error: 'No active workspace' });
+            return;
+        }
+
+        const item = await CatalogService.activateItem(workspaceId, req.params.brandId, req.params.itemId);
+        res.json(item);
+    } catch (err: any) {
+        console.warn('[Brands] Catalog Activate Failed:', err.message);
+        res.status(400).json({ error: err.message });
+    }
+});
+
 // GET /brands/:brandId/catalog/documents
 router.get('/:brandId/catalog/documents', async (req: Request, res: Response) => {
     try {

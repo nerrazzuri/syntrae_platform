@@ -1,4 +1,4 @@
-import { prisma, ProductCatalogDocumentStatus } from '../db';
+import { prisma, ProductCatalogDocumentStatus, ProductCatalogStatus } from '../db';
 
 type ImportedCatalogCandidate = {
     name?: string | null;
@@ -66,7 +66,7 @@ async function createImportedCatalogItems(workspaceId: string, brandId: string, 
             where: {
                 workspace_id: workspaceId,
                 brand_id: brandId,
-                status: 'ACTIVE',
+                status: { in: [ProductCatalogStatus.ACTIVE, ProductCatalogStatus.REVIEW_PENDING] },
                 name: { equals: name, mode: 'insensitive' },
             },
             select: { id: true },
@@ -90,10 +90,12 @@ async function createImportedCatalogItems(workspaceId: string, brandId: string, 
                 availability_status: text(candidate.availability_status) || 'AVAILABLE',
                 forbidden_claims: list(candidate.forbidden_claims),
                 priority: normalizePriority(candidate.priority),
+                status: ProductCatalogStatus.REVIEW_PENDING,
                 metadata: {
                     ...(candidate.metadata || {}),
-                    import_source: 'document_import',
+                    import_source: String((candidate.metadata || {}).import_source || 'document_import'),
                     catalog_document_id: documentId,
+                    review_required: true,
                 },
             } as any,
         });

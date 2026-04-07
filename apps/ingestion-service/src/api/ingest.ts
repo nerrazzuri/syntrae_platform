@@ -674,6 +674,72 @@ async function findCatalogMatch(event: any, payload: any) {
     return best && best.score >= 0.12 ? best : null;
 }
 
+async function searchImportedCatalogKnowledge(event: any, payload: any) {
+    if (!event.account_id || !event.brand_id) return null;
+
+    const query = [
+        event.content_text,
+        payload.video?.title,
+        payload.context?.source_post?.caption,
+        ...jsonList(payload.video?.hashtags),
+        ...jsonList(payload.context?.source_post?.hashtags),
+    ].filter(Boolean).join(' ').trim();
+
+    if (!query) return null;
+
+    const aiCoreUrl = process.env.AI_CORE_BASE_URL || 'http://ai-core:8000';
+    const secret = process.env.AI_CORE_INTERNAL_SECRET;
+    if (!secret) return null;
+
+    try {
+        const response = await fetch(`${aiCoreUrl}/v1/internal/catalog/search`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Internal-Secret': secret,
+                'X-Account-Id': event.account_id,
+            },
+            body: JSON.stringify({
+                account_id: event.account_id,
+                brand_id: event.brand_id,
+                query,
+                limit: 3,
+            }),
+        });
+
+        const payloadJson = await response.json().catch(() => ({}));
+        if (!response.ok || !Array.isArray(payloadJson?.items) || payloadJson.items.length === 0) {
+            return null;
+        }
+
+        const [topItem] = payloadJson.items;
+        const rawScore = Number(topItem?.score ?? 0);
+        const score = Number.isFinite(rawScore) ? Math.max(0, Math.min(1, rawScore)) : 0;
+        if (score < 0.15) return null;
+
+        const content = String(topItem?.content || '').trim();
+        const documentTitle = String(topItem?.document_title || 'Imported catalog knowledge').trim();
+        const importSource = String(topItem?.meta?.import_source || topItem?.meta?.source_type || 'imported_knowledge');
+
+        return {
+            id: null,
+            name: documentTitle,
+            category: null,
+            cta_url: null,
+            score: Number(score.toFixed(3)),
+            reasons: [
+                `matched imported ${importSource} knowledge`,
+                ...(content ? [`knowledge excerpt: ${content.slice(0, 160)}`] : []),
+            ],
+            source_type: 'IMPORTED_KNOWLEDGE',
+            source_document_id: topItem?.document_id || null,
+        };
+    } catch (error) {
+        console.warn('[Ingest] Imported catalog search failed:', error);
+        return null;
+    }
+}
+
 async function persistLeadOpportunity(event: any, payload: any, trace: any, confidence: number) {
     const intent = trace?.intent;
     if (!intent?.intent || !event.comment_id || !event.account_id || !event.brand_id) {
@@ -713,7 +779,7 @@ async function persistLeadOpportunity(event: any, payload: any, trace: any, conf
     const leadConfidence = buyerStage === 'READY'
         ? Math.max(confidence || 0, 0.9)
         : Math.max(confidence || 0, 0.6);
-    const catalogMatch = await findCatalogMatch(event, payload);
+    const catalogMatch = await findCatalogMatch(event, payload) || await searchImportedCatalogKnowledge(event, payload);
 
     return prisma.leadOpportunity.create({
         data: {

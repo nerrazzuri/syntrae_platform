@@ -74,6 +74,7 @@ model Brand {
 
 enum ProductCatalogStatus {
   ACTIVE
+  REVIEW_PENDING
   ARCHIVED
 
   @@schema("core")

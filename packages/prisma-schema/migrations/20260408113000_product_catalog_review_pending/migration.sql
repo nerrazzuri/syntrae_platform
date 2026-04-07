@@ -1,0 +1,1 @@
+ALTER TYPE "core"."ProductCatalogStatus" ADD VALUE IF NOT EXISTS 'REVIEW_PENDING';

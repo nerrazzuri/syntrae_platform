@@ -17,7 +17,8 @@ type CatalogItem = {
     availability_status: string;
     forbidden_claims: string[];
     priority: number;
-    status: 'ACTIVE' | 'ARCHIVED';
+    status: 'ACTIVE' | 'REVIEW_PENDING' | 'ARCHIVED';
+    metadata?: Record<string, any> | null;
     updated_at: string;
 };
 
@@ -90,6 +91,14 @@ function itemToForm(item: CatalogItem): CatalogForm {
     };
 }
 
+function itemImportLabel(item: CatalogItem): string | null {
+    const source = String(item.metadata?.import_source || '').toLowerCase();
+    if (!source) return null;
+    if (source === 'ocr_llm' || source === 'ocr_heuristic') return 'Imported from OCR/PDF';
+    if (source === 'tabular') return 'Imported from spreadsheet';
+    return 'Imported item';
+}
+
 function formToPayload(form: CatalogForm) {
     return {
         name: form.name,
@@ -133,6 +142,7 @@ export function ProductCatalogPage() {
     const [importFile, setImportFile] = useState<File | null>(null);
 
     const activeCount = useMemo(() => items.filter((item) => item.status === 'ACTIVE').length, [items]);
+    const reviewPendingCount = useMemo(() => items.filter((item) => item.status === 'REVIEW_PENDING').length, [items]);
     const importedKnowledgeCount = documents.length;
 
     const loadItems = async () => {
@@ -204,6 +214,19 @@ export function ProductCatalogPage() {
         }
     };
 
+    const activateItem = async (itemId: string) => {
+        if (!brandId) return;
+        setError(null);
+        setSuccess(null);
+        try {
+            await api.patch(`/brands/${brandId}/catalog/${itemId}/activate`, {});
+            setSuccess('Catalog item activated.');
+            await loadItems();
+        } catch (err: any) {
+            setError(err.message || 'Failed to activate catalog item');
+        }
+    };
+
     const archiveDocument = async (documentId: string) => {
         if (!brandId) return;
         setError(null);
@@ -235,9 +258,9 @@ export function ProductCatalogPage() {
             });
             const importedItems = Number(result?.imported_item_count || 0);
             if (importedItems > 0) {
-                setSuccess(`Knowledge imported. ${importedItems} catalog items were created from the spreadsheet rows.`);
+                setSuccess(`Knowledge imported. ${importedItems} catalog items were created in review pending so you can edit and approve them before they go live.`);
             } else {
-                setSuccess('Knowledge imported. Syntrae can now use this document as product context during drafting.');
+                setSuccess('Knowledge imported. Syntrae can now use this document as product context during lead matching and drafting.');
             }
             setImportTitle('');
             setImportFile(null);
@@ -266,7 +289,7 @@ export function ProductCatalogPage() {
                     <div className="rounded-2xl border border-emerald-100 bg-white px-5 py-4 shadow-sm">
                         <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Active Offers</div>
                         <div className="mt-1 text-3xl font-bold text-slate-950">{activeCount}</div>
-                        <div className="mt-3 text-xs font-medium text-slate-500">{importedKnowledgeCount} imported knowledge sources</div>
+                        <div className="mt-3 text-xs font-medium text-slate-500">{reviewPendingCount} awaiting review · {importedKnowledgeCount} imported knowledge sources</div>
                     </div>
                 </div>
 
@@ -358,7 +381,7 @@ export function ProductCatalogPage() {
                             <div>
                                 <h2 className="text-xl font-bold text-slate-950">Import Product Knowledge</h2>
                                 <p className="mt-1 text-sm text-slate-500">
-                                    Upload spreadsheets, PDFs, brochures, or product images. CSV/XLSX imports can create catalog items automatically. PDFs and images are indexed as brand knowledge for drafting.
+                                    Upload spreadsheets, PDFs, brochures, or product images. Imported catalog items land in review pending first so an operator can edit and approve them before they go live.
                                 </p>
                             </div>
                             <div className="mt-6 space-y-4">
@@ -376,7 +399,7 @@ export function ProductCatalogPage() {
                                     />
                                 </label>
                                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                                    Best for structured import: <strong>CSV/XLSX</strong>. Best for contextual product knowledge: <strong>PDF and images</strong>.
+                                    Best for structured import: <strong>CSV/XLSX</strong>. Best for contextual product knowledge: <strong>PDF and images</strong>. OCR and PDF imports can also generate review-pending catalog items.
                                 </div>
                                 <button disabled={importing || !importFile} type="submit" className="w-full rounded-full bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-slate-950 disabled:cursor-not-allowed disabled:opacity-60">
                                     {importing ? 'Importing...' : 'Import Knowledge'}
@@ -391,7 +414,7 @@ export function ProductCatalogPage() {
                             <section className="space-y-4">
                                 <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                                     <h2 className="text-lg font-bold text-slate-950">Imported Knowledge</h2>
-                                    <p className="mt-2 text-sm text-slate-500">These files are indexed for brand-aware drafting. Spreadsheet imports may also create manual catalog items automatically.</p>
+                                    <p className="mt-2 text-sm text-slate-500">These files are indexed for brand-aware lead matching and drafting. Any extracted catalog items stay in review pending until an operator activates them.</p>
                                 </div>
                                 {documents.map((document) => (
                                     <article key={document.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -428,6 +451,8 @@ export function ProductCatalogPage() {
                                             <h3 className="text-lg font-bold text-slate-950">{item.name}</h3>
                                             {item.category && <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{item.category}</span>}
                                             <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Priority {item.priority}</span>
+                                            {item.status === 'REVIEW_PENDING' && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Review pending</span>}
+                                            {itemImportLabel(item) && <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">{itemImportLabel(item)}</span>}
                                         </div>
                                         <p className="mt-3 text-sm leading-6 text-slate-600">{item.description}</p>
                                         <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
@@ -437,6 +462,11 @@ export function ProductCatalogPage() {
                                         </div>
                                     </div>
                                     <div className="flex shrink-0 gap-2">
+                                        {item.status === 'REVIEW_PENDING' && (
+                                            <button onClick={() => activateItem(item.id)} className="rounded-full border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50">
+                                                Activate
+                                            </button>
+                                        )}
                                         <button onClick={() => { setEditingId(item.id); setForm(itemToForm(item)); }} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                                             Edit
                                         </button>

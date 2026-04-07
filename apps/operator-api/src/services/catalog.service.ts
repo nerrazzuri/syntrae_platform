@@ -86,7 +86,7 @@ function buildWritePayload(input: CatalogItemInput, partial = false) {
     if (!partial || input.priority !== undefined) payload.priority = priority(input.priority);
 
     if (input.status !== undefined) {
-        if (![ProductCatalogStatus.ACTIVE, ProductCatalogStatus.ARCHIVED].includes(input.status)) {
+        if (![ProductCatalogStatus.ACTIVE, ProductCatalogStatus.REVIEW_PENDING, ProductCatalogStatus.ARCHIVED].includes(input.status)) {
             throw new Error('Invalid catalog status');
         }
         payload.status = input.status;
@@ -132,6 +132,8 @@ export class CatalogService {
                 availability_status: payload.availability_status,
                 forbidden_claims: payload.forbidden_claims,
                 priority: payload.priority,
+                status: payload.status || ProductCatalogStatus.ACTIVE,
+                metadata: {},
             } as any,
         });
     }
@@ -159,6 +161,12 @@ export class CatalogService {
     static async archiveItem(workspaceId: string, brandId: string, itemId: string) {
         return this.updateItem(workspaceId, brandId, itemId, {
             status: ProductCatalogStatus.ARCHIVED,
+        });
+    }
+
+    static async activateItem(workspaceId: string, brandId: string, itemId: string) {
+        return this.updateItem(workspaceId, brandId, itemId, {
+            status: ProductCatalogStatus.ACTIVE,
         });
     }
 }
