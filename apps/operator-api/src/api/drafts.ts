@@ -7,6 +7,20 @@ import { buildThreadReference } from '../utils/thread_reference';
 
 const router = Router();
 
+function isSyntheticXhsCommentId(commentId?: string | null) {
+    const value = String(commentId || '').trim();
+    return value.startsWith('xhs-cmt-fb-');
+}
+
+function describeXhsDeliveryError(raw: unknown) {
+    const message = String(raw || '').trim();
+    if (!message) return 'Failed to send thread reply';
+    if (message.includes('-9042')) {
+        return 'XHS rejected this thread reply target. This usually means the captured comment does not have a real platform comment ID yet, so Syntrae cannot reply to that thread directly.';
+    }
+    return message;
+}
+
 // Global Auth & Scoping
 router.use(requireSession);
 router.use(requireWorkspace);
@@ -287,6 +301,21 @@ router.post('/:id/send', async (req, res) => {
             return res.status(400).json({ error: `Unsupported reply channel ${draft.reply_channel}` });
         }
 
+        if ((draft.platform === 'rednote' || draft.platform === 'xiaohongshu' || draft.platform === 'xhs') && isSyntheticXhsCommentId(draft.lead.comment_id)) {
+            const errorMessage = 'This XHS comment was captured without a real platform comment ID, so direct thread reply is not available for this item. Open the live thread and reply manually, or capture a thread with a stable XHS comment ID.';
+            await prisma.outreachDraft.update({
+                where: { id },
+                data: {
+                    delivery_error: errorMessage,
+                    updated_at: new Date(),
+                }
+            });
+            return res.status(400).json({
+                error: errorMessage,
+                code: 'XHS_THREAD_REPLY_UNAVAILABLE',
+            });
+        }
+
         const finalText = draft.edited_text || draft.draft_text;
         const automationApiUrl = process.env.AUTOMATION_API_URL || 'http://video-detection-engine:8000';
         const internalSecret = process.env.AI_CORE_INTERNAL_SECRET;
@@ -308,17 +337,18 @@ router.post('/:id/send', async (req, res) => {
         });
 
         const payload = await response.json().catch(() => ({}));
+        const deliveryError = describeXhsDeliveryError(payload?.detail || payload?.error || `HTTP ${response.status}`);
 
         if (!response.ok) {
             await prisma.outreachDraft.update({
                 where: { id },
                 data: {
-                    delivery_error: payload?.detail || payload?.error || `HTTP ${response.status}`,
+                    delivery_error: deliveryError,
                     updated_at: new Date(),
                 }
             });
             return res.status(response.status).json({
-                error: payload?.detail || payload?.error || 'Failed to send thread reply',
+                error: deliveryError,
                 code: 'PLATFORM_DELIVERY_FAILED',
             });
         }
