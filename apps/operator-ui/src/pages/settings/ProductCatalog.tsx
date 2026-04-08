@@ -99,6 +99,18 @@ function itemImportLabel(item: CatalogItem): string | null {
     return 'Imported item';
 }
 
+function looksUnreadablePreview(value: string | null | undefined): boolean {
+    const text = String(value || '').trim();
+    if (!text) return true;
+    if (text.includes('JFIF') || text.includes('\\x')) return true;
+    const sample = text.slice(0, 320);
+    const weirdChars = Array.from(sample).filter((char) => {
+        const code = char.charCodeAt(0);
+        return (code >= 127 && code <= 159) || code === 65533;
+    }).length;
+    return sample.length > 40 && weirdChars / sample.length > 0.08;
+}
+
 function formToPayload(form: CatalogForm) {
     return {
         name: form.name,
@@ -304,9 +316,8 @@ export function ProductCatalogPage() {
                     </div>
                 )}
 
-                <div className="grid gap-6 lg:grid-cols-[1fr_1.25fr]">
-                    <div className="space-y-6">
-                        <form onSubmit={saveItem} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="grid gap-6 xl:grid-cols-2">
+                    <form onSubmit={saveItem} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                             <div className="flex items-start justify-between gap-4">
                                 <div>
                                     <h2 className="text-xl font-bold text-slate-950">{editingId ? 'Edit catalog item' : 'Add catalog item'}</h2>
@@ -319,12 +330,11 @@ export function ProductCatalogPage() {
                                 )}
                             </div>
 
-                            <div className="mt-6 space-y-4">
-                            <label className="block">
+                            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                            <label className="block sm:col-span-2">
                                 <span className="text-sm font-semibold text-slate-700">Product / offer name</span>
                                 <input required value={form.name} onChange={(e) => updateField('name', e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500" placeholder="Sensitive Skin Starter Kit" />
                             </label>
-                            <div className="grid gap-4 sm:grid-cols-2">
                                 <label className="block">
                                     <span className="text-sm font-semibold text-slate-700">Category</span>
                                     <input value={form.category} onChange={(e) => updateField('category', e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500" placeholder="Skincare" />
@@ -333,16 +343,14 @@ export function ProductCatalogPage() {
                                     <span className="text-sm font-semibold text-slate-700">Price label</span>
                                     <input value={form.price_label} onChange={(e) => updateField('price_label', e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500" placeholder="From RM89" />
                                 </label>
-                            </div>
-                            <label className="block">
+                            <label className="block sm:col-span-2">
                                 <span className="text-sm font-semibold text-slate-700">Description</span>
                                 <textarea required value={form.description} onChange={(e) => updateField('description', e.target.value)} rows={4} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500" placeholder="What this offer is, who it helps, and when to recommend it." />
                             </label>
-                            <label className="block">
+                            <label className="block sm:col-span-2">
                                 <span className="text-sm font-semibold text-slate-700">Target buyer</span>
                                 <input value={form.target_buyer} onChange={(e) => updateField('target_buyer', e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500" placeholder="Malaysia shoppers with sensitive skin" />
                             </label>
-                            <div className="grid gap-4 sm:grid-cols-2">
                                 <label className="block">
                                     <span className="text-sm font-semibold text-slate-700">Key benefits</span>
                                     <textarea value={form.key_benefits} onChange={(e) => updateField('key_benefits', e.target.value)} rows={4} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500" placeholder="One per line" />
@@ -351,8 +359,6 @@ export function ProductCatalogPage() {
                                     <span className="text-sm font-semibold text-slate-700">Common objections</span>
                                     <textarea value={form.common_objections} onChange={(e) => updateField('common_objections', e.target.value)} rows={4} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500" placeholder="One per line" />
                                 </label>
-                            </div>
-                            <div className="grid gap-4 sm:grid-cols-2">
                                 <label className="block">
                                     <span className="text-sm font-semibold text-slate-700">CTA URL</span>
                                     <input value={form.cta_url} onChange={(e) => updateField('cta_url', e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500" placeholder="https://..." />
@@ -361,12 +367,10 @@ export function ProductCatalogPage() {
                                     <span className="text-sm font-semibold text-slate-700">CTA label</span>
                                     <input value={form.cta_label} onChange={(e) => updateField('cta_label', e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500" placeholder="View product" />
                                 </label>
-                            </div>
-                            <label className="block">
+                            <label className="block sm:col-span-2">
                                 <span className="text-sm font-semibold text-slate-700">Forbidden claims</span>
                                 <textarea value={form.forbidden_claims} onChange={(e) => updateField('forbidden_claims', e.target.value)} rows={3} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500" placeholder="Claims the AI must avoid, one per line" />
                             </label>
-                            <div className="grid gap-4 sm:grid-cols-2">
                                 <label className="block">
                                     <span className="text-sm font-semibold text-slate-700">Availability</span>
                                     <input value={form.availability_status} onChange={(e) => updateField('availability_status', e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500" placeholder="AVAILABLE" />
@@ -375,14 +379,13 @@ export function ProductCatalogPage() {
                                     <span className="text-sm font-semibold text-slate-700">Priority</span>
                                     <input type="number" min={0} max={100} value={form.priority} onChange={(e) => updateField('priority', Number(e.target.value))} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500" />
                                 </label>
-                            </div>
-                            <button disabled={saving} type="submit" className="w-full rounded-full bg-emerald-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60">
+                            <button disabled={saving} type="submit" className="sm:col-span-2 w-full rounded-full bg-emerald-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60">
                                 {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Add to Catalog'}
                             </button>
                             </div>
-                        </form>
+                    </form>
 
-                        <form onSubmit={importKnowledge} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <form onSubmit={importKnowledge} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                             <div>
                                 <h2 className="text-xl font-bold text-slate-950">Import Product Knowledge</h2>
                                 <p className="mt-1 text-sm text-slate-500">
@@ -423,80 +426,84 @@ export function ProductCatalogPage() {
                                     {importing ? `Importing ${importFiles.length} file${importFiles.length > 1 ? 's' : ''}...` : 'Import Knowledge'}
                                 </button>
                             </div>
-                        </form>
-                    </div>
+                    </form>
+                </div>
 
-                    <div className="space-y-4">
-                        {loading && <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading catalog...</div>}
-                        {!loading && documents.length > 0 && (
-                            <section className="space-y-4">
-                                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                                    <h2 className="text-lg font-bold text-slate-950">Imported Knowledge</h2>
-                                    <p className="mt-2 text-sm text-slate-500">These files are indexed for brand-aware lead matching and drafting. Any extracted catalog items stay in review pending until an operator activates them.</p>
+                <div className="space-y-4">
+                    {loading && <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading catalog...</div>}
+                    {!loading && items.length === 0 && (
+                        <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
+                            No catalog items yet. Add the first offer so Syntrae can match comments to what the business actually sells.
+                        </div>
+                    )}
+                    {items.map((item) => (
+                        <article key={item.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                                <div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <h3 className="text-lg font-bold text-slate-950">{item.name}</h3>
+                                        {item.category && <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{item.category}</span>}
+                                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Priority {item.priority}</span>
+                                        {item.status === 'REVIEW_PENDING' && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Review pending</span>}
+                                        {itemImportLabel(item) && <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">{itemImportLabel(item)}</span>}
+                                    </div>
+                                    <p className="mt-3 text-sm leading-6 text-slate-600">{item.description}</p>
+                                    <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+                                        {item.price_label && <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">{item.price_label}</span>}
+                                        {item.target_buyer && <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{item.target_buyer}</span>}
+                                        {item.cta_url && <a href={item.cta_url} target="_blank" rel="noreferrer" className="rounded-full bg-slate-900 px-3 py-1 text-white">CTA link</a>}
+                                    </div>
                                 </div>
-                                {documents.map((document) => (
-                                    <article key={document.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                                            <div>
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <h3 className="text-lg font-bold text-slate-950">{document.title}</h3>
-                                                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{document.source_type}</span>
-                                                    {document.ai_core_chunk_count != null && <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{document.ai_core_chunk_count} chunks</span>}
-                                                </div>
-                                                <div className="mt-2 text-sm text-slate-500">{document.original_filename}</div>
-                                                {document.preview_text && <p className="mt-3 text-sm leading-6 text-slate-600">{document.preview_text}</p>}
-                                            </div>
-                                            <div className="flex shrink-0 gap-2">
-                                                <button onClick={() => archiveDocument(document.id)} className="rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">
-                                                    Archive
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </article>
-                                ))}
-                            </section>
-                        )}
-                        {!loading && items.length === 0 && (
-                            <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
-                                No catalog items yet. Add the first offer so Syntrae can match comments to what the business actually sells.
+                                <div className="flex shrink-0 gap-2">
+                                    {item.status === 'REVIEW_PENDING' && (
+                                        <button onClick={() => activateItem(item.id)} className="rounded-full border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50">
+                                            Activate
+                                        </button>
+                                    )}
+                                    <button onClick={() => { setEditingId(item.id); setForm(itemToForm(item)); }} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                                        Edit
+                                    </button>
+                                    <button onClick={() => archiveItem(item.id)} className="rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">
+                                        Archive
+                                    </button>
+                                </div>
                             </div>
-                        )}
-                        {items.map((item) => (
-                            <article key={item.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                        </article>
+                    ))}
+                </div>
+
+                {!loading && documents.length > 0 && (
+                    <section className="space-y-4">
+                        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                            <h2 className="text-lg font-bold text-slate-950">Imported Knowledge</h2>
+                            <p className="mt-2 text-sm text-slate-500">These files are indexed for brand-aware lead matching and drafting. Any extracted catalog items stay in review pending until an operator activates them.</p>
+                        </div>
+                        {documents.map((document) => (
+                            <article key={document.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                                     <div>
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <h3 className="text-lg font-bold text-slate-950">{item.name}</h3>
-                                            {item.category && <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{item.category}</span>}
-                                            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Priority {item.priority}</span>
-                                            {item.status === 'REVIEW_PENDING' && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Review pending</span>}
-                                            {itemImportLabel(item) && <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">{itemImportLabel(item)}</span>}
+                                            <h3 className="text-lg font-bold text-slate-950">{document.title}</h3>
+                                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{document.source_type}</span>
+                                            {document.ai_core_chunk_count != null && <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{document.ai_core_chunk_count} chunks</span>}
                                         </div>
-                                        <p className="mt-3 text-sm leading-6 text-slate-600">{item.description}</p>
-                                        <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-                                            {item.price_label && <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">{item.price_label}</span>}
-                                            {item.target_buyer && <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{item.target_buyer}</span>}
-                                            {item.cta_url && <a href={item.cta_url} target="_blank" rel="noreferrer" className="rounded-full bg-slate-900 px-3 py-1 text-white">CTA link</a>}
-                                        </div>
+                                        <div className="mt-2 text-sm text-slate-500">{document.original_filename}</div>
+                                        <p className="mt-3 text-sm leading-6 text-slate-600">
+                                            {looksUnreadablePreview(document.preview_text)
+                                                ? 'This import used older binary fallback text. Re-import it after the latest ai-core update to get readable OCR or vision-based product text.'
+                                                : document.preview_text}
+                                        </p>
                                     </div>
                                     <div className="flex shrink-0 gap-2">
-                                        {item.status === 'REVIEW_PENDING' && (
-                                            <button onClick={() => activateItem(item.id)} className="rounded-full border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50">
-                                                Activate
-                                            </button>
-                                        )}
-                                        <button onClick={() => { setEditingId(item.id); setForm(itemToForm(item)); }} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                                            Edit
-                                        </button>
-                                        <button onClick={() => archiveItem(item.id)} className="rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">
+                                        <button onClick={() => archiveDocument(document.id)} className="rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">
                                             Archive
                                         </button>
                                     </div>
                                 </div>
                             </article>
                         ))}
-                    </div>
-                </div>
+                    </section>
+                )}
             </div>
         </div>
     );

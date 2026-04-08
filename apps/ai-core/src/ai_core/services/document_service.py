@@ -11,6 +11,7 @@ import hashlib
 import random
 import io
 import csv
+import base64
 from docx import Document as DocxDocument
 from pptx import Presentation
 from openpyxl import load_workbook
@@ -65,6 +66,64 @@ class DocumentService:
         if not value:
             return ""
         return str(value).replace("\x00", "").strip()
+
+    @staticmethod
+    def _looks_like_garbage_text(value: str | None) -> bool:
+        text = (value or "").strip()
+        if not text:
+            return True
+        if "JFIF" in text or "Exif" in text:
+            return True
+        sample = text[:500]
+        control_count = sum(1 for ch in sample if ord(ch) < 32 and ch not in "\n\r\t")
+        weird_count = sum(1 for ch in sample if ord(ch) in (65533,) or (127 <= ord(ch) <= 159))
+        if sample and (control_count / len(sample) > 0.02 or weird_count / len(sample) > 0.05):
+            return True
+        alnum_count = sum(1 for ch in sample if ch.isalnum())
+        return len(sample) >= 40 and (alnum_count / len(sample) < 0.2)
+
+    def _extract_text_from_image(self, data: bytes, mime_type: str | None = None) -> str:
+        extracted = ""
+        try:
+            from PIL import Image
+            import pytesseract
+
+            img = Image.open(io.BytesIO(data))
+            extracted = self._sanitize_text(pytesseract.image_to_string(img))
+        except Exception:
+            extracted = ""
+
+        if not self._looks_like_garbage_text(extracted):
+            return extracted
+
+        if not self.openai_client:
+            return ""
+
+        try:
+            data_url = f"data:{mime_type or 'image/jpeg'};base64,{base64.b64encode(data).decode('ascii')}"
+            response = self.openai_client.chat.completions.create(
+                model=os.getenv("VISION_MODEL", os.getenv("RAG_CHAT_MODEL", "gpt-4o-mini")),
+                temperature=0,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": (
+                                    "Extract readable product knowledge from this product image. "
+                                    "Return plain text only with sections if present: Product, Benefits, Ingredients, "
+                                    "Suitable Users, Unsuitable Users, Notes. Do not invent missing facts."
+                                ),
+                            },
+                            {"type": "image_url", "image_url": {"url": data_url}},
+                        ],
+                    }
+                ],
+            )
+            return self._sanitize_text(response.choices[0].message.content or "")
+        except Exception:
+            return ""
 
     # ------------------------------
     # Normalized connector ingestion
@@ -1563,13 +1622,19 @@ class DocumentService:
 
             kind = imghdr.what(None, h=data)
             if kind in ("png", "jpeg", "jpg", "bmp", "tiff"):
-                from PIL import Image
-                import pytesseract
-
-                img = Image.open(io.BytesIO(data))
-                return self._sanitize_text(pytesseract.image_to_string(img))
+                mime_map = {
+                    "png": "image/png",
+                    "jpeg": "image/jpeg",
+                    "jpg": "image/jpeg",
+                    "bmp": "image/bmp",
+                    "tiff": "image/tiff",
+                }
+                return self._extract_text_from_image(data, mime_map.get(kind))
         except Exception:
             pass
+
+        if name.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".webp")):
+            return self._extract_text_from_image(data)
 
         try:
             return self._sanitize_text(data.decode("utf-8"))
