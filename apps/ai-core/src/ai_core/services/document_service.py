@@ -60,6 +60,12 @@ class DocumentService:
             self.client = None
             self.openai_client = None
 
+    @staticmethod
+    def _sanitize_text(value: str | None) -> str:
+        if not value:
+            return ""
+        return str(value).replace("\x00", "").strip()
+
     # ------------------------------
     # Normalized connector ingestion
     # ------------------------------
@@ -528,6 +534,8 @@ class DocumentService:
         owns_transaction = not self.db.in_transaction()
         trans = self.db.begin() if owns_transaction else None
         try:
+            title = self._sanitize_text(title)
+            content = self._sanitize_text(content)
             # Validate tenant_id is a valid UUID
             import uuid
 
@@ -595,7 +603,7 @@ class DocumentService:
             # AI-driven ingest plan and chunking
             plan = self.plan_ingest(title, content[:8000])
             chunk_pairs = self._build_chunks_with_metadata(raw_content)
-            chunks = [t for (t, _m) in chunk_pairs]
+            chunks = [self._sanitize_text(t) for (t, _m) in chunk_pairs]
             [m for (_t, m) in chunk_pairs]
             if not chunks:
                 raise ValueError("No chunks could be created from the content")
@@ -631,6 +639,7 @@ class DocumentService:
             for idx, ((chunk_text_val, meta_chunk), emb) in enumerate(
                 zip(chunk_pairs, embeddings)
             ):
+                chunk_text_val = self._sanitize_text(chunk_text_val)
                 # Ensure a concrete UUID is assigned before using the ID
                 import uuid as _uuid
 
@@ -1492,13 +1501,13 @@ class DocumentService:
         name = filename.lower()
         if name.endswith(".txt") or name.endswith(".csv"):
             try:
-                return data.decode("utf-8")
+                return self._sanitize_text(data.decode("utf-8"))
             except Exception:
-                return data.decode("latin-1", errors="ignore")
+                return self._sanitize_text(data.decode("latin-1", errors="ignore"))
         if name.endswith(".docx"):
             buf = io.BytesIO(data)
             d = DocxDocument(buf)
-            return "\n".join(p.text for p in d.paragraphs)
+            return self._sanitize_text("\n".join(p.text for p in d.paragraphs))
         if name.endswith(".pptx"):
             buf = io.BytesIO(data)
             prs = Presentation(buf)
@@ -1507,7 +1516,7 @@ class DocumentService:
                 for shape in slide.shapes:
                     if hasattr(shape, "text"):
                         texts.append(shape.text)
-            return "\n".join(texts)
+            return self._sanitize_text("\n".join(texts))
         if name.endswith(".xlsx"):
             buf = io.BytesIO(data)
             wb = load_workbook(buf, data_only=True)
@@ -1515,7 +1524,7 @@ class DocumentService:
             for ws in wb.worksheets:
                 for row in ws.iter_rows(values_only=True):
                     texts.append("\t".join("" if v is None else str(v) for v in row))
-            return "\n".join(texts)
+            return self._sanitize_text("\n".join(texts))
         # PDF handled by PyPDF2 with OCR fallback
         if name.endswith(".pdf"):
             try:
@@ -1545,27 +1554,27 @@ class DocumentService:
                         except Exception:
                             pass
                     texts.append(f"[[PAGE:{i}]]\n" + extracted)
-                return "\n".join(texts)
+                return self._sanitize_text("\n".join(texts))
             except Exception:
                 pass
-        # Fallback raw decode and OCR for common image formats
+        # OCR for common image formats
         try:
-            return data.decode("utf-8")
+            import imghdr
+
+            kind = imghdr.what(None, h=data)
+            if kind in ("png", "jpeg", "jpg", "bmp", "tiff"):
+                from PIL import Image
+                import pytesseract
+
+                img = Image.open(io.BytesIO(data))
+                return self._sanitize_text(pytesseract.image_to_string(img))
         except Exception:
-            # Try image OCR if this appears to be an image
-            try:
-                import imghdr
+            pass
 
-                kind = imghdr.what(None, h=data)
-                if kind in ("png", "jpeg", "jpg", "bmp", "tiff"):
-                    from PIL import Image
-                    import pytesseract
-
-                    img = Image.open(io.BytesIO(data))
-                    return pytesseract.image_to_string(img)
-            except Exception:
-                pass
-            return data.decode("latin-1", errors="ignore")
+        try:
+            return self._sanitize_text(data.decode("utf-8"))
+        except Exception:
+            return self._sanitize_text(data.decode("latin-1", errors="ignore"))
 
     def extract_rows_from_file(self, filename: str, data: bytes) -> List[str]:
         name = filename.lower()
