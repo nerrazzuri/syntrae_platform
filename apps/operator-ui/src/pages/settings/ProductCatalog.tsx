@@ -139,7 +139,7 @@ export function ProductCatalogPage() {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [importTitle, setImportTitle] = useState('');
-    const [importFile, setImportFile] = useState<File | null>(null);
+    const [importFiles, setImportFiles] = useState<File[]>([]);
 
     const activeCount = useMemo(() => items.filter((item) => item.status === 'ACTIVE').length, [items]);
     const reviewPendingCount = useMemo(() => items.filter((item) => item.status === 'REVIEW_PENDING').length, [items]);
@@ -242,28 +242,33 @@ export function ProductCatalogPage() {
 
     const importKnowledge = async (event: FormEvent) => {
         event.preventDefault();
-        if (!brandId || !importFile) return;
+        if (!brandId || importFiles.length === 0) return;
         setImporting(true);
         setError(null);
         setSuccess(null);
         try {
-            const contentBase64 = await fileToBase64(importFile);
-            const result = await api.post(`/brands/${brandId}/catalog/import`, {
-                title: importTitle.trim() || importFile.name,
-                source_type: importFile.type.startsWith('image/') ? 'IMAGE' : 'FILE',
-                file_name: importFile.name,
-                mime_type: importFile.type || 'application/octet-stream',
-                file_size_bytes: importFile.size,
-                content_base64: contentBase64,
-            });
-            const importedItems = Number(result?.imported_item_count || 0);
-            if (importedItems > 0) {
-                setSuccess(`Knowledge imported. ${importedItems} catalog items were created in review pending so you can edit and approve them before they go live.`);
+            let createdItems = 0;
+            for (const [index, importFile] of importFiles.entries()) {
+                const contentBase64 = await fileToBase64(importFile);
+                const result = await api.post(`/brands/${brandId}/catalog/import`, {
+                    title: importTitle.trim()
+                        ? `${importTitle.trim()}${importFiles.length > 1 ? ` ${index + 1}` : ''}`
+                        : importFile.name,
+                    source_type: importFile.type.startsWith('image/') ? 'IMAGE' : 'FILE',
+                    file_name: importFile.name,
+                    mime_type: importFile.type || 'application/octet-stream',
+                    file_size_bytes: importFile.size,
+                    content_base64: contentBase64,
+                });
+                createdItems += Number(result?.imported_item_count || 0);
+            }
+            if (createdItems > 0) {
+                setSuccess(`Knowledge imported. ${createdItems} catalog items were created in review pending so you can edit and approve them before they go live.`);
             } else {
-                setSuccess('Knowledge imported. Syntrae can now use this document as product context during lead matching and drafting.');
+                setSuccess(`Knowledge imported. ${importFiles.length} file${importFiles.length > 1 ? 's' : ''} can now be used as product context during lead matching and drafting.`);
             }
             setImportTitle('');
-            setImportFile(null);
+            setImportFiles([]);
             await loadItems();
         } catch (err: any) {
             setError(err.message || 'Failed to import knowledge');
@@ -390,19 +395,32 @@ export function ProductCatalogPage() {
                                     <input value={importTitle} onChange={(e) => setImportTitle(e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500" placeholder="April product brochure" />
                                 </label>
                                 <label className="block">
-                                    <span className="text-sm font-semibold text-slate-700">File</span>
+                                    <span className="text-sm font-semibold text-slate-700">Files</span>
                                     <input
                                         type="file"
+                                        multiple
                                         accept=".csv,.xlsx,.pdf,.png,.jpg,.jpeg,.bmp,.tiff,.docx,.pptx"
-                                        onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                                        onChange={(e) => setImportFiles(Array.from(e.target.files || []))}
                                         className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 file:mr-4 file:rounded-full file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:font-semibold file:text-slate-700"
                                     />
                                 </label>
+                                {importFiles.length > 0 && (
+                                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                                        {importFiles.length} file{importFiles.length > 1 ? 's' : ''} selected:
+                                        <div className="mt-2 flex flex-wrap gap-2">
+                                            {importFiles.map((file) => (
+                                                <span key={`${file.name}-${file.size}`} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                                                    {file.name}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
                                     Best for structured import: <strong>CSV/XLSX</strong>. Best for contextual product knowledge: <strong>PDF and images</strong>. OCR and PDF imports can also generate review-pending catalog items.
                                 </div>
-                                <button disabled={importing || !importFile} type="submit" className="w-full rounded-full bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-slate-950 disabled:cursor-not-allowed disabled:opacity-60">
-                                    {importing ? 'Importing...' : 'Import Knowledge'}
+                                <button disabled={importing || importFiles.length === 0} type="submit" className="w-full rounded-full bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-slate-950 disabled:cursor-not-allowed disabled:opacity-60">
+                                    {importing ? `Importing ${importFiles.length} file${importFiles.length > 1 ? 's' : ''}...` : 'Import Knowledge'}
                                 </button>
                             </div>
                         </form>
