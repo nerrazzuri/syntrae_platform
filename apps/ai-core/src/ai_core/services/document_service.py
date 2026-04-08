@@ -523,8 +523,10 @@ class DocumentService:
         progress_job_id: str | None = None,
         doc_meta: Dict[str, Any] | None = None,
     ) -> Tuple[str, int]:
-        # Wrap entire ingest in a single transaction for atomicity
-        trans = self.db.begin()
+        # SQLAlchemy sessions may already be in an auto-begun transaction after earlier reads.
+        # Reuse it instead of starting a nested root transaction.
+        owns_transaction = not self.db.in_transaction()
+        trans = self.db.begin() if owns_transaction else None
         try:
             # Validate tenant_id is a valid UUID
             import uuid
@@ -795,7 +797,10 @@ class DocumentService:
                 except Exception:
                     pass
             # Commit the DB transaction only after all DB writes succeed
-            trans.commit()
+            if trans is not None:
+                trans.commit()
+            else:
+                self.db.flush()
             try:
                 from shared.metrics.ingestion_metrics import ingestion_metrics
 
@@ -806,7 +811,10 @@ class DocumentService:
         except Exception as e:
             # If there's an error, rollback the transaction
             try:
-                trans.rollback()
+                if trans is not None:
+                    trans.rollback()
+                else:
+                    self.db.rollback()
             except Exception:
                 pass
             try:
@@ -1445,7 +1453,7 @@ class DocumentService:
                     id=tenant_uuid, name="Seeded Tenant", domain="seeded", settings={}
                 )
                 self.db.add(t)
-                self.db.commit()
+                self.db.flush()
         except Exception:
             # Best-effort; if this fails, the subsequent KB creation will surface the error
             self.db.rollback()
@@ -1476,7 +1484,7 @@ class DocumentService:
             tenant_id=tenant_uuid, name="Default", status="ACTIVE", document_count=0
         )
         self.db.add(new_kb)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(new_kb)
         return str(new_kb.id)
 
