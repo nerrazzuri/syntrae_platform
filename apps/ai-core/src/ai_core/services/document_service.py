@@ -864,11 +864,13 @@ class DocumentService:
                     )
                 except Exception:
                     pass
-            # Commit the DB transaction only after all DB writes succeed
+            # Commit the DB transaction only after all DB writes succeed.
+            # SQLAlchemy sessions may already be auto-begun by prior reads; those still need
+            # an explicit commit here or the document/chunk rows disappear when the session ends.
             if trans is not None:
                 trans.commit()
             else:
-                self.db.flush()
+                self.db.commit()
             try:
                 from shared.metrics.ingestion_metrics import ingestion_metrics
 
