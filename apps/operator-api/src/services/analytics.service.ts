@@ -52,7 +52,7 @@ export interface UsageMetrics {
     suggestions_daily_used: number;
     suggestions_daily_limit: number;
     automation_runs_daily_used: number;
-    automation_runs_daily_limit: number;
+    automation_runs_daily_limit: number | null;
     leads_rollover_month: number;
     leads_captured_limit: number;
     leads_captured_remaining: number;

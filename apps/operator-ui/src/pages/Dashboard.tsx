@@ -27,7 +27,7 @@ interface UsageData {
     plan_id: string;
     plan_name: string;
     automation_runs_daily_used: number;
-    automation_runs_daily_limit: number;
+    automation_runs_daily_limit: number | null;
     brands_used: number;
     brands_limit: number;
     leads_captured_month: number;
@@ -67,7 +67,7 @@ function buildPrompts(metrics: OverviewMetrics | undefined, usage: UsageData | n
         });
     }
 
-    if (usage.automation_runs_daily_limit > 0 && usage.automation_runs_daily_used >= Math.max(1, Math.floor(usage.automation_runs_daily_limit * 0.8)) && usage.plan_id !== 'PRO' && usage.plan_id !== 'AGENCY') {
+    if (usage.automation_runs_daily_limit != null && usage.automation_runs_daily_used >= Math.max(1, Math.floor(usage.automation_runs_daily_limit * 0.8)) && usage.plan_id !== 'PRO' && usage.plan_id !== 'AGENCY') {
         prompts.push({
             title: 'Scale daily automation volume',
             message: `This workspace is using ${usage.automation_runs_daily_used}/${usage.automation_runs_daily_limit} automation runs today. Upgrade to Pro for higher daily automation capacity and multi-brand workflows.`,

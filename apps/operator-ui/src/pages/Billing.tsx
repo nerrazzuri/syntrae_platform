@@ -45,7 +45,7 @@ interface SubscriptionSummary {
     usage: {
         active_brands: { used: number; limit: number };
         team_members: { used: number; limit: number };
-        automation_runs_daily: { used: number; limit: number };
+        automation_runs_daily: { used: number; limit: number | null };
         leads_captured_monthly: { used: number; limit: number };
     };
     blocked: Array<{ code: string; message: string }>;
@@ -60,7 +60,7 @@ interface UsageSnapshot {
     converted_leads_month: number;
     estimated_revenue_month: number;
     automation_runs_daily_used: number;
-    automation_runs_daily_limit: number;
+    automation_runs_daily_limit: number | null;
     lead_auto_extension_enabled: boolean;
     lead_warning_threshold: number;
     lead_warning_reached: boolean;
@@ -246,7 +246,7 @@ export function BillingPage() {
         !usage.features.assistedReplyDrafts && usage.high_intent_leads_month >= 3
             ? 'Upgrade to Growth to turn qualified leads into assisted reply drafts faster.'
             : null,
-        usage.automation_runs_daily_limit > 0 && usage.automation_runs_daily_used >= usage.automation_runs_daily_limit && summary.plan_code !== 'PRO' && summary.plan_code !== 'AGENCY'
+        usage.automation_runs_daily_limit != null && usage.automation_runs_daily_used >= usage.automation_runs_daily_limit && summary.plan_code !== 'PRO' && summary.plan_code !== 'AGENCY'
             ? 'Your workspace is hitting daily automation limits. Upgrade to Pro to scale multi-brand workflows.'
             : null,
         usage.leads_captured_limit > 0 && usage.leads_captured_month >= Math.max(1, Math.floor(usage.leads_captured_limit * usage.lead_warning_threshold))
@@ -325,7 +325,9 @@ export function BillingPage() {
                     </div>
                     <div className="rounded border p-4">
                         <div className="text-gray-500">Automation Runs Today</div>
-                        <div className="text-xl font-bold">{summary.usage.automation_runs_daily.used} / {summary.usage.automation_runs_daily.limit}</div>
+                        <div className="text-xl font-bold">
+                            {summary.usage.automation_runs_daily.used} / {summary.usage.automation_runs_daily.limit ?? 'Unlimited'}
+                        </div>
                     </div>
                     <div className="rounded border p-4">
                         <div className="text-gray-500">Leads This Month</div>

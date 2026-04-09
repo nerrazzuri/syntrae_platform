@@ -19,7 +19,7 @@ interface UsageData {
     suggestions_daily_used: number;
     suggestions_daily_limit: number;
     automation_runs_daily_used: number;
-    automation_runs_daily_limit: number;
+    automation_runs_daily_limit: number | null;
     leads_rollover_month: number;
     leads_captured_limit: number;
     leads_captured_remaining: number;
@@ -67,7 +67,7 @@ function buildUsagePrompts(data: UsageData) {
         });
     }
 
-    if (data.automation_runs_daily_limit > 0 && data.automation_runs_daily_used >= data.automation_runs_daily_limit && data.plan_id !== 'PRO' && data.plan_id !== 'AGENCY') {
+    if (data.automation_runs_daily_limit != null && data.automation_runs_daily_used >= data.automation_runs_daily_limit && data.plan_id !== 'PRO' && data.plan_id !== 'AGENCY') {
         prompts.push({
             title: 'Scale automation',
             message: `Your workspace is hitting daily automation limits. Upgrade to Pro to scale multi-brand workflows and higher automation throughput.`,
@@ -141,14 +141,17 @@ export const UsageAnalytics = () => {
 
                 <div className="space-y-4">
                     {rows.map((row) => {
-                        const pct = row.limit > 0 ? (row.used / row.limit) * 100 : 0;
-                        const isBlocked = row.limit === 0 ? row.used > 0 : row.used >= row.limit;
+                        const isUnlimited = row.limit == null;
+                        const limitValue = row.limit ?? 0;
+                        const pct = !isUnlimited && limitValue > 0 ? (row.used / limitValue) * 100 : 0;
+                        const isBlocked = !isUnlimited && (limitValue === 0 ? row.used > 0 : row.used >= limitValue);
+                        const displayLimit = isUnlimited ? 'Unlimited' : row.limit;
                         return (
                             <div key={row.label}>
                                 <div className="flex justify-between text-sm font-medium mb-1">
                                     <span>{row.label}</span>
                                     <span className={isBlocked ? 'text-red-600' : 'text-gray-600'}>
-                                        {row.used} / {row.limit}
+                                        {row.used} / {displayLimit}
                                     </span>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-3">

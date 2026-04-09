@@ -114,7 +114,7 @@ const PLAN_DEFINITIONS = {
       dailySuggestions: 25,
       monthlyCapturedLeads: 50,
       monthlyLeadExports: 0,
-      dailyAutomationRuns: 3,
+      dailyAutomationRuns: null,
     },
     includedPlatforms: ["rednote"],
     capabilities: {
@@ -148,7 +148,7 @@ const PLAN_DEFINITIONS = {
       dailySuggestions: 200,
       monthlyCapturedLeads: 400,
       monthlyLeadExports: 1000,
-      dailyAutomationRuns: 8,
+      dailyAutomationRuns: null,
     },
     includedPlatforms: ["rednote", "tiktok"],
     capabilities: {
@@ -182,7 +182,7 @@ const PLAN_DEFINITIONS = {
       dailySuggestions: 400,
       monthlyCapturedLeads: 1000,
       monthlyLeadExports: 5000,
-      dailyAutomationRuns: 25,
+      dailyAutomationRuns: null,
     },
     includedPlatforms: ["tiktok", "rednote", "instagram", "youtube"],
     capabilities: {
@@ -216,7 +216,7 @@ const PLAN_DEFINITIONS = {
       dailySuggestions: 2000,
       monthlyCapturedLeads: 3000,
       monthlyLeadExports: 25000,
-      dailyAutomationRuns: 250,
+      dailyAutomationRuns: null,
     },
     includedPlatforms: ["tiktok", "rednote", "instagram", "youtube"],
     capabilities: {

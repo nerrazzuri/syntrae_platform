@@ -69,7 +69,7 @@ export interface WorkspacePlanSummary {
         events_daily: { used: number; limit: number };
         events_monthly: { used: number; limit: number };
         suggestions_daily: { used: number; limit: number };
-        automation_runs_daily: { used: number; limit: number };
+        automation_runs_daily: { used: number; limit: number | null };
         leads_captured_monthly: { used: number; limit: number };
         lead_exports_monthly: { used: number; limit: number };
     };
