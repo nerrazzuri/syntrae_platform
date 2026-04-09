@@ -93,7 +93,7 @@ export default function App() {
         <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-emerald-200/30 blur-3xl" />
         <div className="absolute -left-24 top-40 h-72 w-72 rounded-full bg-sky-200/20 blur-3xl" />
 
-        <header className="relative section-shell py-8">
+        <header className="relative hero-shell py-8">
           <nav className="flex flex-wrap items-center justify-between gap-6">
             <div className="flex items-center gap-3">
               <img src="/logo-mark.svg" alt="SyntraeAI" className="h-10 w-10" />
@@ -113,25 +113,28 @@ export default function App() {
           </nav>
         </header>
 
-        <section className="relative section-shell pb-16 pt-8 lg:pb-24">
-          <div className="grid gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+        <section className="relative hero-shell pb-24 pt-28 lg:pb-28 lg:pt-32">
+          <div className="grid gap-14 lg:grid-cols-[0.58fr_0.42fr]">
             <div className="space-y-8">
-              <span className="highlight-pill">Demand capture for businesses who want real leads</span>
-              <div className="space-y-5">
-                <h1 className="font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl lg:text-6xl">
-                  The best customers are already asking. SyntraeAI helps you find them first.
+              <span className="highlight-pill">Customers are already asking</span>
+              <div className="space-y-6">
+                <h1 className="font-display text-4xl font-bold leading-tight tracking-tight text-ink sm:text-5xl lg:text-6xl">
+                  The best customers are already asking.
                 </h1>
-                <p className="text-lg text-slate-600">
-                  SyntraeAI turns live social questions into qualified leads, so you stop chasing cold traffic and start responding to real demand.
-                  Built for SMB owners who are tired of expensive ads and low-converting content.
+                <p className="text-xl font-semibold text-slate-700">
+                  Most businesses never see them. SyntraeAI helps you find and act on them first.
+                </p>
+                <p className="max-w-xl text-lg text-slate-600">
+                  Customers are already asking questions about what you sell — in comments, threads, and conversations.
+                  Instead of chasing cold traffic, SyntraeAI helps you respond to real demand.
                 </p>
               </div>
               <div className="flex flex-wrap gap-4">
-                <a className="button-primary" href="/signup">Start capturing intent</a>
-                <a className="button-secondary" href="/app">See the console</a>
+                <a className="button-primary" href="/signup">Find customers already asking</a>
+                <a className="button-secondary" href="#how">See how it works</a>
               </div>
               <p className="text-sm text-slate-500">
-                Trusted by operators who work directly inside comment threads on Xiaohongshu/Rednote.
+                Built for SMB owners, beauty sellers, and local businesses who need real leads.
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 {[
@@ -148,20 +151,20 @@ export default function App() {
               </div>
             </div>
 
-            <div className="space-y-6">
-              <div className="glass-panel p-6">
+            <div className="space-y-8">
+              <div className="glass-panel p-7">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Intent signals</span>
                   <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Live</span>
                 </div>
-                <div className="mt-6 space-y-4">
+                <div className="mt-6 space-y-5">
                   {intentSignals.map((card) => (
-                    <div key={card.title} className="rounded-2xl border border-slate-100 bg-white p-4">
-                      <div className="flex items-center gap-2 text-xs font-semibold uppercase text-emerald-600">
+                    <div key={card.title} className="rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-emerald-50/40 p-5 shadow-soft">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase text-emerald-700">
                         <span className="h-2 w-2 rounded-full bg-emerald-500" />
                         {card.tag}
                       </div>
-                      <p className="mt-2 text-sm font-semibold text-slate-800">{card.title}</p>
+                      <p className="mt-3 text-base font-semibold text-slate-800">{card.title}</p>
                       <p className="mt-1 text-xs text-slate-400">{card.meta}</p>
                       <p className="mt-3 text-xs text-slate-500">{card.note}</p>
                     </div>
@@ -169,17 +172,17 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="card-surface p-6">
+              <div className="card-surface p-7">
                 <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Pipeline view</div>
-                <div className="mt-5 grid gap-4">
-                  <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+                <div className="mt-6 grid gap-4">
+                  <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-5 py-4">
                     <div>
                       <div className="text-xs font-semibold uppercase text-slate-400">Captured today</div>
                       <div className="text-xl font-semibold text-ink">18 new intent leads</div>
                     </div>
                     <div className="text-xs font-semibold text-emerald-600">+7 high intent</div>
                   </div>
-                  <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+                  <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-5 py-4">
                     <div>
                       <div className="text-xs font-semibold uppercase text-slate-400">Follow-up queue</div>
                       <div className="text-xl font-semibold text-ink">Owner replies ready</div>
