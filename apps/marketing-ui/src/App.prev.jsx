@@ -7,6 +7,27 @@ const navLinks = [
   { label: 'FAQ', href: '#faq' },
 ];
 
+const intentSignals = [
+  {
+    tag: 'High intent',
+    title: '“Does this work for sensitive skin?”',
+    meta: 'Skincare · Comment thread',
+    note: 'Captured as a qualified lead with follow-up prompt.',
+  },
+  {
+    tag: 'Ready to buy',
+    title: '“Where can I order and how fast can it ship?”',
+    meta: 'Local service · Inquiry',
+    note: 'Routed to the owner with a reply draft.',
+  },
+  {
+    tag: 'Comparison',
+    title: '“Is this better than the clinic near me?”',
+    meta: 'Beauty · Competitive intent',
+    note: 'Flagged for priority response.',
+  },
+];
+
 const differentiators = [
   {
     title: 'Intent, not impressions',
@@ -92,7 +113,87 @@ export default function App() {
           </nav>
         </header>
 
-        <HeroSection />
+        <section className="relative hero-shell pb-24 pt-28 lg:pb-28 lg:pt-32">
+          <div className="grid gap-14 lg:grid-cols-[0.58fr_0.42fr]">
+            <div className="space-y-8">
+              <span className="highlight-pill">Customers are already asking</span>
+              <div className="space-y-6">
+                <h1 className="font-display text-4xl font-bold leading-tight tracking-tight text-ink sm:text-5xl lg:text-6xl">
+                  The best customers are already asking.
+                </h1>
+                <p className="text-xl font-semibold text-slate-700">
+                  Most businesses never see them. SyntraeAI helps you find and act on them first.
+                </p>
+                <p className="max-w-xl text-lg text-slate-600">
+                  Customers are already asking questions about what you sell — in comments, threads, and conversations.
+                  Instead of chasing cold traffic, SyntraeAI helps you respond to real demand.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-4">
+                <a className="button-primary" href="/signup">Find customers already asking</a>
+                <a className="button-secondary" href="#how">See how it works</a>
+              </div>
+              <p className="text-sm text-slate-500">
+                Built for SMB owners, beauty sellers, and local businesses who need real leads.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {[
+                  'Stop paying for empty views',
+                  'Find demand before competitors do',
+                  'Convert questions into follow-up',
+                  'Keep the original comment context',
+                ].map((item) => (
+                  <div key={item} className="flex items-center gap-3 text-sm font-semibold text-slate-700">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-8">
+              <div className="glass-panel p-7">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Intent signals</span>
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Live</span>
+                </div>
+                <div className="mt-6 space-y-5">
+                  {intentSignals.map((card) => (
+                    <div key={card.title} className="rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-emerald-50/40 p-5 shadow-soft">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase text-emerald-700">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                        {card.tag}
+                      </div>
+                      <p className="mt-3 text-base font-semibold text-slate-800">{card.title}</p>
+                      <p className="mt-1 text-xs text-slate-400">{card.meta}</p>
+                      <p className="mt-3 text-xs text-slate-500">{card.note}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="card-surface p-7">
+                <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Pipeline view</div>
+                <div className="mt-6 grid gap-4">
+                  <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-5 py-4">
+                    <div>
+                      <div className="text-xs font-semibold uppercase text-slate-400">Captured today</div>
+                      <div className="text-xl font-semibold text-ink">18 new intent leads</div>
+                    </div>
+                    <div className="text-xs font-semibold text-emerald-600">+7 high intent</div>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-5 py-4">
+                    <div>
+                      <div className="text-xs font-semibold uppercase text-slate-400">Follow-up queue</div>
+                      <div className="text-xl font-semibold text-ink">Owner replies ready</div>
+                    </div>
+                    <div className="text-xs font-semibold text-slate-500">With context</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
       <section id="problem" className="section-shell py-20">
@@ -289,166 +390,6 @@ export default function App() {
           </div>
         </div>
       </footer>
-    </div>
-  );
-}
-
-export function HeroSection() {
-  return (
-    <section className="relative overflow-hidden bg-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.08),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.05),transparent_28%)]" />
-
-      <div className="relative mx-auto max-w-[1280px] px-6 pb-24 pt-28 sm:px-8 lg:px-12 lg:pb-28 lg:pt-32">
-        <div className="grid items-center gap-14 lg:grid-cols-12 lg:gap-16">
-          <div className="lg:col-span-5">
-            <div className="inline-flex items-center rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600 backdrop-blur">
-              Real demand, not empty traffic
-            </div>
-
-            <h1 className="mt-7 max-w-[11ch] text-5xl font-semibold tracking-tight text-slate-950 sm:text-6xl lg:text-7xl lg:leading-[0.95]">
-              The best customers are already asking.
-            </h1>
-
-            <p className="mt-6 max-w-2xl text-xl font-medium leading-relaxed text-slate-700 lg:text-2xl">
-              Most businesses never see them. SyntraeAI helps you find and act on them first.
-            </p>
-
-            <p className="mt-5 max-w-xl text-base leading-8 text-slate-600 lg:text-lg">
-              Customers are already asking questions in comments, threads, and social conversations.
-              Instead of chasing cold traffic, SyntraeAI helps you respond to real demand while it is still fresh.
-            </p>
-
-            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <a
-                href="/signup"
-                className="inline-flex items-center justify-center rounded-full bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white transition hover:opacity-90"
-              >
-                Find customers already asking
-              </a>
-
-              <a
-                href="#how"
-                className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3.5 text-sm font-semibold text-slate-900 transition hover:border-slate-400 hover:bg-slate-50"
-              >
-                See how it works
-              </a>
-            </div>
-
-            <p className="mt-6 text-sm text-slate-500">
-              Built for operators who want qualified leads, not vanity views.
-            </p>
-
-            <div className="mt-8 flex flex-wrap gap-3">
-              {[
-                'No more empty views',
-                'Find demand earlier',
-                'Keep conversation context',
-              ].map((item) => (
-                <div
-                  key={item}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm"
-                >
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="lg:col-span-7">
-            <div className="rounded-[32px] border border-slate-200 bg-white/90 p-5 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur sm:p-6 lg:p-7">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    Intent signal board
-                  </p>
-                  <p className="mt-2 text-sm text-slate-600">
-                    Live questions with buying intent, captured before they go cold.
-                  </p>
-                </div>
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
-                  Live
-                </span>
-              </div>
-
-              <div className="mt-5 grid gap-4 lg:grid-cols-3">
-                <SignalCard
-                  label="High intent"
-                  title="“Does this work for sensitive skin?”"
-                  meta="Skincare · Comment thread"
-                  note="Captured as a qualified lead with follow-up context."
-                />
-                <SignalCard
-                  label="Ready to buy"
-                  title="“Where can I order and how fast can it ship?”"
-                  meta="Local service · Inquiry"
-                  note="Prioritized for immediate response."
-                />
-                <SignalCard
-                  label="Comparison"
-                  title="“Is this better than the clinic near me?”"
-                  meta="Beauty · Competitive intent"
-                  note="Flagged for owner review with buying context."
-                />
-              </div>
-
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <OutcomeCard
-                  eyebrow="Qualified today"
-                  title="18 new intent leads"
-                  aside="+7 high intent"
-                />
-                <OutcomeCard
-                  eyebrow="Next action"
-                  title="Reply drafts ready"
-                  aside="With context"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function SignalCard({
-  label,
-  title,
-  meta,
-  note,
-}) {
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5">
-      <div className="flex items-center gap-2">
-        <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">
-          {label}
-        </p>
-      </div>
-      <p className="mt-4 text-base font-semibold leading-7 text-slate-900">{title}</p>
-      <p className="mt-2 text-sm text-slate-500">{meta}</p>
-      <p className="mt-4 text-sm leading-6 text-slate-600">{note}</p>
-    </div>
-  );
-}
-
-function OutcomeCard({
-  eyebrow,
-  title,
-  aside,
-}) {
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-            {eyebrow}
-          </p>
-          <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">{title}</p>
-        </div>
-        <span className="text-sm font-semibold text-emerald-600">{aside}</span>
-      </div>
     </div>
   );
 }
