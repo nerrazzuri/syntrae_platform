@@ -96,11 +96,15 @@ services:
 
   ai-core:
     container_name: syntrae-local-ai-core
+    env_file:
+      - ../../.env.local
     environment:
       - OPENAI_API_KEY=${LOCAL_OPENAI_API_KEY:-}
 
   ingestion-service:
     container_name: syntrae-local-ingestion-service
+    env_file:
+      - ../../.env.local
     environment:
       - OPENAI_API_KEY=${LOCAL_OPENAI_API_KEY:-}
 

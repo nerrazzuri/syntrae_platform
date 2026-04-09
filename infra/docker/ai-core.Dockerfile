@@ -13,6 +13,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- Python deps (CACHE CRITICAL) -------------------------
