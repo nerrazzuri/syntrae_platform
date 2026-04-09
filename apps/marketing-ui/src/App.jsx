@@ -121,18 +121,16 @@ export default function App() {
           </nav>
         </header>
 
-        <section className="page-shell grid gap-10 pb-16 pt-14 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="space-y-8">
+        <section className="page-shell pb-16 pt-16 text-center">
+          <div className="mx-auto flex max-w-3xl flex-col items-center gap-6">
             <span className="pill">Real demand, not empty traffic</span>
-            <div className="space-y-5">
-              <h1 className="font-display text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl lg:text-[70px]">
-                The best customers are already asking.
-              </h1>
-              <p className="max-w-2xl text-xl font-medium leading-relaxed text-olive">
-                Most businesses never see them. SyntraeAI helps you find and act on them first.
-              </p>
-            </div>
-            <p className="max-w-xl text-base leading-7 text-olive">
+            <h1 className="font-display text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl lg:text-[70px]">
+              The best customers are already asking.
+            </h1>
+            <p className="text-xl font-medium leading-relaxed text-olive">
+              Most businesses never see them. SyntraeAI helps you find and act on them first.
+            </p>
+            <p className="text-base leading-7 text-olive">
               Customers are already asking questions about what you sell — in comments, threads, and conversations.
               Instead of chasing cold traffic, SyntraeAI helps you respond to real demand.
             </p>
@@ -141,7 +139,7 @@ export default function App() {
               <a className="button-secondary" href="#how">See how it works</a>
             </div>
             <p className="text-sm text-warm">Built for operators who want qualified leads, not vanity views.</p>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap justify-center gap-3">
               {['No more empty views', 'Find demand earlier', 'Keep conversation context'].map((item) => (
                 <span key={item} className="pill-outline">
                   <span className="dot" />
@@ -149,16 +147,6 @@ export default function App() {
                 </span>
               ))}
             </div>
-          </div>
-
-          <div className="pin-grid">
-            {pinSignals.map((item) => (
-              <div key={item.title} className="pin-card">
-                <span className="pin-meta">{item.label}</span>
-                <p className="mt-3 text-base font-semibold text-ink">{item.title}</p>
-                <p className="mt-2 text-sm text-olive">{item.meta}</p>
-              </div>
-            ))}
           </div>
         </section>
       </div>
