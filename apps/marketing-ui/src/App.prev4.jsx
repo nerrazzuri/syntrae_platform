@@ -64,34 +64,34 @@ const faqs = [
   },
 ];
 
-const pinSignals = [
+const pins = [
   {
-    label: 'High intent',
+    eyebrow: 'High intent',
     title: '“Does this work for sensitive skin?”',
     meta: 'Skincare · Comment thread',
   },
   {
-    label: 'Ready to buy',
+    eyebrow: 'Ready to buy',
     title: '“Where can I order and how fast can it ship?”',
     meta: 'Local service · Inquiry',
   },
   {
-    label: 'Comparison',
+    eyebrow: 'Comparison',
     title: '“Is this better than the clinic near me?”',
     meta: 'Beauty · Competitive intent',
   },
   {
-    label: 'Pricing signal',
+    eyebrow: 'Pricing signal',
     title: '“What’s the package price for couples?”',
     meta: 'Hospitality · Booking',
   },
   {
-    label: 'Urgent',
+    eyebrow: 'Urgent',
     title: '“Can you deliver to Penang this week?”',
     meta: 'Retail · Fulfillment',
   },
   {
-    label: 'Outcome',
+    eyebrow: 'Outcome',
     title: '18 intent leads qualified today',
     meta: 'Pipeline update',
   },
@@ -100,70 +100,33 @@ const pinSignals = [
 export default function App() {
   return (
     <div className="bg-mist text-ink">
-      <div className="page-hero">
-        <header className="page-shell pt-8">
-          <nav className="flex flex-wrap items-center justify-between gap-6">
-            <div className="flex items-center gap-3">
-              <img src="/logo-mark.svg" alt="SyntraeAI" className="h-10 w-10" />
-              <span className="font-display text-lg font-semibold">SyntraeAI</span>
-            </div>
-            <div className="hidden items-center gap-8 text-xs font-semibold uppercase tracking-[0.2em] text-olive md:flex">
-              {navLinks.map((link) => (
-                <a key={link.href} href={link.href} className="transition hover:text-ink">
-                  {link.label}
-                </a>
-              ))}
-            </div>
-            <div className="flex items-center gap-3">
-              <a className="button-secondary" href="/app">Open Console</a>
-              <a className="button-primary" href="/signup">Start Free</a>
-            </div>
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(230,0,35,0.12),transparent_45%),radial-gradient(circle_at_bottom_right,rgba(229,229,224,0.9),transparent_55%)]" />
+        <div className="absolute -left-24 top-16 h-72 w-72 rounded-full bg-sand/70 blur-3xl" />
+        <div className="absolute -right-24 top-24 h-80 w-80 rounded-full bg-[hsla(60,20%,98%,0.8)] blur-3xl" />
+
+        <header className="relative mx-auto flex w-full max-w-[1280px] items-center justify-between px-6 pb-10 pt-8 sm:px-10 lg:px-12">
+          <div className="flex items-center gap-3">
+            <img src="/logo-mark.svg" alt="SyntraeAI" className="h-10 w-10" />
+            <span className="font-display text-lg font-semibold">SyntraeAI</span>
+          </div>
+          <nav className="hidden items-center gap-8 text-xs font-semibold uppercase tracking-[0.2em] text-olive md:flex">
+            {navLinks.map((link) => (
+              <a key={link.href} href={link.href} className="transition hover:text-ink">
+                {link.label}
+              </a>
+            ))}
           </nav>
+          <div className="flex items-center gap-3">
+            <a className="button-secondary" href="/app">Open Console</a>
+            <a className="button-primary" href="/signup">Start Free</a>
+          </div>
         </header>
 
-        <section className="page-shell grid gap-10 pb-16 pt-14 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="space-y-8">
-            <span className="pill">Real demand, not empty traffic</span>
-            <div className="space-y-5">
-              <h1 className="font-display text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl lg:text-[70px]">
-                The best customers are already asking.
-              </h1>
-              <p className="max-w-2xl text-xl font-medium leading-relaxed text-olive">
-                Most businesses never see them. SyntraeAI helps you find and act on them first.
-              </p>
-            </div>
-            <p className="max-w-xl text-base leading-7 text-olive">
-              Customers are already asking questions about what you sell — in comments, threads, and conversations.
-              Instead of chasing cold traffic, SyntraeAI helps you respond to real demand.
-            </p>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <a className="button-primary" href="/signup">Find customers already asking</a>
-              <a className="button-secondary" href="#how">See how it works</a>
-            </div>
-            <p className="text-sm text-warm">Built for operators who want qualified leads, not vanity views.</p>
-            <div className="flex flex-wrap gap-3">
-              {['No more empty views', 'Find demand earlier', 'Keep conversation context'].map((item) => (
-                <span key={item} className="pill-outline">
-                  <span className="dot" />
-                  {item}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="pin-grid">
-            {pinSignals.map((item) => (
-              <div key={item.title} className="pin-card">
-                <span className="pin-meta">{item.label}</span>
-                <p className="mt-3 text-base font-semibold text-ink">{item.title}</p>
-                <p className="mt-2 text-sm text-olive">{item.meta}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+        <HeroSection />
       </div>
 
-      <section id="problem" className="page-shell section-space">
+      <section id="problem" className="mx-auto w-full max-w-[1280px] px-6 py-20 sm:px-10 lg:px-12">
         <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
             <span className="section-kicker">The frustration</span>
@@ -189,7 +152,7 @@ export default function App() {
         </div>
       </section>
 
-      <section id="why" className="page-shell section-space">
+      <section id="why" className="mx-auto w-full max-w-[1280px] px-6 py-20 sm:px-10 lg:px-12">
         <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="space-y-4">
             <span className="section-kicker">Why traditional marketing fails</span>
@@ -199,7 +162,7 @@ export default function App() {
               while the customer still cares.
             </p>
           </div>
-          <div className="pin-board">
+          <div className="grid gap-4 md:grid-cols-3">
             {[
               'Ads are bidding wars. Comments are owned demand.',
               'Content fatigue slows growth. Intent signals stay evergreen.',
@@ -214,8 +177,8 @@ export default function App() {
         </div>
       </section>
 
-      <section id="how" className="page-shell section-space">
-        <div className="space-y-10">
+      <section id="how" className="mx-auto w-full max-w-[1280px] px-6 py-20 sm:px-10 lg:px-12">
+        <div className="flex flex-col gap-10">
           <div className="space-y-4">
             <span className="section-kicker">How SyntraeAI works</span>
             <h2 className="section-title">Find, qualify, and act on demand in one flow.</h2>
@@ -249,7 +212,7 @@ export default function App() {
         </div>
       </section>
 
-      <section id="differentiators" className="page-shell section-space">
+      <section id="differentiators" className="mx-auto w-full max-w-[1280px] px-6 py-20 sm:px-10 lg:px-12">
         <div className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="space-y-4">
             <span className="section-kicker">Why SyntraeAI</span>
@@ -269,7 +232,7 @@ export default function App() {
         </div>
       </section>
 
-      <section id="use-cases" className="page-shell section-space">
+      <section id="use-cases" className="mx-auto w-full max-w-[1280px] px-6 py-20 sm:px-10 lg:px-12">
         <div className="space-y-10">
           <div className="space-y-4">
             <span className="section-kicker">Who it is for</span>
@@ -286,7 +249,7 @@ export default function App() {
         </div>
       </section>
 
-      <section id="proof" className="page-shell section-space">
+      <section id="proof" className="mx-auto w-full max-w-[1280px] px-6 py-20 sm:px-10 lg:px-12">
         <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-4">
             <span className="section-kicker">Credibility</span>
@@ -311,7 +274,7 @@ export default function App() {
         </div>
       </section>
 
-      <section id="faq" className="page-shell section-space">
+      <section id="faq" className="mx-auto w-full max-w-[1280px] px-6 py-20 sm:px-10 lg:px-12">
         <div className="space-y-8">
           <div className="space-y-4">
             <span className="section-kicker">FAQ</span>
@@ -328,7 +291,7 @@ export default function App() {
         </div>
       </section>
 
-      <section className="page-shell section-space">
+      <section className="mx-auto w-full max-w-[1280px] px-6 py-20 sm:px-10 lg:px-12">
         <div className="cta-block">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-warm">Start now</p>
@@ -344,7 +307,7 @@ export default function App() {
         </div>
       </section>
 
-      <footer className="page-shell pb-12 pt-6 text-xs text-warm">
+      <footer className="mx-auto w-full max-w-[1280px] px-6 pb-12 pt-6 text-xs text-warm sm:px-10 lg:px-12">
         <div className="flex flex-col gap-4 border-t border-sand pt-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <img src="/logo-mark-mono.svg" alt="SyntraeAI" className="h-8 w-8" />
@@ -358,5 +321,68 @@ export default function App() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export function HeroSection() {
+  return (
+    <section className="relative mx-auto w-full max-w-[1280px] px-6 pb-24 pt-10 sm:px-10 lg:px-12 lg:pb-28 lg:pt-16">
+      <div className="grid items-center gap-16 lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="space-y-8">
+          <div className="inline-flex items-center rounded-[16px] border border-sand bg-[hsla(60,20%,98%,0.5)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-olive">
+            Real demand, not empty traffic
+          </div>
+
+          <div className="space-y-5">
+            <h1 className="font-display text-5xl font-semibold tracking-tight text-ink sm:text-6xl lg:text-7xl lg:leading-[0.96]">
+              The best customers are already asking.
+            </h1>
+            <p className="max-w-2xl text-xl font-medium leading-relaxed text-olive lg:text-2xl">
+              Most businesses never see them. SyntraeAI helps you find and act on them first.
+            </p>
+          </div>
+
+          <p className="max-w-xl text-base leading-8 text-olive lg:text-lg">
+            Customers are already asking questions in comments, threads, and social conversations.
+            Instead of chasing cold traffic, SyntraeAI helps you respond to real demand while it is still fresh.
+          </p>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <a className="button-primary" href="/signup">Find customers already asking</a>
+            <a className="button-secondary" href="#how">See how it works</a>
+          </div>
+
+          <p className="text-sm text-warm">
+            Built for operators who want qualified leads, not vanity views.
+          </p>
+
+          <div className="flex flex-wrap gap-3">
+            {[
+              'No more empty views',
+              'Find demand earlier',
+              'Keep conversation context',
+            ].map((item) => (
+              <div
+                key={item}
+                className="inline-flex items-center gap-2 rounded-[16px] border border-sand bg-white px-4 py-2 text-sm font-medium text-olive"
+              >
+                <span className="h-2 w-2 rounded-full bg-accent" />
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="pin-masonry">
+          {pins.map((item) => (
+            <div key={item.title} className="pin-card">
+              <span className="pin-meta">{item.eyebrow}</span>
+              <p className="mt-3 text-base font-semibold text-ink">{item.title}</p>
+              <p className="mt-2 text-sm text-olive">{item.meta}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
