@@ -323,6 +323,34 @@ router.post('/automation-videos/check-eligibility', async (req: Request, res: Re
         }
 
         const cutoff = new Date(Date.now() - cooldownHours * 60 * 60 * 1000);
+        const latestDiscoveredVideo = await prisma.discoveredVideo.findFirst({
+            where: {
+                brand_id: brandId,
+                platform,
+                video_id: videoId,
+                discovered_at: { gte: cutoff }
+            },
+            orderBy: { discovered_at: 'desc' },
+            select: {
+                id: true,
+                discovered_at: true,
+                automation_run_id: true
+            }
+        });
+
+        if (latestDiscoveredVideo) {
+            const cooldownUntil = new Date(latestDiscoveredVideo.discovered_at.getTime() + cooldownHours * 60 * 60 * 1000);
+            return res.json({
+                eligible: false,
+                workspace_id: brand.workspace_id,
+                cooldown_hours: cooldownHours,
+                reason: 'VIDEO_COOLDOWN_ACTIVE',
+                existing_discovery_id: latestDiscoveredVideo.id,
+                last_processed_at: latestDiscoveredVideo.discovered_at,
+                cooldown_until: cooldownUntil
+            });
+        }
+
         const latestEvent = await prisma.engagementEvent.findFirst({
             where: {
                 account_id: brand.workspace_id,

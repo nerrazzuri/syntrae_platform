@@ -42,6 +42,9 @@ export const DesktopCaptureEventSchema = z.object({
     context: z.object({
         source: z.enum(['EXTENSION', 'AUTOMATION']).optional().default('EXTENSION'),
         automation_run_id: z.string().optional(),
+        search_keyword: z.string().optional().nullable(),
+        search_page: z.number().int().positive().optional().nullable(),
+        search_rank: z.number().int().positive().optional().nullable(),
         visible: z.boolean(),
         position: z.enum(['viewport', 'expanded']),
         user_action: z.enum(['scroll', 'hover', 'click', 'manual_trigger', 'automation_capture']),

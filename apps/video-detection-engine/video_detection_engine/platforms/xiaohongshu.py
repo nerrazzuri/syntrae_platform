@@ -33,6 +33,8 @@ class XiaohongshuPlatform:
         self,
         browser_page,
         keyword,
+        run_id: str | None = None,
+        record_discovery=None,
         is_video_eligible=None,
         max_posts: int | None = None,
         max_comments_per_post: int | None = None,
@@ -86,6 +88,23 @@ class XiaohongshuPlatform:
                     )
                     continue
 
+            if run_id and callable(record_discovery):
+                await record_discovery(run_id, {
+                    "brand_id": None,
+                    "platform": "rednote",
+                    "video_id": note_id,
+                    "video_url": post_url,
+                    "market_score": 0,
+                    "reasons": [
+                        f"XHS_SOURCE_POST_SELECTED:{keyword}",
+                        f"SEARCH_PAGE:{post.get('search_page', 1)}",
+                        f"SEARCH_RANK:{post.get('search_rank', 1)}",
+                    ],
+                    "decision": "ACCEPT",
+                    "market_profile_id": None,
+                    "market_profile_version": None,
+                })
+
             processed_note_ids.add(note_id)
             now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
             base_event = {
@@ -99,6 +118,9 @@ class XiaohongshuPlatform:
                 "hashtags": [],
                 "page_url": post_url,
                 "page_timestamp": now,
+                "search_keyword": keyword,
+                "search_page": post.get("search_page", 1),
+                "search_rank": post.get("search_rank", 1),
             }
 
             logger.info("Fetching real comments for note %s using XHS client...", note_id)
@@ -173,8 +195,8 @@ class XiaohongshuPlatform:
 
             items = data.get("items", []) if isinstance(data, dict) else []
             batch = []
-            for item in items:
-                post = self._normalize_search_item(item, keyword)
+            for index, item in enumerate(items, start=1):
+                post = self._normalize_search_item(item, keyword, page, index)
                 note_id = post.get("note_id")
                 if not note_id or note_id in seen_note_ids:
                     continue
@@ -210,7 +232,7 @@ class XiaohongshuPlatform:
         )
         return posts
 
-    def _normalize_search_item(self, item: dict, keyword: str) -> dict:
+    def _normalize_search_item(self, item: dict, keyword: str, search_page: int, page_rank: int) -> dict:
         note_card = item.get("note_card", {})
         note_ref = self._normalize_text(item.get("id", note_card.get("note_id", "")))
         xsec_token = self._normalize_text(
@@ -231,6 +253,8 @@ class XiaohongshuPlatform:
             "like_count": int(note_card.get("interact_info", {}).get("liked_count", 0)),
             "xsec_token": xsec_token,
             "xsec_source": xsec_source,
+            "search_page": search_page,
+            "page_rank": page_rank,
         }
 
     @staticmethod
@@ -240,7 +264,9 @@ class XiaohongshuPlatform:
         for row in range(max_batch_size):
             for batch in page_batches:
                 if row < len(batch):
-                    interleaved.append(batch[row])
+                    post = dict(batch[row])
+                    post["search_rank"] = len(interleaved) + 1
+                    interleaved.append(post)
                     if len(interleaved) >= posts_limit:
                         return interleaved
         return interleaved

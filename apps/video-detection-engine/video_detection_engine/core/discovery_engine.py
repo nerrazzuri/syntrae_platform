@@ -123,6 +123,8 @@ class DiscoveryEngine:
                     payload = await platform_adapter.run_search(
                         self.controller.page if self.controller else None,
                         keyword,
+                        run_id=self.run_id,
+                        record_discovery=self.client.record_discovery,
                         is_video_eligible=lambda note_id: self.client.check_video_eligibility(note_id, "rednote"),
                         max_posts=min(posts_per_keyword_cap, remaining_posts),
                         max_comments_per_post=comments_per_post_cap,

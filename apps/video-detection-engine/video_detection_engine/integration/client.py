@@ -477,6 +477,9 @@ class IntegrationClient:
             "context": {
                 "source": "AUTOMATION",
                 "automation_run_id": run_id,
+                "search_keyword": data.get("search_keyword"),
+                "search_page": data.get("search_page"),
+                "search_rank": data.get("search_rank"),
                 "visible": True,
                 "position": "viewport",
                 "user_action": "automation_capture"
