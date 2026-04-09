@@ -1,6 +1,7 @@
 import hashlib
 import json as json_lib
 import logging
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,6 +13,9 @@ logger = logging.getLogger(__name__)
 
 class XiaohongshuPlatform:
     DEFAULT_POSTS_PER_KEYWORD = 20
+    DEFAULT_SEARCH_PAGES = 3
+    MAX_SEARCH_PAGES = 5
+    SEARCH_PAGE_SIZE = 20
     DEFAULT_COMMENTS_PER_POST = 10
     DEFAULT_COMMENT_PAGES = 3
     """
@@ -45,37 +49,9 @@ class XiaohongshuPlatform:
             return {"events": [], "source_posts_processed": 0}
 
         posts = []
-        seen_note_ids = set()
         try:
             with XhsClient(cookies) as client:
-                data = client.search_notes(keyword)
-                items = data.get("items", []) if isinstance(data, dict) else []
-                for item in items:
-                    note_card = item.get("note_card", {})
-                    note_ref = self._normalize_text(item.get("id", note_card.get("note_id", "")))
-                    note_id = self._extract_note_id(note_ref)
-                    if not note_id or note_id in seen_note_ids:
-                        continue
-                    seen_note_ids.add(note_id)
-                    xsec_token = self._normalize_text(
-                        item.get("xsec_token")
-                        or note_card.get("xsec_token")
-                        or note_card.get("xsecToken")
-                    )
-                    xsec_source = self._normalize_text(
-                        item.get("xsec_source")
-                        or note_card.get("xsec_source")
-                        or note_card.get("xsecSource")
-                    )
-                    posts.append({
-                        "note_id": note_id,
-                        "note_ref": note_ref,
-                        "title": note_card.get("display_title", keyword),
-                        "author": note_card.get("user", {}).get("nickname", "unknown"),
-                        "like_count": int(note_card.get("interact_info", {}).get("liked_count", 0)),
-                        "xsec_token": xsec_token,
-                        "xsec_source": xsec_source,
-                    })
+                posts = self._collect_search_posts(client, keyword, posts_limit)
         except Exception as exc:
             logger.error("Failed to execute XHS search client: %s", exc)
 
@@ -177,6 +153,97 @@ class XiaohongshuPlatform:
             "events": final_events,
             "source_posts_processed": len(processed_note_ids),
         }
+
+    def _collect_search_posts(self, client: XhsClient, keyword: str, posts_limit: int) -> list[dict]:
+        target_pages = max(
+            self.DEFAULT_SEARCH_PAGES,
+            math.ceil(max(1, posts_limit) / self.SEARCH_PAGE_SIZE),
+        )
+        page_count = min(self.MAX_SEARCH_PAGES, target_pages)
+
+        page_batches: list[list[dict]] = []
+        seen_note_ids: set[str] = set()
+
+        for page in range(1, page_count + 1):
+            try:
+                data = client.search_notes(keyword, page=page, page_size=self.SEARCH_PAGE_SIZE)
+            except Exception as exc:
+                logger.warning("XHS search page %s failed for %s: %s", page, keyword, exc)
+                continue
+
+            items = data.get("items", []) if isinstance(data, dict) else []
+            batch = []
+            for item in items:
+                post = self._normalize_search_item(item, keyword)
+                note_id = post.get("note_id")
+                if not note_id or note_id in seen_note_ids:
+                    continue
+                seen_note_ids.add(note_id)
+                batch.append(post)
+
+            logger.info(
+                "XHS search page %s for '%s' returned %s unique posts",
+                page,
+                keyword,
+                len(batch),
+            )
+            if batch:
+                page_batches.append(batch)
+
+            if len(batch) < self.SEARCH_PAGE_SIZE:
+                logger.info(
+                    "XHS search page %s for '%s' appears exhausted; stopping page walk",
+                    page,
+                    keyword,
+                )
+                break
+
+        if not page_batches:
+            return []
+
+        posts = self._interleave_post_batches(page_batches, posts_limit)
+        logger.info(
+            "Collected %s diversified XHS posts for '%s' across %s page(s)",
+            len(posts),
+            keyword,
+            len(page_batches),
+        )
+        return posts
+
+    def _normalize_search_item(self, item: dict, keyword: str) -> dict:
+        note_card = item.get("note_card", {})
+        note_ref = self._normalize_text(item.get("id", note_card.get("note_id", "")))
+        xsec_token = self._normalize_text(
+            item.get("xsec_token")
+            or note_card.get("xsec_token")
+            or note_card.get("xsecToken")
+        )
+        xsec_source = self._normalize_text(
+            item.get("xsec_source")
+            or note_card.get("xsec_source")
+            or note_card.get("xsecSource")
+        )
+        return {
+            "note_id": self._extract_note_id(note_ref),
+            "note_ref": note_ref,
+            "title": note_card.get("display_title", keyword),
+            "author": note_card.get("user", {}).get("nickname", "unknown"),
+            "like_count": int(note_card.get("interact_info", {}).get("liked_count", 0)),
+            "xsec_token": xsec_token,
+            "xsec_source": xsec_source,
+        }
+
+    @staticmethod
+    def _interleave_post_batches(page_batches: list[list[dict]], posts_limit: int) -> list[dict]:
+        interleaved: list[dict] = []
+        max_batch_size = max((len(batch) for batch in page_batches), default=0)
+        for row in range(max_batch_size):
+            for batch in page_batches:
+                if row < len(batch):
+                    interleaved.append(batch[row])
+                    if len(interleaved) >= posts_limit:
+                        return interleaved
+        return interleaved
 
     def _load_cookies(self) -> dict[str, str]:
         if not self.session_path:
