@@ -125,10 +125,10 @@ export default function App() {
           <div className="mx-auto flex max-w-3xl flex-col items-center gap-6">
             <span className="pill">Real demand, not empty traffic</span>
             <h1 className="font-display text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl lg:text-[70px]">
-              Your customers are already <span className="text-focusBlue font-semibold">asking</span>. You’re just not <span className="text-focusBlue font-semibold">seeing</span> them.
+              Your customers are already <span className="text-focusBlue font-semibold">asking</span>.
             </h1>
             <p className="text-xl font-medium leading-relaxed text-olive">
-              Most businesses never see them. SyntraeAI helps you find and act on them first.
+              You’re just not seeing them. SyntraeAI helps you find and act on them first.
             </p>
             <p className="text-base leading-7 text-olive">
               Customers are already asking questions about what you sell — in comments, threads, and conversations.
