@@ -6,6 +6,7 @@ export type UsageMetricCode =
   | 'EVENTS_INGESTED'
   | 'SUGGESTIONS_CREATED'
   | 'AUTOMATION_RUNS_CREATED'
+  | 'LEADS_CAPTURED'
   | 'LEADS_EXPORTED';
 
 export type PlanReasonCode =
@@ -29,6 +30,7 @@ export interface PlanLimits {
   dailyProcessedEvents: number;
   monthlyProcessedEvents: number;
   dailySuggestions: number;
+  monthlyCapturedLeads: number;
   monthlyLeadExports: number;
   dailyAutomationRuns: number;
 }

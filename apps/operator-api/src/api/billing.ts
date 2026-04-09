@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { requireSession } from '../middleware/session_auth';
 import { BillingService } from '../services/billing/billing_service';
+import { LeadQuotaService } from '../services/billing/lead_quota.service';
 import { SubscriptionPolicyService } from '../services/billing/subscription_policy.service';
 import { BILLING_INTERVALS, PLAN_CODES, type BillingInterval } from '@syntrae/commercial-plans';
 import { StripeBillingError, StripeBillingService } from '../services/billing/stripe_billing.service';
@@ -98,6 +99,23 @@ router.post('/portal-session', async (req: Request, res: Response) => {
         }
         console.error('[Billing] Portal Session Error:', err);
         res.status(500).json({ error: 'Unable to create billing portal session' });
+    }
+});
+
+router.post('/lead-auto-extension', async (req: Request, res: Response) => {
+    try {
+        const workspaceId = req.session?.active_workspace_id;
+        if (!workspaceId) {
+            res.status(400).json({ error: 'No active workspace selected' });
+            return;
+        }
+
+        const enabled = Boolean(req.body?.enabled);
+        const quota = await LeadQuotaService.setAutoExtension(workspaceId, enabled);
+        res.json({ status: 'success', lead_quota: quota });
+    } catch (err) {
+        console.error('[Billing] Lead Auto Extension Error:', err);
+        res.status(500).json({ error: 'Unable to update automatic lead extension setting' });
     }
 });
 

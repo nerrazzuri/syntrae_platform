@@ -19,6 +19,7 @@ import {
     type PlanDefinition,
 } from '@syntrae/commercial-plans';
 import { prisma } from '../../db';
+import { LeadQuotaService, type LeadQuotaSnapshot } from './lead_quota.service';
 import { UsageAccountingService } from './usage_accounting.service';
 import { StripeBillingService } from './stripe_billing.service';
 
@@ -53,6 +54,7 @@ export interface WorkspacePlanSummary {
         portal_available: boolean;
         manual_change_allowed: boolean;
     };
+    lead_quota: LeadQuotaSnapshot;
     plan_options: Array<{
         plan_code: PlanCode;
         display_name: string;
@@ -68,6 +70,7 @@ export interface WorkspacePlanSummary {
         events_monthly: { used: number; limit: number };
         suggestions_daily: { used: number; limit: number };
         automation_runs_daily: { used: number; limit: number };
+        leads_captured_monthly: { used: number; limit: number };
         lead_exports_monthly: { used: number; limit: number };
     };
     blocked: Array<{ code: string; message: string; current?: number; limit?: number | null }>;
@@ -275,10 +278,11 @@ export class SubscriptionPolicyService {
     }
 
     static async getWorkspacePlanSummary(workspaceId: string): Promise<WorkspacePlanSummary> {
-        const [{ plan, subscription, source }, activeBrands, teamMembers] = await Promise.all([
+        const [{ plan, subscription, source }, activeBrands, teamMembers, leadQuota] = await Promise.all([
             this.getEffectivePlan(workspaceId),
             prisma.brand.count({ where: { workspace_id: workspaceId, status: 'ACTIVE' } }),
             prisma.workspaceMembership.count({ where: { workspace_id: workspaceId, status: 'ACTIVE' } }),
+            LeadQuotaService.getQuotaSnapshot(workspaceId),
         ]);
 
         const [eventsDaily, eventsMonthly, suggestionsDaily, automationRunsDaily, leadExportsMonthly] = await Promise.all([
@@ -294,6 +298,15 @@ export class SubscriptionPolicyService {
             evaluateUsage(plan.code, USAGE_METRICS.EVENTS_INGESTED, LIMIT_PERIODS.MONTHLY, eventsMonthly, 1),
             evaluateUsage(plan.code, USAGE_METRICS.SUGGESTIONS_CREATED, LIMIT_PERIODS.DAILY, suggestionsDaily, 1),
             evaluateUsage(plan.code, USAGE_METRICS.AUTOMATION_RUNS_CREATED, LIMIT_PERIODS.DAILY, automationRunsDaily, 1),
+            leadQuota.used + 1 <= leadQuota.limit || (leadQuota.auto_extension_enabled && subscription.billing_provider === 'STRIPE' && Boolean(subscription.stripe_customer_id) && Boolean(subscription.stripe_subscription_id))
+                ? { allowed: true, reasonCode: null, message: null, current: leadQuota.used, limit: leadQuota.limit }
+                : {
+                    allowed: false,
+                    reasonCode: PLAN_REASON_CODES.PLAN_LIMIT_REACHED,
+                    message: `${plan.displayName} reached the monthly leads captured limit of ${leadQuota.limit}.`,
+                    current: leadQuota.used,
+                    limit: leadQuota.limit,
+                },
             canCreateAdditionalBrand(plan.code, activeBrands),
             canInviteTeamMember(plan.code, teamMembers),
         ]
@@ -325,6 +338,7 @@ export class SubscriptionPolicyService {
                 portal_available: StripeBillingService.isPortalAvailable(subscription),
                 manual_change_allowed: StripeBillingService.manualPlanChangesAllowed(),
             },
+            lead_quota: leadQuota,
             plan_options: Object.values(PLAN_DEFINITIONS)
                 .sort((left, right) => left.rank - right.rank)
                 .map((planDef) => ({
@@ -342,6 +356,7 @@ export class SubscriptionPolicyService {
                 events_monthly: { used: eventsMonthly, limit: plan.limits.monthlyProcessedEvents },
                 suggestions_daily: { used: suggestionsDaily, limit: plan.limits.dailySuggestions },
                 automation_runs_daily: { used: automationRunsDaily, limit: plan.limits.dailyAutomationRuns },
+                leads_captured_monthly: { used: leadQuota.used, limit: leadQuota.limit },
                 lead_exports_monthly: { used: leadExportsMonthly, limit: plan.limits.monthlyLeadExports },
             },
             blocked,

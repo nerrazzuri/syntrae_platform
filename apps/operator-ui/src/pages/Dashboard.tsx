@@ -30,6 +30,13 @@ interface UsageData {
     automation_runs_daily_limit: number;
     brands_used: number;
     brands_limit: number;
+    leads_captured_month: number;
+    leads_captured_limit: number;
+    lead_auto_extension_enabled: boolean;
+    lead_warning_threshold: number;
+    lead_overage_block_size: number;
+    lead_overage_block_price_minor: number;
+    lead_overage_currency: string;
     features: Record<string, boolean>;
     blocked: Array<{ code: string; message: string }>;
 }
@@ -72,6 +79,21 @@ function buildPrompts(metrics: OverviewMetrics | undefined, usage: UsageData | n
             title: 'Add more brands',
             message: `You are at the ${usage.plan_name} brand limit. Upgrade to Pro to run multiple brands under one workspace.`,
             cta: 'Expand to Pro',
+        });
+    }
+
+    if (usage.leads_captured_limit > 0 && usage.leads_captured_month >= Math.max(1, Math.floor(usage.leads_captured_limit * usage.lead_warning_threshold))) {
+        const blockPrice = new Intl.NumberFormat('en-MY', {
+            style: 'currency',
+            currency: usage.lead_overage_currency || 'MYR',
+            maximumFractionDigits: 0,
+        }).format((usage.lead_overage_block_price_minor || 0) / 100);
+        prompts.push({
+            title: 'Lead quota is nearly full',
+            message: usage.lead_auto_extension_enabled
+                ? `This workspace is at ${usage.leads_captured_month}/${usage.leads_captured_limit} monthly leads. Additional usage will auto-charge ${blockPrice} per ${usage.lead_overage_block_size} leads unless you turn automatic extension off.`
+                : `This workspace is at ${usage.leads_captured_month}/${usage.leads_captured_limit} monthly leads. Turn automatic extension back on or upgrade before lead capture stops.`,
+            cta: 'Review billing controls',
         });
     }
 

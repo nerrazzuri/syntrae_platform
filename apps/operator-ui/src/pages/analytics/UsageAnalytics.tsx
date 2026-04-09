@@ -20,6 +20,15 @@ interface UsageData {
     suggestions_daily_limit: number;
     automation_runs_daily_used: number;
     automation_runs_daily_limit: number;
+    leads_captured_limit: number;
+    leads_captured_remaining: number;
+    lead_auto_extension_enabled: boolean;
+    lead_warning_threshold: number;
+    lead_warning_reached: boolean;
+    lead_overage_block_size: number;
+    lead_overage_block_price_minor: number;
+    lead_overage_currency: string;
+    lead_next_reset_at: string;
     leads_exported_month: number;
     leads_export_limit: number;
     drafts_generated_month: number;
@@ -64,6 +73,20 @@ function buildUsagePrompts(data: UsageData) {
         });
     }
 
+    if (data.leads_captured_limit > 0 && data.leads_captured_month >= Math.max(1, Math.floor(data.leads_captured_limit * data.lead_warning_threshold))) {
+        const blockPrice = new Intl.NumberFormat('en-MY', {
+            style: 'currency',
+            currency: data.lead_overage_currency || 'MYR',
+            maximumFractionDigits: 0,
+        }).format((data.lead_overage_block_price_minor || 0) / 100);
+        prompts.push({
+            title: 'Lead quota almost full',
+            message: data.lead_auto_extension_enabled
+                ? `You are at ${data.leads_captured_month}/${data.leads_captured_limit} monthly leads. Syntrae will auto-charge ${blockPrice} for each extra ${data.lead_overage_block_size} leads unless you turn automatic extension off.`
+                : `You are at ${data.leads_captured_month}/${data.leads_captured_limit} monthly leads. Turn automatic extension back on or upgrade before new lead capture stops.`,
+        });
+    }
+
     return prompts;
 }
 
@@ -90,6 +113,7 @@ export const UsageAnalytics = () => {
     if (!data) return <div className="p-8">No usage data.</div>;
 
     const rows = [
+        { label: 'Leads Captured This Month', used: data.leads_captured_month, limit: data.leads_captured_limit },
         { label: 'Active Brands', used: data.brands_used, limit: data.brands_limit },
         { label: 'Team Members', used: data.team_members_used, limit: data.team_members_limit },
         { label: 'Processed Events Today', used: data.events_daily_used, limit: data.events_daily_limit },
@@ -146,6 +170,9 @@ export const UsageAnalytics = () => {
                 </div>
                 <div className="mt-4 text-sm text-gray-500">
                     Avg follow-up speed: {data.avg_follow_up_hours_month != null ? `${data.avg_follow_up_hours_month.toFixed(1)} hours` : 'Not enough followed-up leads yet'}
+                </div>
+                <div className="mt-2 text-sm text-gray-500">
+                    Automatic lead extension: {data.lead_auto_extension_enabled ? 'On' : 'Off'} · next reset {new Date(data.lead_next_reset_at).toLocaleString('en-MY', { dateStyle: 'medium', timeStyle: 'short' })}
                 </div>
             </div>
 

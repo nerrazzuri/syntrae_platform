@@ -74,6 +74,29 @@ function extractPayloadFromEventMetadata(event: any): any {
     return meta;
 }
 
+async function reserveLeadQuotaCapacity(workspaceId: string) {
+    const operatorApiUrl = (process.env.OPERATOR_API_URL || 'http://operator-api:3001').replace(/\/$/, '');
+    const internalSecret = process.env.AI_ENGAGEMENT_INTERNAL_SECRET || process.env.AI_CORE_INTERNAL_SECRET || '';
+    const response = await fetch(`${operatorApiUrl}/internal/billing/lead-quota/reserve`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-internal-secret': internalSecret,
+        },
+        body: JSON.stringify({ workspace_id: workspaceId }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const message = String(payload?.message || payload?.error || 'Lead quota reservation failed');
+        const error = new Error(`LEAD_QUOTA_BLOCKED:${message}`);
+        (error as Error & { details?: any }).details = payload;
+        throw error;
+    }
+
+    return payload;
+}
+
 function buildLeadPipelineAudit(input: {
     decision: string;
     normalizationStatus: string;
@@ -622,6 +645,8 @@ async function persistLeadOpportunity(event: any, payload: any, trace: any, conf
         return existingLead;
     }
 
+    await reserveLeadQuotaCapacity(event.account_id);
+
     const leadConfidence = buyerStage === 'READY'
         ? Math.max(confidence || 0, 0.9)
         : Math.max(confidence || 0, 0.6);
@@ -739,6 +764,22 @@ async function triggerAutoSuggest(event: any, accountId: string, installId: stri
     try {
         lead = await persistLeadOpportunity(event, eventPayload, trace, resp.confidence ?? 0);
     } catch (err: any) {
+        if (String(err?.message || '').startsWith('LEAD_QUOTA_BLOCKED:')) {
+            const errorReason = 'BLOCKED_LIMIT';
+            const decision = buildDecision('SKIPPED', errorReason);
+            await persistLeadPipelineOutcome(event, {
+                decision,
+                normalizationStatus: normalized.normalizationStatus,
+                aiInvoked: true,
+                aiCompletedAt,
+                skipReason: errorReason,
+                modelResultRaw: pickModelResultRaw(resp),
+                intent: trace?.intent?.intent || null,
+                strength: trace?.intent?.strength || null,
+                explanation: String(err?.message || '').replace(/^LEAD_QUOTA_BLOCKED:/, ''),
+            });
+            return { decision };
+        }
         const errorReason = `LEAD_PERSISTENCE_FAILED_${String(err?.message || 'UNKNOWN')}`;
         const decision = buildDecision('ERROR', errorReason);
         await persistLeadPipelineOutcome(event, {

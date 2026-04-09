@@ -4,6 +4,7 @@ import { prisma } from '../db';
 import { randomUUID } from 'crypto';
 import { OwnerSettingsService } from '../services/owner/owner_settings_service';
 import { MarketProfileService } from '../services/market_profile.service';
+import { LeadQuotaService } from '../services/billing/lead_quota.service';
 import { PolicyService } from '../services/policy.service';
 import { SubscriptionPolicyService } from '../services/billing/subscription_policy.service';
 
@@ -386,6 +387,24 @@ router.post('/automation-videos/check-eligibility', async (req: Request, res: Re
     } catch (e: any) {
         console.error('Failed to check automation video eligibility:', e);
         return res.status(500).json({ error: 'Failed to check automation video eligibility' });
+    }
+});
+
+router.post('/billing/lead-quota/reserve', async (req: Request, res: Response) => {
+    const workspaceId = String(req.body?.workspace_id || '').trim();
+    if (!workspaceId) {
+        return res.status(400).json({ error: 'Missing workspace_id' });
+    }
+
+    try {
+        const result = await LeadQuotaService.reserveLeadCapacity(workspaceId);
+        if (!result.allowed) {
+            return res.status(402).json(result);
+        }
+        return res.json(result);
+    } catch (e: any) {
+        console.error('Failed to reserve lead quota capacity:', e);
+        return res.status(500).json({ error: 'Failed to reserve lead quota capacity' });
     }
 });
 

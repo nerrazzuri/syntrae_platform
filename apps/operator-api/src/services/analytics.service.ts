@@ -53,6 +53,15 @@ export interface UsageMetrics {
     suggestions_daily_limit: number;
     automation_runs_daily_used: number;
     automation_runs_daily_limit: number;
+    leads_captured_limit: number;
+    leads_captured_remaining: number;
+    lead_auto_extension_enabled: boolean;
+    lead_warning_threshold: number;
+    lead_warning_reached: boolean;
+    lead_overage_block_size: number;
+    lead_overage_block_price_minor: number;
+    lead_overage_currency: string;
+    lead_next_reset_at: string;
     leads_exported_month: number;
     leads_export_limit: number;
     drafts_generated_month: number;
@@ -303,10 +312,19 @@ export class AnalyticsService {
             suggestions_daily_limit: planSummary.usage.suggestions_daily.limit,
             automation_runs_daily_used: planSummary.usage.automation_runs_daily.used,
             automation_runs_daily_limit: planSummary.usage.automation_runs_daily.limit,
+            leads_captured_limit: planSummary.lead_quota.limit,
+            leads_captured_remaining: planSummary.lead_quota.remaining,
+            lead_auto_extension_enabled: planSummary.lead_quota.auto_extension_enabled,
+            lead_warning_threshold: planSummary.lead_quota.warning_threshold,
+            lead_warning_reached: planSummary.lead_quota.warning_reached,
+            lead_overage_block_size: planSummary.lead_quota.overage_block_size,
+            lead_overage_block_price_minor: planSummary.lead_quota.overage_block_price_minor,
+            lead_overage_currency: planSummary.lead_quota.overage_currency,
+            lead_next_reset_at: planSummary.lead_quota.next_reset_at,
             leads_exported_month: planSummary.usage.lead_exports_monthly.used,
             leads_export_limit: planSummary.usage.lead_exports_monthly.limit,
             drafts_generated_month: drafts,
-            leads_captured_month: monthlyMetrics.total_leads,
+            leads_captured_month: planSummary.usage.leads_captured_monthly.used,
             high_intent_leads_month: monthlyMetrics.high_intent_leads,
             contacted_leads_month: monthlyMetrics.contacted_leads,
             qualified_leads_month: monthlyMetrics.qualified_leads,
