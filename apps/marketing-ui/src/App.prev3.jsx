@@ -64,39 +64,6 @@ const faqs = [
   },
 ];
 
-const pins = [
-  {
-    eyebrow: 'High intent',
-    title: '“Does this work for sensitive skin?”',
-    meta: 'Skincare · Comment thread',
-  },
-  {
-    eyebrow: 'Ready to buy',
-    title: '“Where can I order and how fast can it ship?”',
-    meta: 'Local service · Inquiry',
-  },
-  {
-    eyebrow: 'Comparison',
-    title: '“Is this better than the clinic near me?”',
-    meta: 'Beauty · Competitive intent',
-  },
-  {
-    eyebrow: 'Pricing signal',
-    title: '“What’s the package price for couples?”',
-    meta: 'Hospitality · Booking',
-  },
-  {
-    eyebrow: 'Urgent',
-    title: '“Can you deliver to Penang this week?”',
-    meta: 'Retail · Fulfillment',
-  },
-  {
-    eyebrow: 'Outcome',
-    title: '18 intent leads qualified today',
-    meta: 'Pipeline update',
-  },
-];
-
 export default function App() {
   return (
     <div className="bg-mist text-ink">
@@ -110,7 +77,7 @@ export default function App() {
             <img src="/logo-mark.svg" alt="SyntraeAI" className="h-10 w-10" />
             <span className="font-display text-lg font-semibold">SyntraeAI</span>
           </div>
-          <nav className="hidden items-center gap-8 text-xs font-semibold uppercase tracking-[0.2em] text-olive md:flex">
+          <nav className="hidden items-center gap-8 text-sm font-semibold text-olive md:flex">
             {navLinks.map((link) => (
               <a key={link.href} href={link.href} className="transition hover:text-ink">
                 {link.label}
@@ -127,7 +94,7 @@ export default function App() {
       </div>
 
       <section id="problem" className="mx-auto w-full max-w-[1280px] px-6 py-20 sm:px-10 lg:px-12">
-        <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid gap-12 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="space-y-6">
             <span className="section-kicker">The frustration</span>
             <h2 className="section-title">Most marketing spend goes to people who were never looking.</h2>
@@ -136,18 +103,20 @@ export default function App() {
               questions in social comments — and the opportunity disappears if you miss them.
             </p>
           </div>
-          <div className="pin-board">
-            {[
-              '“Is this suitable for sensitive skin?”',
-              '“How much is the package for couples?”',
-              '“Can you deliver to Penang?”',
-              '“Does it work for acne scars?”',
-            ].map((item) => (
-              <div key={item} className="pin-card">
-                <p className="text-sm text-ink">{item}</p>
-                <span className="pin-meta">missed signal</span>
-              </div>
-            ))}
+          <div className="rounded-[28px] border border-sand bg-white p-6">
+            <h3 className="text-lg font-semibold text-ink">Common signals brands miss</h3>
+            <div className="mt-5 grid gap-3 text-sm text-olive">
+              {[
+                '“Is this suitable for sensitive skin?”',
+                '“How much is the package for couples?”',
+                '“Can you deliver to Penang?”',
+                '“Does it work for acne scars?”',
+              ].map((item) => (
+                <div key={item} className="rounded-2xl border border-sand bg-[hsla(60,20%,98%,0.5)] px-4 py-3">
+                  {item}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -168,9 +137,8 @@ export default function App() {
               'Content fatigue slows growth. Intent signals stay evergreen.',
               'Views do not equal revenue. Questions do.',
             ].map((item) => (
-              <div key={item} className="pin-card">
-                <p className="text-sm text-ink">{item}</p>
-                <span className="pin-meta">why it matters</span>
+              <div key={item} className="card-surface flex min-h-[140px] items-center p-5 text-sm font-semibold text-olive">
+                {item}
               </div>
             ))}
           </div>
@@ -202,8 +170,8 @@ export default function App() {
                 copy: 'Operators follow up with confidence, using the original comment and a suggested response outline.',
               },
             ].map((item) => (
-              <div key={item.step} className="pin-card">
-                <div className="text-xs font-semibold uppercase tracking-[0.25em] text-warm">{item.step}</div>
+              <div key={item.step} className="card-surface flex h-full flex-col p-6">
+                <div className="text-xs font-semibold uppercase tracking-[0.3em] text-warm">{item.step}</div>
                 <h3 className="mt-4 text-xl font-semibold text-ink">{item.title}</h3>
                 <p className="mt-3 text-sm text-olive">{item.copy}</p>
               </div>
@@ -213,7 +181,7 @@ export default function App() {
       </section>
 
       <section id="differentiators" className="mx-auto w-full max-w-[1280px] px-6 py-20 sm:px-10 lg:px-12">
-        <div className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr]">
+        <div className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr]">
           <div className="space-y-4">
             <span className="section-kicker">Why SyntraeAI</span>
             <h2 className="section-title">A demand engine, not another dashboard.</h2>
@@ -223,7 +191,7 @@ export default function App() {
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             {differentiators.map((item) => (
-              <div key={item.title} className="pin-card">
+              <div key={item.title} className="rounded-[24px] border border-sand bg-white p-5 shadow-[0_14px_30px_rgba(15,23,42,0.06)]">
                 <h3 className="text-base font-semibold text-ink">{item.title}</h3>
                 <p className="mt-2 text-sm text-olive">{item.copy}</p>
               </div>
@@ -240,7 +208,7 @@ export default function App() {
           </div>
           <div className="grid gap-6 md:grid-cols-2">
             {useCases.map((item) => (
-              <div key={item.title} className="pin-card">
+              <div key={item.title} className="card-surface p-6">
                 <h3 className="text-lg font-semibold text-ink">{item.title}</h3>
                 <p className="mt-3 text-sm text-olive">{item.copy}</p>
               </div>
@@ -259,17 +227,20 @@ export default function App() {
               operators today and expanding for broader social channels.
             </p>
           </div>
-          <div className="pin-board">
-            {[
-              'Intent score attached to each comment',
-              'Buyer stage and urgency shown up front',
-              'No context loss between capture and reply',
-            ].map((item) => (
-              <div key={item} className="pin-card">
-                <p className="text-sm text-ink">{item}</p>
-                <span className="pin-meta">signal review</span>
-              </div>
-            ))}
+          <div className="glass-panel p-6">
+            <div className="text-xs font-semibold uppercase tracking-[0.3em] text-warm">Signal review</div>
+            <div className="mt-5 space-y-4">
+              {[
+                'Intent score attached to each comment',
+                'Buyer stage and urgency shown up front',
+                'No context loss between capture and reply',
+              ].map((item) => (
+                <div key={item} className="flex items-center gap-3 text-sm text-olive">
+                  <span className="h-2.5 w-2.5 rounded-full bg-accent" />
+                  {item}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -282,7 +253,7 @@ export default function App() {
           </div>
           <div className="grid gap-4">
             {faqs.map((item) => (
-              <div key={item.q} className="pin-card">
+              <div key={item.q} className="card-surface p-6">
                 <h3 className="text-base font-semibold text-ink">{item.q}</h3>
                 <p className="mt-3 text-sm text-olive">{item.a}</p>
               </div>
@@ -292,22 +263,24 @@ export default function App() {
       </section>
 
       <section className="mx-auto w-full max-w-[1280px] px-6 py-20 sm:px-10 lg:px-12">
-        <div className="cta-block">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-warm">Start now</p>
-            <h2 className="mt-4 font-display text-3xl font-semibold">Stop chasing attention. Start capturing demand.</h2>
-            <p className="mt-3 text-sm text-olive">
-              Your next customer is already asking. SyntraeAI helps you show up first.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <a className="button-primary" href="/signup">Start Free</a>
-            <a className="button-secondary" href="/app">Open Console</a>
+        <div className="relative overflow-hidden rounded-[32px] border border-sand bg-ink px-8 py-12 text-white shadow-glow">
+          <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-accent/20 blur-3xl" />
+          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-3">
+              <h2 className="font-display text-3xl font-semibold">Stop chasing attention. Start capturing demand.</h2>
+              <p className="text-sm text-white/70">
+                Your next customer is already asking. SyntraeAI helps you show up first.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <a className="button-primary" href="/signup">Start Free</a>
+              <a className="button-secondary" href="/app">Open Console</a>
+            </div>
           </div>
         </div>
       </section>
 
-      <footer className="mx-auto w-full max-w-[1280px] px-6 pb-12 pt-6 text-xs text-warm sm:px-10 lg:px-12">
+      <footer className="mx-auto w-full max-w-[1280px] px-6 pb-12 pt-6 text-sm text-warm sm:px-10 lg:px-12">
         <div className="flex flex-col gap-4 border-t border-sand pt-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <img src="/logo-mark-mono.svg" alt="SyntraeAI" className="h-8 w-8" />
@@ -373,16 +346,97 @@ export function HeroSection() {
           </div>
         </div>
 
-        <div className="pin-masonry">
-          {pins.map((item) => (
-            <div key={item.title} className="pin-card">
-              <span className="pin-meta">{item.eyebrow}</span>
-              <p className="mt-3 text-base font-semibold text-ink">{item.title}</p>
-              <p className="mt-2 text-sm text-olive">{item.meta}</p>
+        <div className="rounded-[36px] border border-sand bg-white p-6 shadow-soft">
+          <div className="flex items-center justify-between border-b border-sand pb-4">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-warm">
+                Intent signal board
+              </p>
+              <p className="mt-2 text-sm text-olive">
+                Live questions with buying intent, captured before they go cold.
+              </p>
             </div>
-          ))}
+            <span className="rounded-[12px] bg-[hsla(60,20%,98%,0.8)] px-3 py-1 text-xs font-semibold text-olive">
+              Live
+            </span>
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-3">
+            <SignalCard
+              label="High intent"
+              title="“Does this work for sensitive skin?”"
+              meta="Skincare · Comment thread"
+              note="Captured as a qualified lead with follow-up context."
+            />
+            <SignalCard
+              label="Ready to buy"
+              title="“Where can I order and how fast can it ship?”"
+              meta="Local service · Inquiry"
+              note="Prioritized for immediate response."
+            />
+            <SignalCard
+              label="Comparison"
+              title="“Is this better than the clinic near me?”"
+              meta="Beauty · Competitive intent"
+              note="Flagged for owner review with buying context."
+            />
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <OutcomeCard
+              eyebrow="Qualified today"
+              title="18 new intent leads"
+              aside="+7 high intent"
+            />
+            <OutcomeCard
+              eyebrow="Next action"
+              title="Reply drafts ready"
+              aside="With context"
+            />
+          </div>
         </div>
       </div>
     </section>
+  );
+}
+
+function SignalCard({
+  label,
+  title,
+  meta,
+  note,
+}) {
+  return (
+    <div className="rounded-[20px] border border-sand bg-[hsla(60,20%,98%,0.5)] p-5">
+      <div className="flex items-center gap-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-accent" />
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
+          {label}
+        </p>
+      </div>
+      <p className="mt-4 text-base font-semibold leading-7 text-ink">{title}</p>
+      <p className="mt-2 text-sm text-warm">{meta}</p>
+      <p className="mt-4 text-sm leading-6 text-olive">{note}</p>
+    </div>
+  );
+}
+
+function OutcomeCard({
+  eyebrow,
+  title,
+  aside,
+}) {
+  return (
+    <div className="rounded-[20px] border border-sand bg-white p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-warm">
+            {eyebrow}
+          </p>
+          <p className="mt-3 text-2xl font-semibold tracking-tight text-ink">{title}</p>
+        </div>
+        <span className="text-sm font-semibold text-accent">{aside}</span>
+      </div>
+    </div>
   );
 }

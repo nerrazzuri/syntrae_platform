@@ -48,3 +48,23 @@ body {
 .glass-panel {
   @apply rounded-[28px] border border-sand bg-white shadow-glow;
 }
+
+.pin-board {
+  @apply grid gap-4 sm:grid-cols-2;
+}
+
+.pin-masonry {
+  @apply columns-1 gap-4 sm:columns-2;
+}
+
+.pin-card {
+  @apply mb-4 break-inside-avoid rounded-[20px] border border-sand bg-white px-5 py-4;
+}
+
+.pin-meta {
+  @apply text-[11px] font-semibold uppercase tracking-[0.2em] text-warm;
+}
+
+.cta-block {
+  @apply flex flex-col gap-8 rounded-[32px] border border-sand bg-white px-8 py-12 md:flex-row md:items-center md:justify-between;
+}
