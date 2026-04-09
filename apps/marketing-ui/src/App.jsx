@@ -125,7 +125,7 @@ export default function App() {
           <div className="mx-auto flex max-w-3xl flex-col items-center gap-6">
             <span className="pill">Real demand, not empty traffic</span>
             <h1 className="font-display text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl lg:text-[70px]">
-              The best customers are already asking.
+              THE BEST CUSTOMERS ARE ALREADY <span className="text-focusBlue">ASKING</span>.
             </h1>
             <p className="text-xl font-medium leading-relaxed text-olive">
               Most businesses never see them. SyntraeAI helps you find and act on them first.
