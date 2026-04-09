@@ -20,6 +20,7 @@ interface SubscriptionSummary {
     lead_quota: {
         used: number;
         included: number;
+        rollover: number;
         extra: number;
         limit: number;
         remaining: number;
@@ -52,6 +53,7 @@ interface SubscriptionSummary {
 
 interface UsageSnapshot {
     leads_captured_month: number;
+    leads_rollover_month: number;
     leads_captured_limit: number;
     leads_captured_remaining: number;
     high_intent_leads_month: number;
@@ -248,7 +250,7 @@ export function BillingPage() {
             ? 'Your workspace is hitting daily automation limits. Upgrade to Pro to scale multi-brand workflows.'
             : null,
         usage.leads_captured_limit > 0 && usage.leads_captured_month >= Math.max(1, Math.floor(usage.leads_captured_limit * usage.lead_warning_threshold))
-            ? `You are at ${usage.leads_captured_month}/${usage.leads_captured_limit} monthly leads. ${usage.lead_auto_extension_enabled ? `Automatic extension will charge ${formatMinorCurrency(usage.lead_overage_block_price_minor, usage.lead_overage_currency)} for each extra ${usage.lead_overage_block_size} leads unless you turn it off.` : 'Turn automatic extension back on or upgrade before lead capture stops.'}`
+            ? `You are at ${usage.leads_captured_month}/${usage.leads_captured_limit} monthly leads${usage.leads_rollover_month ? ` (includes ${usage.leads_rollover_month} rollover leads)` : ''}. ${usage.lead_auto_extension_enabled ? `Automatic extension will charge ${formatMinorCurrency(usage.lead_overage_block_price_minor, usage.lead_overage_currency)} for each extra ${usage.lead_overage_block_size} leads unless you turn it off.` : 'Turn automatic extension back on or upgrade before lead capture stops.'}`
             : null,
         usage.converted_leads_month > 0 && summary.plan_code !== 'AGENCY'
             ? `This workspace already reports ${usage.converted_leads_month} converted leads${usage.estimated_revenue_month ? ` and ${new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(usage.estimated_revenue_month)} in value` : ''}. Consider a higher plan before manual work becomes the bottleneck.`
@@ -337,6 +339,10 @@ export function BillingPage() {
                             <div className="text-xl font-bold">{summary.lead_quota.included}</div>
                         </div>
                         <div className="rounded border p-4">
+                            <div className="text-gray-500">Rollover Leads</div>
+                            <div className="text-xl font-bold">{summary.lead_quota.rollover}</div>
+                        </div>
+                        <div className="rounded border p-4">
                             <div className="text-gray-500">Extra Leads Purchased</div>
                             <div className="text-xl font-bold">{summary.lead_quota.extra}</div>
                         </div>
@@ -364,6 +370,9 @@ export function BillingPage() {
                                 At {Math.round(summary.lead_quota.warning_threshold * 100)}% usage, Syntrae warns you before it starts auto-charging{' '}
                                 {formatMinorCurrency(summary.lead_quota.overage_block_price_minor, summary.lead_quota.overage_currency)} for each additional{' '}
                                 {summary.lead_quota.overage_block_size} leads.
+                            </p>
+                            <p className="mt-2 text-xs text-gray-500">
+                                Rollover leads (max 100) apply for one month only and are used before new monthly leads.
                             </p>
                             <p className="mt-2 text-xs text-gray-500">
                                 Next reset: {new Date(summary.lead_quota.next_reset_at).toLocaleString('en-MY', { dateStyle: 'medium', timeStyle: 'short' })}

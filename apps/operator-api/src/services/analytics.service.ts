@@ -53,6 +53,7 @@ export interface UsageMetrics {
     suggestions_daily_limit: number;
     automation_runs_daily_used: number;
     automation_runs_daily_limit: number;
+    leads_rollover_month: number;
     leads_captured_limit: number;
     leads_captured_remaining: number;
     lead_auto_extension_enabled: boolean;
@@ -312,6 +313,7 @@ export class AnalyticsService {
             suggestions_daily_limit: planSummary.usage.suggestions_daily.limit,
             automation_runs_daily_used: planSummary.usage.automation_runs_daily.used,
             automation_runs_daily_limit: planSummary.usage.automation_runs_daily.limit,
+            leads_rollover_month: planSummary.lead_quota.rollover,
             leads_captured_limit: planSummary.lead_quota.limit,
             leads_captured_remaining: planSummary.lead_quota.remaining,
             lead_auto_extension_enabled: planSummary.lead_quota.auto_extension_enabled,

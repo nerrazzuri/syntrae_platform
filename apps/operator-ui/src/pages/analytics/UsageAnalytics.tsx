@@ -20,6 +20,7 @@ interface UsageData {
     suggestions_daily_limit: number;
     automation_runs_daily_used: number;
     automation_runs_daily_limit: number;
+    leads_rollover_month: number;
     leads_captured_limit: number;
     leads_captured_remaining: number;
     lead_auto_extension_enabled: boolean;
@@ -114,6 +115,7 @@ export const UsageAnalytics = () => {
 
     const rows = [
         { label: 'Leads Captured This Month', used: data.leads_captured_month, limit: data.leads_captured_limit },
+        { label: 'Rollover Leads (max 100)', used: data.leads_rollover_month, limit: 100 },
         { label: 'Active Brands', used: data.brands_used, limit: data.brands_limit },
         { label: 'Team Members', used: data.team_members_used, limit: data.team_members_limit },
         { label: 'Processed Events Today', used: data.events_daily_used, limit: data.events_daily_limit },

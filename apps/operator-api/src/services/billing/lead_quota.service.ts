@@ -24,6 +24,8 @@ type LeadOverageConfig = {
     current_period_start: string;
     blocks_purchased: number;
     added_leads: number;
+    rollover_leads: number;
+    rollover_source_period: string | null;
     block_size: number;
     block_price_minor: number;
     currency: string;
@@ -45,6 +47,7 @@ type LeadOverageCharge = {
 export interface LeadQuotaSnapshot {
     used: number;
     included: number;
+    rollover: number;
     extra: number;
     limit: number;
     remaining: number;
@@ -65,15 +68,15 @@ export class LeadQuotaService {
         const { plan, subscription } = await SubscriptionPolicyService.getEffectivePlan(workspaceId);
         const periodStart = UsageAccountingService.getPeriodStart(LIMIT_PERIODS.MONTHLY);
         const nextResetAt = this.getNextResetAt(periodStart);
-        const config = this.normalizeOverageConfig(subscription.addon_config, periodStart);
+        const config = await this.loadOverageConfig(workspaceId, plan.code, subscription.addon_config, periodStart);
         const used = await this.ensureLeadCounterInitialized(prisma, workspaceId, periodStart, nextResetAt);
         return this.buildSnapshot(plan.code, used, config, nextResetAt);
     }
 
     static async setAutoExtension(workspaceId: string, enabled: boolean) {
-        const { subscription } = await SubscriptionPolicyService.getEffectivePlan(workspaceId);
+        const { plan, subscription } = await SubscriptionPolicyService.getEffectivePlan(workspaceId);
         const periodStart = UsageAccountingService.getPeriodStart(LIMIT_PERIODS.MONTHLY);
-        const config = this.normalizeOverageConfig(subscription.addon_config, periodStart);
+        const config = await this.loadOverageConfig(workspaceId, plan.code, subscription.addon_config, periodStart);
         config.auto_extend_enabled = enabled;
 
         await prisma.workspaceSubscription.update({
@@ -84,7 +87,6 @@ export class LeadQuotaService {
         });
 
         const nextResetAt = this.getNextResetAt(periodStart);
-        const plan = getPlanDefinition(subscription.plan_code);
         const used = await this.ensureLeadCounterInitialized(prisma, workspaceId, periodStart, nextResetAt);
         return this.buildSnapshot(plan.code as PlanCode, used, config, nextResetAt);
     }
@@ -117,8 +119,8 @@ export class LeadQuotaService {
             });
         };
 
-        const initialConfig = this.normalizeOverageConfig(subscription.addon_config, periodStart);
-        const initialAttempt = await consumeExistingCapacity(initialConfig.added_leads);
+        const initialConfig = await this.loadOverageConfig(workspaceId, plan.code, subscription.addon_config, periodStart);
+        const initialAttempt = await consumeExistingCapacity(initialConfig.added_leads + initialConfig.rollover_leads);
 
         if (initialAttempt.result.allowed) {
             return {
@@ -193,7 +195,7 @@ export class LeadQuotaService {
                 where: { workspace_id: workspaceId },
                 select: { addon_config: true },
             });
-            const latestConfig = this.normalizeOverageConfig(latestSubscription?.addon_config, periodStart);
+            const latestConfig = await this.loadOverageConfig(workspaceId, plan.code, latestSubscription?.addon_config, periodStart, tx);
             const appliedBlocks = Math.max(latestConfig.blocks_purchased, charge.block_number);
             latestConfig.blocks_purchased = appliedBlocks;
             latestConfig.added_leads = appliedBlocks * latestConfig.block_size;
@@ -233,7 +235,7 @@ export class LeadQuotaService {
             return latestConfig;
         });
 
-        const secondAttempt = await consumeExistingCapacity(updatedConfig.added_leads);
+        const secondAttempt = await consumeExistingCapacity(updatedConfig.added_leads + updatedConfig.rollover_leads);
         return {
             allowed: secondAttempt.result.allowed,
             auto_charged: true,
@@ -246,10 +248,11 @@ export class LeadQuotaService {
 
     private static buildSnapshot(planCode: PlanCode, used: number, config: LeadOverageConfig, nextResetAt: Date): LeadQuotaSnapshot {
         const included = getPlanDefinition(planCode).limits.monthlyCapturedLeads;
-        const limit = included + config.added_leads;
+        const limit = included + config.rollover_leads + config.added_leads;
         return {
             used,
             included,
+            rollover: config.rollover_leads,
             extra: config.added_leads,
             limit,
             remaining: Math.max(limit - used, 0),
@@ -266,17 +269,33 @@ export class LeadQuotaService {
         };
     }
 
-    private static normalizeOverageConfig(rawValue: unknown, periodStart: Date): LeadOverageConfig {
+    private static async loadOverageConfig(
+        workspaceId: string,
+        planCode: PlanCode,
+        rawValue: unknown,
+        periodStart: Date,
+        db: DbClient = prisma
+    ): Promise<LeadOverageConfig> {
         const raw = this.jsonObject(rawValue).lead_overage;
         const config = this.jsonObject(raw);
         const currentPeriodStart = periodStart.toISOString();
         const samePeriod = String(config.current_period_start || '') === currentPeriodStart;
+        const expectedPrevStart = this.getPreviousPeriodStart(periodStart).toISOString();
+        const previousRollover = samePeriod
+            ? this.toInt(config.rollover_leads)
+            : (String(config.current_period_start || '') === expectedPrevStart ? this.toInt(config.rollover_leads) : 0);
+        const rollover = samePeriod
+            ? previousRollover
+            : await this.computeRolloverLeads(db, workspaceId, planCode, periodStart, previousRollover);
+        const rolloverSource = samePeriod ? this.toNullableString(config.rollover_source_period) : this.getPreviousPeriodStart(periodStart).toISOString();
 
-        return {
+        const normalized: LeadOverageConfig = {
             auto_extend_enabled: typeof config.auto_extend_enabled === 'boolean' ? config.auto_extend_enabled : true,
             current_period_start: currentPeriodStart,
             blocks_purchased: samePeriod ? this.toInt(config.blocks_purchased) : 0,
             added_leads: samePeriod ? this.toInt(config.added_leads) : 0,
+            rollover_leads: rollover,
+            rollover_source_period: rolloverSource,
             block_size: this.toInt(config.block_size) || LEAD_OVERAGE_BLOCK_SIZE,
             block_price_minor: this.toInt(config.block_price_minor) || LEAD_OVERAGE_BLOCK_PRICE_MINOR,
             currency: String(config.currency || LEAD_OVERAGE_CURRENCY),
@@ -284,6 +303,51 @@ export class LeadQuotaService {
             last_invoice_status: samePeriod ? this.toNullableString(config.last_invoice_status) : null,
             last_auto_charge_at: samePeriod ? this.toNullableString(config.last_auto_charge_at) : null,
         };
+
+        if (!samePeriod) {
+            await db.workspaceSubscription.update({
+                where: { workspace_id: workspaceId },
+                data: { addon_config: { lead_overage: normalized } as Prisma.InputJsonValue },
+            });
+        }
+
+        return normalized;
+    }
+
+    private static getPreviousPeriodStart(periodStart: Date) {
+        return new Date(periodStart.getFullYear(), periodStart.getMonth() - 1, 1);
+    }
+
+    private static async computeRolloverLeads(
+        db: DbClient,
+        workspaceId: string,
+        planCode: PlanCode,
+        periodStart: Date,
+        previousRollover: number,
+    ) {
+        const prevStart = this.getPreviousPeriodStart(periodStart);
+        const prevEnd = periodStart;
+        const included = getPlanDefinition(planCode).limits.monthlyCapturedLeads;
+        const rows = await db.$queryRaw<Array<{ current_value: number }>>(Prisma.sql`
+            SELECT "current_value"
+            FROM "core"."WorkspaceUsageCounter"
+            WHERE "workspace_id" = ${workspaceId}
+              AND "scope_key" = 'workspace'
+              AND "metric_code" = ${USAGE_METRICS.LEADS_CAPTURED}
+              AND "period_type" = ${LIMIT_PERIODS.MONTHLY}
+              AND "period_start" = ${prevStart}
+            LIMIT 1
+        `);
+        const usedPrev = rows[0]?.current_value ?? await db.leadOpportunity.count({
+            where: {
+                account_id: workspaceId,
+                created_at: { gte: prevStart, lt: prevEnd },
+            },
+        });
+        const rolloverUsed = Math.min(Math.max(previousRollover, 0), usedPrev);
+        const includedUsed = Math.max(usedPrev - rolloverUsed, 0);
+        const unusedIncluded = Math.max(included - includedUsed, 0);
+        return Math.min(unusedIncluded, LEAD_OVERAGE_BLOCK_SIZE);
     }
 
     private static getNextResetAt(periodStart: Date) {

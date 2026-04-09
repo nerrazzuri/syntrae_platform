@@ -31,6 +31,7 @@ interface UsageData {
     brands_used: number;
     brands_limit: number;
     leads_captured_month: number;
+    leads_rollover_month: number;
     leads_captured_limit: number;
     lead_auto_extension_enabled: boolean;
     lead_warning_threshold: number;
