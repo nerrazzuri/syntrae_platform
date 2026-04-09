@@ -7,9 +7,9 @@
 }
 
 body {
-  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui;
-  color: #0F172A;
-  background: #F8FAFC;
+  font-family: "Pin Sans", "Plus Jakarta Sans", ui-sans-serif, system-ui;
+  color: #211922;
+  background: #F6F6F3;
   text-rendering: optimizeLegibility;
 }
 
@@ -26,25 +26,25 @@ body {
 }
 
 .section-kicker {
-  @apply text-xs uppercase tracking-[0.3em] text-ocean font-semibold;
+  @apply text-xs uppercase tracking-[0.3em] text-olive font-semibold;
 }
 
 .card-surface {
-  @apply rounded-3xl border border-slate-200 bg-white/90 shadow-soft;
+  @apply rounded-[20px] border border-sand bg-white;
 }
 
 .button-primary {
-  @apply inline-flex items-center justify-center rounded-full bg-ink px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40;
+  @apply inline-flex items-center justify-center rounded-[16px] bg-accent px-6 py-3.5 text-xs font-semibold text-black transition hover:bg-accentDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focusBlue/60;
 }
 
 .button-secondary {
-  @apply inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3.5 text-sm font-semibold text-ink transition hover:border-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30;
+  @apply inline-flex items-center justify-center rounded-[16px] border border-sand bg-sand px-6 py-3.5 text-xs font-semibold text-black transition hover:border-warm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focusBlue/40;
 }
 
 .highlight-pill {
-  @apply inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-500;
+  @apply inline-flex items-center gap-2 rounded-[16px] border border-sand bg-[hsla(60,20%,98%,0.5)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-olive;
 }
 
 .glass-panel {
-  @apply rounded-3xl border border-white/60 bg-white/80 shadow-glow backdrop-blur;
+  @apply rounded-[28px] border border-sand bg-white shadow-glow;
 }
