@@ -128,7 +128,7 @@ export default function App() {
               Your customers are already <span className="text-focusBlue font-semibold">asking</span>.
             </h1>
             <p className="text-xl font-medium leading-relaxed text-olive">
-              You’re just not seeing them. SyntraeAI helps you find and act on them first.
+              You’re just not seeing them. SyntraeAI helps you turn those questions into customers.
             </p>
             <p className="text-base leading-7 text-olive">
               Customers are already asking questions about what you sell — in comments, threads, and conversations.
