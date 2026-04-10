@@ -168,7 +168,7 @@ export default function App() {
               '“Does it work for acne scars?”',
             ].map((item) => (
               <div key={item} className="pin-card">
-                <p className="text-sm text-ink">{item}</p>
+                <p className="text-base text-ink">{item}</p>
                 <span className="pin-meta">missed signal</span>
               </div>
             ))}
@@ -193,7 +193,7 @@ export default function App() {
               'Views do not equal revenue. Questions do.',
             ].map((item) => (
               <div key={item} className="pin-card">
-                <p className="text-sm text-ink">{item}</p>
+                <p className="text-base text-ink">{item}</p>
                 <span className="pin-meta">why it matters</span>
               </div>
             ))}
@@ -229,7 +229,7 @@ export default function App() {
               <div key={item.step} className="pin-card">
                 <div className="text-xs font-semibold uppercase tracking-[0.25em] text-warm">{item.step}</div>
                 <h3 className="mt-4 text-xl font-semibold text-ink">{item.title}</h3>
-                <p className="mt-3 text-sm text-olive">{item.copy}</p>
+                <p className="mt-3 text-base text-olive">{item.copy}</p>
               </div>
             ))}
           </div>
@@ -249,7 +249,7 @@ export default function App() {
             {differentiators.map((item) => (
               <div key={item.title} className="pin-card">
                 <h3 className="text-base font-semibold text-ink">{item.title}</h3>
-                <p className="mt-2 text-sm text-olive">{item.copy}</p>
+                <p className="mt-2 text-base text-olive">{item.copy}</p>
               </div>
             ))}
           </div>
@@ -266,7 +266,7 @@ export default function App() {
             {useCases.map((item) => (
               <div key={item.title} className="pin-card">
                 <h3 className="text-lg font-semibold text-ink">{item.title}</h3>
-                <p className="mt-3 text-sm text-olive">{item.copy}</p>
+                <p className="mt-3 text-base text-olive">{item.copy}</p>
               </div>
             ))}
           </div>
@@ -290,7 +290,7 @@ export default function App() {
               'No context loss between capture and reply',
             ].map((item) => (
               <div key={item} className="pin-card">
-                <p className="text-sm text-ink">{item}</p>
+                <p className="text-base text-ink">{item}</p>
                 <span className="pin-meta">signal review</span>
               </div>
             ))}
@@ -308,7 +308,7 @@ export default function App() {
             {faqs.map((item) => (
               <div key={item.q} className="pin-card">
                 <h3 className="text-base font-semibold text-ink">{item.q}</h3>
-                <p className="mt-3 text-sm text-olive">{item.a}</p>
+                <p className="mt-3 text-base text-olive">{item.a}</p>
               </div>
             ))}
           </div>
@@ -320,7 +320,7 @@ export default function App() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-warm">Start now</p>
             <h2 className="mt-4 font-display text-3xl font-semibold">Stop chasing attention. Start capturing demand.</h2>
-            <p className="mt-3 text-sm text-olive">
+            <p className="mt-3 text-base text-olive">
               Your next customer is already asking. SyntraeAI helps you show up first.
             </p>
           </div>
