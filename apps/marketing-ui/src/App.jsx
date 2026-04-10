@@ -122,7 +122,7 @@ export default function App() {
         </header>
 
         <section className="page-shell pb-16 pt-16 text-center">
-          <div className="mx-auto flex w-full max-w-[640px] flex-col items-center gap-6 lg:max-w-[720px]">
+          <div className="mx-auto flex w-full max-w-[800px] flex-col items-center gap-6 lg:max-w-[860px]">
             <span className="pill">Real demand, not empty traffic</span>
             <h1 className="font-display text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl lg:text-[70px]">
               Customer <span className="text-focusBlue font-semibold">demand</span> already exists.
