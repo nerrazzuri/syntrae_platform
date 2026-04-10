@@ -134,7 +134,6 @@ export default function App() {
               <a className="button-primary" href="/signup">Start Discovering</a>
               <a className="button-secondary" href="#how">How it works</a>
             </div>
-            <p className="text-sm text-warm">Built for operators who want qualified leads, not vanity views.</p>
             <div className="flex flex-wrap justify-center gap-3">
               {['No more empty views', 'Find demand earlier', 'Keep conversation context'].map((item) => (
                 <span key={item} className="pill-outline">
