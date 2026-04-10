@@ -4,7 +4,7 @@
     "main": "index.js",
     "types": "index.d.ts",
     "scripts": {
-        "generate": "prisma generate"
+        "generate": "prisma generate --schema=schema.prisma"
     },
     "dependencies": {
         "@prisma/client": "^5.7.0"
