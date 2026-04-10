@@ -128,7 +128,7 @@ export default function App() {
               Your customers are already <span className="text-focusBlue font-semibold">asking</span>.
             </h1>
             <p className="text-xl font-medium leading-relaxed text-olive">
-              You’re just not seeing them. SyntraeAI helps you turn those questions into customers.
+              You’re just not seeing them. SyntraeAI turn those questions into customers.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <a className="button-primary" href="/signup">Start Discovering</a>
