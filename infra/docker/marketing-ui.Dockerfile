@@ -3,11 +3,20 @@ FROM node:20-alpine AS build
 
 WORKDIR /repo
 
+# Enable pnpm
+RUN npm install -g pnpm
+
+# Monorepo manifests
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY apps/marketing-ui/package.json apps/marketing-ui/
+
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
+
 COPY apps/marketing-ui apps/marketing-ui
 
 WORKDIR /repo/apps/marketing-ui
-RUN node scripts/build.mjs
+RUN pnpm run build
 
 FROM nginx:alpine
 

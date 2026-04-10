@@ -19,7 +19,17 @@ interface UsageData {
     suggestions_daily_used: number;
     suggestions_daily_limit: number;
     automation_runs_daily_used: number;
-    automation_runs_daily_limit: number;
+    automation_runs_daily_limit: number | null;
+    leads_rollover_month: number;
+    leads_captured_limit: number;
+    leads_captured_remaining: number;
+    lead_auto_extension_enabled: boolean;
+    lead_warning_threshold: number;
+    lead_warning_reached: boolean;
+    lead_overage_block_size: number;
+    lead_overage_block_price_minor: number;
+    lead_overage_currency: string;
+    lead_next_reset_at: string;
     leads_exported_month: number;
     leads_export_limit: number;
     drafts_generated_month: number;
@@ -57,10 +67,24 @@ function buildUsagePrompts(data: UsageData) {
         });
     }
 
-    if (data.automation_runs_daily_limit > 0 && data.automation_runs_daily_used >= data.automation_runs_daily_limit && data.plan_id !== 'PRO' && data.plan_id !== 'AGENCY') {
+    if (data.automation_runs_daily_limit != null && data.automation_runs_daily_used >= data.automation_runs_daily_limit && data.plan_id !== 'PRO' && data.plan_id !== 'AGENCY') {
         prompts.push({
             title: 'Scale automation',
             message: `Your workspace is hitting daily automation limits. Upgrade to Pro to scale multi-brand workflows and higher automation throughput.`,
+        });
+    }
+
+    if (data.leads_captured_limit > 0 && data.leads_captured_month >= Math.max(1, Math.floor(data.leads_captured_limit * data.lead_warning_threshold))) {
+        const blockPrice = new Intl.NumberFormat('en-MY', {
+            style: 'currency',
+            currency: data.lead_overage_currency || 'MYR',
+            maximumFractionDigits: 0,
+        }).format((data.lead_overage_block_price_minor || 0) / 100);
+        prompts.push({
+            title: 'Lead quota almost full',
+            message: data.lead_auto_extension_enabled
+                ? `You are at ${data.leads_captured_month}/${data.leads_captured_limit} monthly leads. Syntrae will auto-charge ${blockPrice} for each extra ${data.lead_overage_block_size} leads unless you turn automatic extension off.`
+                : `You are at ${data.leads_captured_month}/${data.leads_captured_limit} monthly leads. Turn automatic extension back on or upgrade before new lead capture stops.`,
         });
     }
 
@@ -90,6 +114,8 @@ export const UsageAnalytics = () => {
     if (!data) return <div className="p-8">No usage data.</div>;
 
     const rows = [
+        { label: 'Leads Captured This Month', used: data.leads_captured_month, limit: data.leads_captured_limit },
+        { label: 'Rollover Leads (max 100)', used: data.leads_rollover_month, limit: 100 },
         { label: 'Active Brands', used: data.brands_used, limit: data.brands_limit },
         { label: 'Team Members', used: data.team_members_used, limit: data.team_members_limit },
         { label: 'Processed Events Today', used: data.events_daily_used, limit: data.events_daily_limit },
@@ -115,14 +141,17 @@ export const UsageAnalytics = () => {
 
                 <div className="space-y-4">
                     {rows.map((row) => {
-                        const pct = row.limit > 0 ? (row.used / row.limit) * 100 : 0;
-                        const isBlocked = row.limit === 0 ? row.used > 0 : row.used >= row.limit;
+                        const isUnlimited = row.limit == null;
+                        const limitValue = row.limit ?? 0;
+                        const pct = !isUnlimited && limitValue > 0 ? (row.used / limitValue) * 100 : 0;
+                        const isBlocked = !isUnlimited && (limitValue === 0 ? row.used > 0 : row.used >= limitValue);
+                        const displayLimit = isUnlimited ? 'Unlimited' : row.limit;
                         return (
                             <div key={row.label}>
                                 <div className="flex justify-between text-sm font-medium mb-1">
                                     <span>{row.label}</span>
                                     <span className={isBlocked ? 'text-red-600' : 'text-gray-600'}>
-                                        {row.used} / {row.limit}
+                                        {row.used} / {displayLimit}
                                     </span>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-3">
@@ -146,6 +175,9 @@ export const UsageAnalytics = () => {
                 </div>
                 <div className="mt-4 text-sm text-gray-500">
                     Avg follow-up speed: {data.avg_follow_up_hours_month != null ? `${data.avg_follow_up_hours_month.toFixed(1)} hours` : 'Not enough followed-up leads yet'}
+                </div>
+                <div className="mt-2 text-sm text-gray-500">
+                    Automatic lead extension: {data.lead_auto_extension_enabled ? 'On' : 'Off'} · next reset {new Date(data.lead_next_reset_at).toLocaleString('en-MY', { dateStyle: 'medium', timeStyle: 'short' })}
                 </div>
             </div>
 

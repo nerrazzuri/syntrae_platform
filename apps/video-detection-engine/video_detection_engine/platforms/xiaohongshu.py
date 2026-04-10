@@ -1,6 +1,7 @@
 import hashlib
 import json as json_lib
 import logging
+import math
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 class XiaohongshuPlatform:
     DEFAULT_POSTS_PER_KEYWORD = 20
+    DEFAULT_SEARCH_PAGES = 3
+    MAX_SEARCH_PAGES = 5
+    SEARCH_PAGE_SIZE = 20
     DEFAULT_COMMENTS_PER_POST = 10
     DEFAULT_COMMENT_PAGES = 3
     """
@@ -30,6 +34,8 @@ class XiaohongshuPlatform:
         self,
         browser_page,
         keyword,
+        run_id: str | None = None,
+        record_discovery=None,
         is_video_eligible=None,
         max_posts: int | None = None,
         max_comments_per_post: int | None = None,
@@ -46,45 +52,9 @@ class XiaohongshuPlatform:
             return {"events": [], "source_posts_processed": 0}
 
         posts = []
-        seen_note_ids = set()
         try:
             with XhsClient(cookies) as client:
-                data = client.search_notes(keyword)
-                items = data.get("items", []) if isinstance(data, dict) else []
-                for item in items:
-                    note_card = item.get("note_card", {})
-                    note_ref = self._normalize_text(item.get("id", note_card.get("note_id", "")))
-                    note_id = self._extract_note_id(note_ref)
-                    if not note_id or note_id in seen_note_ids:
-                        continue
-                    seen_note_ids.add(note_id)
-                    xsec_token = self._normalize_text(
-                        item.get("xsec_token")
-                        or note_card.get("xsec_token")
-                        or note_card.get("xsecToken")
-                    )
-                    xsec_source = self._normalize_text(
-                        item.get("xsec_source")
-                        or note_card.get("xsec_source")
-                        or note_card.get("xsecSource")
-                    )
-                    caption = self._normalize_text(
-                        note_card.get("display_title")
-                        or note_card.get("title")
-                        or note_card.get("desc")
-                        or keyword
-                    )
-                    hashtags = self._extract_hashtags(caption, note_card.get("desc"), note_card.get("tag_list"))
-                    posts.append({
-                        "note_id": note_id,
-                        "note_ref": note_ref,
-                        "title": caption,
-                        "hashtags": hashtags,
-                        "author": note_card.get("user", {}).get("nickname", "unknown"),
-                        "like_count": int(note_card.get("interact_info", {}).get("liked_count", 0)),
-                        "xsec_token": xsec_token,
-                        "xsec_source": xsec_source,
-                    })
+                posts = self._collect_search_posts(client, keyword, posts_limit)
         except Exception as exc:
             logger.error("Failed to execute XHS search client: %s", exc)
 
@@ -120,6 +90,23 @@ class XiaohongshuPlatform:
                     )
                     continue
 
+            if run_id and callable(record_discovery):
+                await record_discovery(run_id, {
+                    "brand_id": None,
+                    "platform": "rednote",
+                    "video_id": note_id,
+                    "video_url": post_url,
+                    "market_score": 0,
+                    "reasons": [
+                        f"XHS_SOURCE_POST_SELECTED:{keyword}",
+                        f"SEARCH_PAGE:{post.get('search_page', 1)}",
+                        f"SEARCH_RANK:{post.get('search_rank', 1)}",
+                    ],
+                    "decision": "ACCEPT",
+                    "market_profile_id": None,
+                    "market_profile_version": None,
+                })
+
             processed_note_ids.add(note_id)
             now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
             base_event = {
@@ -134,6 +121,9 @@ class XiaohongshuPlatform:
                 "search_keyword": keyword,
                 "page_url": post_url,
                 "page_timestamp": now,
+                "search_keyword": keyword,
+                "search_page": post.get("search_page", 1),
+                "search_rank": post.get("search_rank", 1),
             }
             source_posts.append(base_event.copy())
 
@@ -147,7 +137,7 @@ class XiaohongshuPlatform:
                         comment_kwargs["xsec_source"] = post.get("xsec_source") or "pc_search"
                     data = client.get_all_comments(note_id, **comment_kwargs)
                     comments = data.get("comments", []) if isinstance(data, dict) else []
-                    real_comments.extend(comments[:comments_limit])
+                    real_comments.extend(comments)
             except XhsApiError as exc:
                 logger.warning("XHS comments failed for %s: %s", note_id, exc)
             except Exception as exc:
@@ -159,7 +149,10 @@ class XiaohongshuPlatform:
 
             logger.info("Successfully fetched %s real comments for %s", len(real_comments), note_id)
             seen_comment_ids = set()
+            post_events = []
             for cmt in real_comments:
+                if len(post_events) >= comments_limit:
+                    break
                 raw_text = self._extract_comment_text(cmt)
                 comment_user = self._extract_comment_user(cmt)
                 comment_author = self._extract_comment_author_name(cmt, comment_user)
@@ -183,13 +176,121 @@ class XiaohongshuPlatform:
                 event["comment_author_id"] = comment_author_id
                 event["like_count"] = int(cmt.get("like_count", 0))
                 event["referral_comment_id"] = comment_id
-                final_events.append(event)
+                post_events.append(event)
+
+            if post_events:
+                final_events.extend(post_events)
 
         return {
             "events": final_events,
             "source_posts": source_posts,
             "source_posts_processed": len(processed_note_ids),
         }
+
+    def _collect_search_posts(self, client: XhsClient, keyword: str, posts_limit: int) -> list[dict]:
+        target_pages = max(
+            self.DEFAULT_SEARCH_PAGES,
+            math.ceil(max(1, posts_limit) / self.SEARCH_PAGE_SIZE),
+        )
+        page_count = min(self.MAX_SEARCH_PAGES, target_pages)
+
+        page_batches: list[list[dict]] = []
+        seen_note_ids: set[str] = set()
+
+        for page in range(1, page_count + 1):
+            try:
+                data = client.search_notes(keyword, page=page, page_size=self.SEARCH_PAGE_SIZE)
+            except Exception as exc:
+                logger.warning("XHS search page %s failed for %s: %s", page, keyword, exc)
+                continue
+
+            items = data.get("items", []) if isinstance(data, dict) else []
+            batch = []
+            for index, item in enumerate(items, start=1):
+                post = self._normalize_search_item(item, keyword, page, index)
+                note_id = post.get("note_id")
+                if not note_id or note_id in seen_note_ids:
+                    continue
+                seen_note_ids.add(note_id)
+                batch.append(post)
+
+            logger.info(
+                "XHS search page %s for '%s' returned %s unique posts",
+                page,
+                keyword,
+                len(batch),
+            )
+            if batch:
+                page_batches.append(batch)
+
+            if len(batch) < self.SEARCH_PAGE_SIZE:
+                logger.info(
+                    "XHS search page %s for '%s' appears exhausted; stopping page walk",
+                    page,
+                    keyword,
+                )
+                break
+
+        if not page_batches:
+            return []
+
+        posts = self._interleave_post_batches(page_batches, posts_limit)
+        logger.info(
+            "Collected %s diversified XHS posts for '%s' across %s page(s)",
+            len(posts),
+            keyword,
+            len(page_batches),
+        )
+        return posts
+
+    def _normalize_search_item(self, item: dict, keyword: str, search_page: int, page_rank: int) -> dict:
+        note_card = item.get("note_card", {})
+        note_ref = self._normalize_text(item.get("id", note_card.get("note_id", "")))
+        xsec_token = self._normalize_text(
+            item.get("xsec_token")
+            or note_card.get("xsec_token")
+            or note_card.get("xsecToken")
+        )
+        xsec_source = self._normalize_text(
+            item.get("xsec_source")
+            or note_card.get("xsec_source")
+            or note_card.get("xsecSource")
+        )
+        return {
+            "note_id": self._extract_note_id(note_ref),
+            "note_ref": note_ref,
+            "title": self._normalize_text(
+                note_card.get("display_title")
+                or note_card.get("title")
+                or note_card.get("desc")
+                or keyword
+            ),
+            "hashtags": self._extract_hashtags(
+                note_card.get("display_title"),
+                note_card.get("desc"),
+                note_card.get("tag_list"),
+            ),
+            "author": self._normalize_text(note_card.get("user", {}).get("nickname")) or "unknown",
+            "like_count": int(note_card.get("interact_info", {}).get("liked_count", 0)),
+            "xsec_token": xsec_token,
+            "xsec_source": xsec_source,
+            "search_page": search_page,
+            "page_rank": page_rank,
+        }
+
+    @staticmethod
+    def _interleave_post_batches(page_batches: list[list[dict]], posts_limit: int) -> list[dict]:
+        interleaved: list[dict] = []
+        max_batch_size = max((len(batch) for batch in page_batches), default=0)
+        for row in range(max_batch_size):
+            for batch in page_batches:
+                if row < len(batch):
+                    post = dict(batch[row])
+                    post["search_rank"] = len(interleaved) + 1
+                    interleaved.append(post)
+                    if len(interleaved) >= posts_limit:
+                        return interleaved
+        return interleaved
 
     def _load_cookies(self) -> dict[str, str]:
         if not self.session_path:

@@ -53,6 +53,8 @@ export const DesktopCaptureEventSchema = z.object({
             geo_match_status: z.string().optional().nullable(),
             geo_match_reasons: z.array(z.string()).optional().default([]),
         }).optional(),
+        search_page: z.number().int().positive().optional().nullable(),
+        search_rank: z.number().int().positive().optional().nullable(),
         visible: z.boolean(),
         position: z.enum(['viewport', 'expanded']),
         user_action: z.enum(['scroll', 'hover', 'click', 'manual_trigger', 'automation_capture']),

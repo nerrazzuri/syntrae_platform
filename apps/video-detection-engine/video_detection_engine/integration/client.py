@@ -491,6 +491,8 @@ class IntegrationClient:
                     "geo_match_status": data.get("geo_match_status"),
                     "geo_match_reasons": data.get("geo_match_reasons") or [],
                 },
+                "search_page": data.get("search_page"),
+                "search_rank": data.get("search_rank"),
                 "visible": True,
                 "position": "viewport",
                 "user_action": "automation_capture"

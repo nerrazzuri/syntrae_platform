@@ -17,6 +17,24 @@ interface SubscriptionSummary {
         portal_available: boolean;
         manual_change_allowed: boolean;
     };
+    lead_quota: {
+        used: number;
+        included: number;
+        rollover: number;
+        extra: number;
+        limit: number;
+        remaining: number;
+        auto_extension_enabled: boolean;
+        warning_threshold: number;
+        warning_reached: boolean;
+        next_reset_at: string;
+        overage_block_size: number;
+        overage_block_price_minor: number;
+        overage_currency: string;
+        overage_blocks_purchased: number;
+        last_auto_charge_at: string | null;
+        last_invoice_id: string | null;
+    };
     plan_options: Array<{
         plan_code: PlanCode;
         display_name: string;
@@ -27,29 +45,46 @@ interface SubscriptionSummary {
     usage: {
         active_brands: { used: number; limit: number };
         team_members: { used: number; limit: number };
-        automation_runs_daily: { used: number; limit: number };
+        automation_runs_daily: { used: number; limit: number | null };
+        leads_captured_monthly: { used: number; limit: number };
     };
     blocked: Array<{ code: string; message: string }>;
 }
 
 interface UsageSnapshot {
     leads_captured_month: number;
+    leads_rollover_month: number;
+    leads_captured_limit: number;
+    leads_captured_remaining: number;
     high_intent_leads_month: number;
     converted_leads_month: number;
     estimated_revenue_month: number;
     automation_runs_daily_used: number;
-    automation_runs_daily_limit: number;
+    automation_runs_daily_limit: number | null;
+    lead_auto_extension_enabled: boolean;
+    lead_warning_threshold: number;
+    lead_warning_reached: boolean;
+    lead_overage_block_size: number;
+    lead_overage_block_price_minor: number;
+    lead_overage_currency: string;
+    lead_next_reset_at: string;
     features: Record<string, boolean>;
 }
 
 const PLAN_ORDER: PlanCode[] = ['BASIC', 'STARTER', 'GROWTH', 'PRO', 'AGENCY'];
 
 const PLAN_COPY: Record<PlanCode, string> = {
-    BASIC: 'Free tier with 1 brand, 1 automation run daily, and up to 5 videos with 2 comments each.',
-    STARTER: 'Single-brand comment-to-lead workflow with manual review and lightweight automation.',
-    GROWTH: 'Higher-volume lead handling with exports, scoring, and assisted reply drafting.',
-    PRO: 'Automation-ready, multi-brand workflow for teams running comment-driven pipeline.',
-    AGENCY: 'Multi-client, multi-brand operating layer with team and client isolation.',
+    BASIC: 'Free tier with 1 brand and a small monthly lead allowance for initial testing.',
+    STARTER: 'RM49/month with 50 monthly leads for single-brand manual review and basic comment-to-lead workflow.',
+    GROWTH: 'RM199/month with 400 monthly leads, exports, scoring, and assisted drafting.',
+    PRO: 'RM399/month with 1000 monthly leads, multi-brand operations, and automation-ready workflows.',
+    AGENCY: 'High-volume multi-client operations with expanded lead capacity and team control.',
+};
+
+const PLAN_PRICES: Partial<Record<PlanCode, string>> = {
+    STARTER: 'RM49 / month',
+    GROWTH: 'RM199 / month',
+    PRO: 'RM399 / month',
 };
 
 export function BillingPage() {
@@ -63,6 +98,13 @@ export function BillingPage() {
     const [voucherCode, setVoucherCode] = useState('');
     const [loadingAction, setLoadingAction] = useState<string | null>(null);
     const [selectedIntervals, setSelectedIntervals] = useState<Partial<Record<PlanCode, BillingInterval>>>({});
+
+    const formatMinorCurrency = (amountMinor: number, currencyCode: string) =>
+        new Intl.NumberFormat('en-MY', {
+            style: 'currency',
+            currency: currencyCode || 'MYR',
+            maximumFractionDigits: 0,
+        }).format((amountMinor || 0) / 100);
 
     const loadSummary = async () => {
         try {
@@ -170,6 +212,31 @@ export function BillingPage() {
         }
     };
 
+    const handleLeadAutoExtension = async (enabled: boolean) => {
+        try {
+            setLoadingAction('lead-auto-extension');
+            setError(null);
+            setNotice(null);
+            const res = await api.post('/billing/lead-auto-extension', { enabled });
+            setSummary((current) => current ? { ...current, lead_quota: res.lead_quota } : current);
+            setUsage((current) => current ? {
+                ...current,
+                lead_auto_extension_enabled: res.lead_quota.auto_extension_enabled,
+                leads_captured_limit: res.lead_quota.limit,
+                leads_captured_remaining: res.lead_quota.remaining,
+                lead_warning_reached: res.lead_quota.warning_reached,
+                lead_next_reset_at: res.lead_quota.next_reset_at,
+            } : current);
+            setNotice(enabled
+                ? 'Automatic lead extension is enabled. Syntrae will auto-charge every additional 100-lead block once your monthly allowance is exceeded.'
+                : 'Automatic lead extension is off. New lead capture will stop when this month’s allowance is fully used.');
+        } catch (e: any) {
+            setError(e.message || 'Unable to update automatic lead extension');
+        } finally {
+            setLoadingAction(null);
+        }
+    };
+
     if (!summary) return <div className="p-8">Loading subscription...</div>;
 
     const upgradePrompts = usage ? [
@@ -179,8 +246,11 @@ export function BillingPage() {
         !usage.features.assistedReplyDrafts && usage.high_intent_leads_month >= 3
             ? 'Upgrade to Growth to turn qualified leads into assisted reply drafts faster.'
             : null,
-        usage.automation_runs_daily_limit > 0 && usage.automation_runs_daily_used >= usage.automation_runs_daily_limit && summary.plan_code !== 'PRO' && summary.plan_code !== 'AGENCY'
+        usage.automation_runs_daily_limit != null && usage.automation_runs_daily_used >= usage.automation_runs_daily_limit && summary.plan_code !== 'PRO' && summary.plan_code !== 'AGENCY'
             ? 'Your workspace is hitting daily automation limits. Upgrade to Pro to scale multi-brand workflows.'
+            : null,
+        usage.leads_captured_limit > 0 && usage.leads_captured_month >= Math.max(1, Math.floor(usage.leads_captured_limit * usage.lead_warning_threshold))
+            ? `You are at ${usage.leads_captured_month}/${usage.leads_captured_limit} monthly leads${usage.leads_rollover_month ? ` (includes ${usage.leads_rollover_month} rollover leads)` : ''}. ${usage.lead_auto_extension_enabled ? `Automatic extension will charge ${formatMinorCurrency(usage.lead_overage_block_price_minor, usage.lead_overage_currency)} for each extra ${usage.lead_overage_block_size} leads unless you turn it off.` : 'Turn automatic extension back on or upgrade before lead capture stops.'}`
             : null,
         usage.converted_leads_month > 0 && summary.plan_code !== 'AGENCY'
             ? `This workspace already reports ${usage.converted_leads_month} converted leads${usage.estimated_revenue_month ? ` and ${new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(usage.estimated_revenue_month)} in value` : ''}. Consider a higher plan before manual work becomes the bottleneck.`
@@ -244,7 +314,7 @@ export function BillingPage() {
                 <p className="text-sm text-gray-600">
                     Status: {summary.subscription_status} · Interval: {summary.billing_interval.toLowerCase()}
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6 text-sm">
                     <div className="rounded border p-4">
                         <div className="text-gray-500">Active Brands</div>
                         <div className="text-xl font-bold">{summary.usage.active_brands.used} / {summary.usage.active_brands.limit}</div>
@@ -255,14 +325,28 @@ export function BillingPage() {
                     </div>
                     <div className="rounded border p-4">
                         <div className="text-gray-500">Automation Runs Today</div>
-                        <div className="text-xl font-bold">{summary.usage.automation_runs_daily.used} / {summary.usage.automation_runs_daily.limit}</div>
+                        <div className="text-xl font-bold">
+                            {summary.usage.automation_runs_daily.used} / {summary.usage.automation_runs_daily.limit ?? 'Unlimited'}
+                        </div>
+                    </div>
+                    <div className="rounded border p-4">
+                        <div className="text-gray-500">Leads This Month</div>
+                        <div className="text-xl font-bold">{summary.lead_quota.used} / {summary.lead_quota.limit}</div>
                     </div>
                 </div>
                 {usage && (
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4 text-sm">
                         <div className="rounded border p-4">
-                            <div className="text-gray-500">Leads This Month</div>
-                            <div className="text-xl font-bold">{usage.leads_captured_month}</div>
+                            <div className="text-gray-500">Included Leads</div>
+                            <div className="text-xl font-bold">{summary.lead_quota.included}</div>
+                        </div>
+                        <div className="rounded border p-4">
+                            <div className="text-gray-500">Rollover Leads</div>
+                            <div className="text-xl font-bold">{summary.lead_quota.rollover}</div>
+                        </div>
+                        <div className="rounded border p-4">
+                            <div className="text-gray-500">Extra Leads Purchased</div>
+                            <div className="text-xl font-bold">{summary.lead_quota.extra}</div>
                         </div>
                         <div className="rounded border p-4">
                             <div className="text-gray-500">High-Intent Leads</div>
@@ -280,6 +364,40 @@ export function BillingPage() {
                         </div>
                     </div>
                 )}
+                <div className="mt-4 rounded border border-gray-200 bg-gray-50 p-4">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <div className="text-sm font-semibold text-gray-900">Automatic lead extension</div>
+                            <p className="mt-1 text-sm text-gray-600">
+                                At {Math.round(summary.lead_quota.warning_threshold * 100)}% usage, Syntrae warns you before it starts auto-charging{' '}
+                                {formatMinorCurrency(summary.lead_quota.overage_block_price_minor, summary.lead_quota.overage_currency)} for each additional{' '}
+                                {summary.lead_quota.overage_block_size} leads.
+                            </p>
+                            <p className="mt-2 text-xs text-gray-500">
+                                Rollover leads (max 100) apply for one month only and are used before new monthly leads.
+                            </p>
+                            <p className="mt-2 text-xs text-gray-500">
+                                Next reset: {new Date(summary.lead_quota.next_reset_at).toLocaleString('en-MY', { dateStyle: 'medium', timeStyle: 'short' })}
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => handleLeadAutoExtension(!summary.lead_quota.auto_extension_enabled)}
+                            disabled={loadingAction === 'lead-auto-extension'}
+                            className={`rounded-full px-4 py-2 text-sm font-semibold ${summary.lead_quota.auto_extension_enabled ? 'bg-emerald-600 text-white' : 'bg-white text-slate-700 border border-gray-300'} disabled:opacity-50`}
+                        >
+                            {loadingAction === 'lead-auto-extension'
+                                ? 'Updating...'
+                                : summary.lead_quota.auto_extension_enabled
+                                    ? 'Automatic extension on'
+                                    : 'Automatic extension off'}
+                        </button>
+                    </div>
+                    {summary.lead_quota.warning_reached && (
+                        <div className="mt-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                            This workspace is above the 80% lead usage threshold. Turn off automatic extension now if you do not want Syntrae to auto-charge the next 100-lead block.
+                        </div>
+                    )}
+                </div>
             </div>
 
             {upgradePrompts.length > 0 && (
@@ -325,6 +443,7 @@ export function BillingPage() {
                                     <div>
                                         <h3 className="font-semibold">{planCode}</h3>
                                         <p className="text-sm text-gray-600">{PLAN_COPY[planCode]}</p>
+                                        {PLAN_PRICES[planCode] ? <p className="mt-1 text-sm font-semibold text-slate-900">{PLAN_PRICES[planCode]}</p> : null}
                                         {option && (
                                             <p className="text-xs text-gray-500 mt-2">
                                                 {option.billing_intervals.map((interval) => interval.toLowerCase()).join(' / ')}

@@ -27,6 +27,15 @@ interface PortalSessionInput {
     workspaceId: string;
 }
 
+interface LeadOverageChargeInput {
+    workspaceId: string;
+    workspaceName: string;
+    stripeCustomerId: string;
+    stripeSubscriptionId: string;
+    blockNumber: number;
+    periodStart: string;
+}
+
 export class StripeBillingError extends Error {
     code: string;
     statusCode: number;
@@ -40,6 +49,9 @@ export class StripeBillingError extends Error {
 
 const CHECKOUT_PLAN_CODES: PlanCode[] = [PLAN_CODES.STARTER, PLAN_CODES.GROWTH, PLAN_CODES.PRO, PLAN_CODES.AGENCY];
 type PriceEntry = { planCode: PlanCode; billingInterval: BillingInterval; priceId: string };
+const LEAD_OVERAGE_BLOCK_SIZE = 100;
+const LEAD_OVERAGE_BLOCK_PRICE_MINOR = 6900;
+const LEAD_OVERAGE_CURRENCY = 'myr';
 
 export class StripeBillingService {
     private static stripeClient: Stripe | null = null;
@@ -202,6 +214,85 @@ export class StripeBillingService {
         });
 
         return { url: session.url };
+    }
+
+    static async chargeLeadOverageBlock(input: LeadOverageChargeInput) {
+        const stripe = this.getStripe();
+        const subscription = await stripe.subscriptions.retrieve(input.stripeSubscriptionId);
+        const customer = await stripe.customers.retrieve(input.stripeCustomerId);
+        const customerRecord = customer.deleted ? null : customer;
+        const defaultPaymentMethod =
+            (typeof subscription.default_payment_method === 'string'
+                ? subscription.default_payment_method
+                : subscription.default_payment_method?.id) ||
+            customerRecord?.invoice_settings?.default_payment_method ||
+            null;
+
+        const idempotencyBase = `lead-overage:${input.workspaceId}:${input.periodStart}:${input.blockNumber}`;
+
+        await stripe.invoiceItems.create({
+            customer: input.stripeCustomerId,
+            amount: LEAD_OVERAGE_BLOCK_PRICE_MINOR,
+            currency: LEAD_OVERAGE_CURRENCY,
+            description: `Syntrae additional ${LEAD_OVERAGE_BLOCK_SIZE} leads`,
+            metadata: {
+                workspace_id: input.workspaceId,
+                workspace_name: input.workspaceName,
+                type: 'LEAD_OVERAGE_BLOCK',
+                block_number: String(input.blockNumber),
+                block_size: String(LEAD_OVERAGE_BLOCK_SIZE),
+                period_start: input.periodStart,
+            },
+        }, {
+            idempotencyKey: `${idempotencyBase}:item`,
+        });
+
+        const invoice = await stripe.invoices.create({
+            customer: input.stripeCustomerId,
+            collection_method: 'charge_automatically',
+            auto_advance: false,
+            description: `Syntrae additional ${LEAD_OVERAGE_BLOCK_SIZE} leads`,
+            metadata: {
+                workspace_id: input.workspaceId,
+                type: 'LEAD_OVERAGE_BLOCK',
+                block_number: String(input.blockNumber),
+                block_size: String(LEAD_OVERAGE_BLOCK_SIZE),
+                period_start: input.periodStart,
+            },
+            ...(defaultPaymentMethod ? { default_payment_method: String(defaultPaymentMethod) } : {}),
+        }, {
+            idempotencyKey: `${idempotencyBase}:invoice`,
+        });
+        if (!invoice.id) {
+            throw new StripeBillingError('LEAD_OVERAGE_INVOICE_MISSING', 'Stripe did not return an invoice for the lead overage charge.', 502);
+        }
+
+        const finalizedInvoice = invoice.status === 'draft'
+            ? await stripe.invoices.finalizeInvoice(invoice.id)
+            : invoice;
+        if (!finalizedInvoice.id) {
+            throw new StripeBillingError('LEAD_OVERAGE_INVOICE_MISSING', 'Stripe overage invoice could not be finalized.', 502);
+        }
+        const paidInvoice = finalizedInvoice.status === 'paid'
+            ? finalizedInvoice
+            : await stripe.invoices.pay(finalizedInvoice.id, defaultPaymentMethod ? { payment_method: String(defaultPaymentMethod) } : {});
+        if (!paidInvoice.id) {
+            throw new StripeBillingError('LEAD_OVERAGE_PAYMENT_FAILED', 'Stripe did not return a paid invoice for the lead overage charge.', 402);
+        }
+
+        if (paidInvoice.status !== 'paid') {
+            throw new StripeBillingError('LEAD_OVERAGE_PAYMENT_FAILED', 'Automatic charge for additional leads did not complete.', 402);
+        }
+
+        return {
+            block_number: input.blockNumber,
+            block_size: LEAD_OVERAGE_BLOCK_SIZE,
+            amount_minor: LEAD_OVERAGE_BLOCK_PRICE_MINOR,
+            currency: LEAD_OVERAGE_CURRENCY.toUpperCase(),
+            invoice_id: paidInvoice.id!,
+            invoice_status: paidInvoice.status,
+            charged_at: new Date().toISOString(),
+        };
     }
 
     static async handleWebhook(payload: Buffer, signature?: string) {

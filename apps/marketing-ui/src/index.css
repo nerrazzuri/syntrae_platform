@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  font-family: "Pin Sans", "Plus Jakarta Sans", ui-sans-serif, system-ui;
+  color: #211922;
+  background: #F6F6F3;
+  text-rendering: optimizeLegibility;
+}
+
+.section-shell {
+  @apply mx-auto w-full max-w-[1280px] px-6 sm:px-10 lg:px-12;
+}
+
+.hero-shell {
+  @apply mx-auto w-full max-w-[1280px] px-6 sm:px-10 lg:px-12;
+}
+
+.section-title {
+  @apply font-display text-3xl sm:text-4xl lg:text-[28px] font-bold tracking-[-0.06em] text-ink;
+}
+
+.section-kicker {
+  @apply text-xs uppercase tracking-[0.3em] text-olive font-semibold;
+}
+
+.card-surface {
+  @apply rounded-[20px] border border-sand bg-white;
+}
+
+.page-shell {
+  @apply mx-auto w-full max-w-[1280px] px-6 sm:px-10 lg:px-12;
+}
+
+.page-hero {
+  @apply relative overflow-hidden bg-white;
+}
+
+.section-space {
+  @apply py-20;
+}
+
+.button-primary {
+  @apply inline-flex items-center justify-center rounded-[16px] bg-accent px-6 py-3 text-sm font-bold text-white transition hover:bg-accentDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focusBlue/60;
+}
+
+.button-secondary {
+  @apply inline-flex items-center justify-center rounded-[16px] border border-sand bg-sand px-6 py-3 text-sm font-semibold text-black transition hover:border-warm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focusBlue/40;
+}
+
+.highlight-pill {
+  @apply inline-flex items-center gap-2 rounded-[16px] border border-sand bg-[hsla(60,20%,98%,0.5)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-olive;
+}
+
+.glass-panel {
+  @apply rounded-[28px] border border-sand bg-white shadow-glow;
+}
+
+.pin-board {
+  @apply grid gap-4 sm:grid-cols-2;
+}
+
+.pin-masonry {
+  @apply columns-1 gap-4 sm:columns-2;
+}
+
+.pin-card {
+  @apply mb-4 break-inside-avoid rounded-[20px] border border-sand bg-white px-5 py-4;
+}
+
+.pin-meta {
+  @apply text-[11px] font-semibold uppercase tracking-[0.2em] text-warm;
+}
+
+.cta-block {
+  @apply flex flex-col gap-8 rounded-[32px] border border-sand bg-white px-8 py-12 md:flex-row md:items-center md:justify-between;
+}
+
+.pill {
+  @apply inline-flex items-center rounded-[16px] border border-sand bg-[hsla(60,20%,98%,0.5)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-olive;
+}
+
+.pill-outline {
+  @apply inline-flex items-center gap-2 rounded-[16px] border border-sand bg-white px-4 py-2 text-sm font-medium text-olive;
+}
+
+.dot {
+  @apply h-2 w-2 rounded-full bg-accent;
+}
+
+.pin-grid {
+  @apply columns-1 gap-4 sm:columns-2;
+}

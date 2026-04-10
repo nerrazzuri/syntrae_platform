@@ -67,18 +67,20 @@ export class UsageAccountingService {
             period: LimitPeriod;
             increment?: number;
             brandId?: string | null;
+            limitOverride?: number | null;
         }
     ): Promise<UsageConsumeResult> {
         const increment = params.increment ?? 1;
         const periodStart = this.getPeriodStart(params.period);
         const scopeKey = params.brandId ? `brand:${params.brandId}` : 'workspace';
         const limitDecision = evaluateUsage(params.planCode, params.metric, params.period, 0, increment);
+        const resolvedLimit = params.limitOverride ?? limitDecision.limit ?? null;
 
-        if (limitDecision.limit != null && increment > limitDecision.limit) {
+        if (resolvedLimit != null && increment > resolvedLimit) {
             return {
                 allowed: false,
                 currentValue: 0,
-                limit: limitDecision.limit,
+                limit: resolvedLimit,
                 reasonCode: PLAN_REASON_CODES.PLAN_LIMIT_REACHED,
                 message: limitDecision.message,
                 period: params.period,
@@ -86,7 +88,7 @@ export class UsageAccountingService {
             };
         }
 
-        const limit = limitDecision.limit ?? null;
+        const limit = resolvedLimit;
         const rows = await db.$queryRaw<{ current_value: number }[]>(Prisma.sql`
             INSERT INTO "core"."WorkspaceUsageCounter" (
                 "id",

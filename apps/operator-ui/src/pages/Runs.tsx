@@ -43,8 +43,6 @@ export function Runs() {
         return <span className={`status-pill ${style.bg}`}>{style.icon}{status}</span>;
     };
 
-    const statValue = (run: any, key: string) => Number(run.stats?.[key] || 0);
-
     return (
         <div className="space-y-6">
             <section className="panel p-6 lg:p-8">
@@ -53,7 +51,7 @@ export function Runs() {
                         <div className="hero-kicker">Automation Runs</div>
                         <h1 className="hero-title mt-3">See what the workers touched, skipped, retried, and emitted.</h1>
                         <p className="hero-copy">
-                            This is the operating console for discovery health. Duplicate suppression, cooldown skips, retries, and worker status are visible here by run.
+                            This is the operating console for discovery health. Cooldown skips, retries, and worker status are visible here by run.
                         </p>
                     </div>
                     <div className="panel-strong flex items-center gap-3 px-5 py-4">
@@ -69,8 +67,6 @@ export function Runs() {
             {health && (
                 <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <SummaryCard label="Active Workers" value={health.active_workers || 0} tone="teal" />
-                    <SummaryCard label="Cooldown Skips" value={health.cooldown_skipped || 0} tone="amber" />
-                    <SummaryCard label="Duplicates Suppressed" value={health.duplicate_suppressed || 0} tone="sky" />
                     <SummaryCard label="Stale Retries" value={health.stale_retries || 0} tone="rose" />
                 </section>
             )}
@@ -89,7 +85,6 @@ export function Runs() {
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Status</th>
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Source Posts</th>
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Comments</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Suppressed</th>
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Worker</th>
                                 <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Started</th>
                                 <th className="px-4 py-4"></th>
@@ -113,12 +108,6 @@ export function Runs() {
                                             <div className="text-xs text-slate-500">
                                                 Emitted: {stats.comments_emitted_success || 0}
                                                 {stats.comments_emitted_failed > 0 && ` / ${stats.comments_emitted_failed} failed`}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-4 text-sm text-slate-700">
-                                            <div>Dupes: {statValue(run, 'duplicate_suppressed')}</div>
-                                            <div className="text-xs text-slate-500">
-                                                Cooldown: {statValue(run, 'video_cooldown_suppressed') + statValue(run, 'videos_skipped_cooldown')}
                                             </div>
                                         </td>
                                         <td className="px-4 py-4 text-sm text-slate-700">
@@ -169,8 +158,6 @@ export function Runs() {
                                 <MetricBox label="Comments Captured" value={selectedRun.stats?.comments_captured || 0} tone="amber" />
                                 <MetricBox label="Successfully Emitted" value={selectedRun.stats?.comments_emitted_success || 0} tone="green" />
                                 <MetricBox label="Emission Failures" value={selectedRun.stats?.comments_emitted_failed || 0} tone="rose" />
-                                <MetricBox label="Duplicates Suppressed" value={selectedRun.stats?.duplicate_suppressed || 0} tone="sky" />
-                                <MetricBox label="Cooldown Suppressed" value={(selectedRun.stats?.video_cooldown_suppressed || 0) + (selectedRun.stats?.videos_skipped_cooldown || 0)} tone="amber" />
                             </div>
 
                             {selectedRun.abort_reason && (
