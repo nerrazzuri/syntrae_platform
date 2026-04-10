@@ -122,7 +122,7 @@ export default function App() {
         </header>
 
         <section className="page-shell pb-16 pt-16 lg:pb-20 lg:pt-20">
-          <div className="mx-auto grid w-full max-w-[1180px] items-center gap-12 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-14">
+          <div className="mx-auto grid w-full items-center gap-12 lg:grid-cols-3 lg:gap-14">
             <div className="flex flex-col items-start gap-6 text-left">
               <span className="pill">Real demand, not empty traffic</span>
               <h1 className="font-display text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl lg:text-[70px]">
@@ -149,7 +149,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="hero-visual-shell">
+            <div className="hero-visual-shell lg:col-span-2">
               <img
                 src="/hero-lead-flow.png"
                 alt="Diagram showing SyntraeAI turning a social buying question into a captured WhatsApp lead"

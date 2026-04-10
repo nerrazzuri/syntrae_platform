@@ -14,11 +14,11 @@ body {
 }
 
 .section-shell {
-  @apply mx-auto w-full max-w-[1280px] px-6 sm:px-10 lg:px-12;
+  @apply mx-auto w-[80vw] max-w-none px-0;
 }
 
 .hero-shell {
-  @apply mx-auto w-full max-w-[1280px] px-6 sm:px-10 lg:px-12;
+  @apply mx-auto w-[80vw] max-w-none px-0;
 }
 
 .section-title {
@@ -34,7 +34,7 @@ body {
 }
 
 .page-shell {
-  @apply mx-auto w-full max-w-[1280px] px-6 sm:px-10 lg:px-12;
+  @apply mx-auto w-[80vw] max-w-none px-0;
 }
 
 .page-hero {
