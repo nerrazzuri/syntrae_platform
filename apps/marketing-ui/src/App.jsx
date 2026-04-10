@@ -125,7 +125,9 @@ export default function App() {
           <div className="mx-auto flex max-w-3xl flex-col items-center gap-6">
             <span className="pill">Real demand, not empty traffic</span>
             <h1 className="font-display text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl lg:text-[70px]">
-              Customer <span className="text-focusBlue font-semibold">demand</span> already exists.
+              Customer
+              <br />
+              <span className="text-focusBlue font-semibold">demand</span> already exist.
             </h1>
             <p className="text-xl font-medium leading-relaxed text-olive">
               You’re just not seeing them. SyntraeAI turn those questions into customers.
