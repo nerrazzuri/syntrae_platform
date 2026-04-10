@@ -126,7 +126,6 @@ export default function App() {
             <span className="pill">Real demand, not empty traffic</span>
             <h1 className="font-display text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl lg:text-[70px]">
               Customer <span className="text-focusBlue font-semibold">demand</span> already exists.
-              <br />
               Most businesses never capture it.
             </h1>
             <p className="text-xl font-medium leading-relaxed text-olive">
