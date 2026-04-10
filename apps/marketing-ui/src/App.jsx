@@ -128,6 +128,8 @@ export default function App() {
               Customer
               <br />
               <span className="text-focusBlue font-semibold">demand</span> already exist.
+              <br />
+              You’re just not seeing them.
             </h1>
             <p className="text-xl font-medium leading-relaxed text-olive">
               You’re just not seeing them. SyntraeAI turn those questions into customers.
