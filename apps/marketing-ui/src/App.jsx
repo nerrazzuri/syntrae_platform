@@ -131,8 +131,8 @@ export default function App() {
               You’re just not seeing them. SyntraeAI helps you turn those questions into customers.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <a className="button-primary" href="/signup">Find customers already asking</a>
-              <a className="button-secondary" href="#how">See how it works</a>
+              <a className="button-primary" href="/signup">Start Discovering</a>
+              <a className="button-secondary" href="#how">How it works</a>
             </div>
             <p className="text-sm text-warm">Built for operators who want qualified leads, not vanity views.</p>
             <div className="flex flex-wrap justify-center gap-3">

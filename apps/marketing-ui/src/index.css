@@ -46,11 +46,11 @@ body {
 }
 
 .button-primary {
-  @apply inline-flex items-center justify-center rounded-[16px] bg-accent px-6 py-2.5 text-xs font-semibold text-black transition hover:bg-accentDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focusBlue/60;
+  @apply inline-flex items-center justify-center rounded-[16px] bg-accent px-6 py-3 text-sm font-bold text-white transition hover:bg-accentDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focusBlue/60;
 }
 
 .button-secondary {
-  @apply inline-flex items-center justify-center rounded-[16px] border border-sand bg-sand px-6 py-2.5 text-xs font-semibold text-black transition hover:border-warm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focusBlue/40;
+  @apply inline-flex items-center justify-center rounded-[16px] border border-sand bg-sand px-6 py-3 text-sm font-semibold text-black transition hover:border-warm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focusBlue/40;
 }
 
 .highlight-pill {
