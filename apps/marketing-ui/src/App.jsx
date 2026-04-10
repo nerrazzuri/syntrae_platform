@@ -130,10 +130,6 @@ export default function App() {
             <p className="text-xl font-medium leading-relaxed text-olive">
               You’re just not seeing them. SyntraeAI helps you turn those questions into customers.
             </p>
-            <p className="text-base leading-7 text-olive">
-              Customers are already asking questions about what you sell — in comments, threads, and conversations.
-              Instead of chasing cold traffic, SyntraeAI helps you respond to real demand.
-            </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <a className="button-primary" href="/signup">Find customers already asking</a>
               <a className="button-secondary" href="#how">See how it works</a>
