@@ -125,7 +125,8 @@ export default function App() {
           <div className="mx-auto flex w-full max-w-[1000px] flex-col items-center gap-6 lg:max-w-[1000px]">
             <span className="pill">Real demand, not empty traffic</span>
             <h1 className="font-display text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl lg:text-[70px]">
-              Customer <span className="text-focusBlue font-semibold">demand</span> already exists.
+              Customer <span className="text-focusBlue font-semibold">demand</span> exists.
+              <br />
               Most businesses never capture it.
             </h1>
             <p className="text-xl font-medium leading-relaxed text-olive">
