@@ -121,30 +121,40 @@ export default function App() {
           </nav>
         </header>
 
-        <section className="page-shell pb-16 pt-16 text-center">
-          <div className="mx-auto flex w-full max-w-[1100px] flex-col items-center gap-6 lg:max-w-[1100px]">
-            <span className="pill">Real demand, not empty traffic</span>
-            <h1 className="font-display text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl lg:text-[70px]">
-              Customer <span className="text-focusBlue font-semibold">demand</span> exists.
-              <br />
-              Most businesses never capture it.
-            </h1>
-            <p className="text-xl font-medium leading-relaxed text-olive">
-              Customers are already asking questions in comments, threads, and conversations.
-              <br />
-              SyntraeAI turn those questions into customers
-            </p>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <a className="button-primary" href="/signup">Start Discovering</a>
-              <a className="button-secondary" href="#how">How it works</a>
+        <section className="page-shell pb-16 pt-16 lg:pb-20 lg:pt-20">
+          <div className="mx-auto grid w-full max-w-[1180px] items-center gap-12 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-14">
+            <div className="flex flex-col items-start gap-6 text-left">
+              <span className="pill">Real demand, not empty traffic</span>
+              <h1 className="font-display text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl lg:text-[70px]">
+                Customer <span className="text-focusBlue font-semibold">demand</span> exists.
+                <br />
+                Most businesses never capture it.
+              </h1>
+              <p className="max-w-[640px] text-xl font-medium leading-relaxed text-olive">
+                Customers are already asking questions in comments, threads, and conversations.
+                <br />
+                SyntraeAI turn those questions into customers
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <a className="button-primary" href="/signup">Start Discovering</a>
+                <a className="button-secondary" href="#how">How it works</a>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {['No more empty views', 'Find demand earlier', 'Keep conversation context'].map((item) => (
+                  <span key={item} className="pill-outline">
+                    <span className="dot" />
+                    {item}
+                  </span>
+                ))}
+              </div>
             </div>
-            <div className="flex flex-wrap justify-center gap-3">
-              {['No more empty views', 'Find demand earlier', 'Keep conversation context'].map((item) => (
-                <span key={item} className="pill-outline">
-                  <span className="dot" />
-                  {item}
-                </span>
-              ))}
+
+            <div className="hero-visual-shell">
+              <img
+                src="/hero-lead-flow.png"
+                alt="Diagram showing SyntraeAI turning a social buying question into a captured WhatsApp lead"
+                className="hero-visual-image"
+              />
             </div>
           </div>
         </section>
