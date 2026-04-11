@@ -76,7 +76,7 @@ function extractPayloadFromEventMetadata(event: any): any {
 
 async function reserveLeadQuotaCapacity(workspaceId: string) {
     const operatorApiUrl = (process.env.OPERATOR_API_URL || 'http://operator-api:3001').replace(/\/$/, '');
-    const internalSecret = process.env.AI_ENGAGEMENT_INTERNAL_SECRET || process.env.AI_CORE_INTERNAL_SECRET || '';
+    const internalSecret = process.env.AI_CORE_INTERNAL_SECRET || process.env.AI_ENGAGEMENT_INTERNAL_SECRET || '';
     const response = await fetch(`${operatorApiUrl}/internal/billing/lead-quota/reserve`, {
         method: 'POST',
         headers: {
