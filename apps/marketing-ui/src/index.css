@@ -14,11 +14,11 @@ body {
 }
 
 .section-shell {
-  @apply mx-auto w-full max-w-[1280px] px-6 sm:px-10 lg:px-12;
+  @apply mx-auto w-[80vw] max-w-none px-0;
 }
 
 .hero-shell {
-  @apply mx-auto w-full max-w-[1280px] px-6 sm:px-10 lg:px-12;
+  @apply mx-auto w-[80vw] max-w-none px-0;
 }
 
 .section-title {
@@ -34,11 +34,24 @@ body {
 }
 
 .page-shell {
-  @apply mx-auto w-full max-w-[1280px] px-6 sm:px-10 lg:px-12;
+  @apply mx-auto w-[80vw] max-w-none px-0;
 }
 
 .page-hero {
   @apply relative overflow-hidden bg-white;
+}
+
+.hero-visual-shell {
+  @apply relative overflow-hidden rounded-[32px] border border-sand bg-[radial-gradient(circle_at_top,_rgba(164,213,255,0.36),_rgba(255,255,255,0.96)_48%,_rgba(255,255,255,1)_100%)] p-3 shadow-glow;
+}
+
+.hero-visual-shell::after {
+  content: "";
+  @apply pointer-events-none absolute inset-x-[10%] bottom-0 h-12 rounded-full bg-focusBlue/10 blur-3xl;
+}
+
+.hero-visual-image {
+  @apply relative z-[1] w-full rounded-[24px] object-cover;
 }
 
 .section-space {
