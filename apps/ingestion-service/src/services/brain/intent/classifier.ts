@@ -96,8 +96,6 @@ export class IntentClassifier {
         const start = Date.now();
         const inferred = await signalInferenceClient.inferSignals(text, detectedSignals, context);
         const aiClassification = this.tryUseAiClassification(
-            text,
-            normalized,
             detectedSignals,
             inferred,
             isRednote ? 'zh' : 'en'
@@ -159,8 +157,6 @@ export class IntentClassifier {
     }
 
     private tryUseAiClassification(
-        text: string,
-        normalized: string,
         detectedSignals: DetectedSignal[],
         inferred: InferenceResult,
         language: 'en' | 'zh'
@@ -181,11 +177,6 @@ export class IntentClassifier {
         }
 
         if (aiIntent && aiIntent !== 'UNKNOWN' && aiIntent !== 'NOISE') {
-            if (!this.passesAiIntentGuard(aiIntent, text, normalized)) {
-                console.log(`[Classifier] AI Intent Hint Rejected by lexical guard: ${aiIntent}`);
-                return null;
-            }
-
             return this.buildAiClassificationResult(
                 aiIntent,
                 aiConfidence,
@@ -454,23 +445,4 @@ export class IntentClassifier {
         return confidence >= 0.6 ? 'LOW' : 'NONE';
     }
 
-    private passesAiIntentGuard(intent: EngagementIntent, text: string, normalized: string): boolean {
-        if (intent === 'PRODUCT_INQUIRY') {
-            // Avoid false positives like appearance/social questions that contain only "吗?".
-            return /(链接|link|牌子|品牌|哪款|什么.*(用|牌|产品|面霜|精华|水|乳)|色号|面霜|精华|护肤|产品|刷子|身体乳|what .*use)/i.test(normalized);
-        }
-        if (intent === 'PROBLEM_SOLUTION') {
-            return /(痘|敏感|泛红|干皮|油皮|毛孔|闭口|过敏|刺痛|脱皮|不耐受|红肿|problem|issue)/i.test(normalized);
-        }
-        if (intent === 'FIT_SUITABILITY') {
-            return /(适合|合适|可以吗|能用吗|肤质|黄皮|干皮|油皮|fit|suitable)/i.test(normalized);
-        }
-        if (intent === 'LATENT_PURCHASE') {
-            return /(想买|买吗|入吗|值得吗|推荐吗|种草|求推荐|有钱就买|would buy)/i.test(normalized);
-        }
-        if (intent === 'POST_PURCHASE_REGRET') {
-            return /(后悔|买早了|刚买了|already bought|regret)/i.test(normalized);
-        }
-        return true;
-    }
 }

@@ -621,13 +621,72 @@ function jsonList(value: unknown): string[] {
         .filter(Boolean);
 }
 
+const GENERIC_CATALOG_TOKENS = new Set([
+    '茶',
+    '茶饮',
+    '养生',
+    '养身',
+    '生茶',
+    '养生茶',
+    '调理',
+    '介绍',
+    '推荐',
+    '产品',
+    '商品',
+    '配套',
+    '价格',
+    '多少钱',
+    '怎么喝',
+    '怎么用',
+    '私信',
+    '购买',
+    '想买',
+    '有什么',
+    '有没有',
+    '适合',
+    '身体',
+    '保健',
+    'herbal',
+    'tea',
+    'product',
+    'recommend',
+    'recommendation',
+    'price',
+    'buy',
+    'wellness',
+    'health',
+]);
+
+function isGenericCatalogToken(token: string): boolean {
+    const clean = token.toLowerCase().replace(/^#/, '').trim();
+    if (!clean) return true;
+    return GENERIC_CATALOG_TOKENS.has(clean);
+}
+
+function meaningfulCatalogTokens(value: string): string[] {
+    return tokenize(value).filter((token) => !isGenericCatalogToken(token));
+}
+
 function tokenize(value: string): string[] {
-    return value
+    const normalized = value
         .toLowerCase()
         .replace(/[^\p{L}\p{N}\s#-]/gu, ' ')
         .split(/\s+/)
         .map((token) => token.replace(/^#/, '').trim())
         .filter((token) => token.length >= 2);
+    const cjkTokens = Array.from(value.matchAll(/[\p{Script=Han}]{2,}/gu))
+        .flatMap((match) => {
+            const chars = Array.from(match[0]);
+            const grams = [...chars];
+            for (let size = 2; size <= 4; size += 1) {
+                for (let index = 0; index <= chars.length - size; index += 1) {
+                    grams.push(chars.slice(index, index + size).join(''));
+                }
+            }
+            return grams;
+        })
+        .filter((token) => token.length >= 2);
+    return [...new Set([...normalized, ...cjkTokens])];
 }
 
 async function findCatalogMatch(event: any, payload: any) {
@@ -659,7 +718,8 @@ async function findCatalogMatch(event: any, payload: any) {
         postHashtags.join(' '),
     ].filter(Boolean).join(' ');
     const sourceTokens = new Set(tokenize(sourceText));
-    if (!sourceTokens.size) return null;
+    const meaningfulSourceTokens = new Set([...sourceTokens].filter((token) => !isGenericCatalogToken(token)));
+    if (!meaningfulSourceTokens.size) return null;
 
     let best: any = null;
     for (const item of items) {
@@ -672,10 +732,10 @@ async function findCatalogMatch(event: any, payload: any) {
             ...jsonList(item.key_benefits),
             ...jsonList(item.common_objections),
         ].filter(Boolean).join(' ');
-        const productTokens = new Set(tokenize(productText));
-        const matches = [...productTokens].filter((token) => sourceTokens.has(token));
-        const nameMatched = tokenize(item.name).some((token) => sourceTokens.has(token));
-        const categoryMatched = item.category ? tokenize(item.category).some((token) => sourceTokens.has(token)) : false;
+        const productTokens = new Set(meaningfulCatalogTokens(productText));
+        const matches = [...productTokens].filter((token) => meaningfulSourceTokens.has(token));
+        const nameMatched = meaningfulCatalogTokens(item.name).some((token) => meaningfulSourceTokens.has(token));
+        const categoryMatched = item.category ? meaningfulCatalogTokens(item.category).some((token) => meaningfulSourceTokens.has(token)) : false;
         const score = Math.min(1, (matches.length / Math.max(productTokens.size, 1)) + (nameMatched ? 0.35 : 0) + (categoryMatched ? 0.2 : 0) + Math.min(item.priority, 100) / 500);
 
         if (!best || score > best.score) {
@@ -795,6 +855,24 @@ async function persistLeadOpportunity(event: any, payload: any, trace: any, conf
     });
 
     if (existingLead) {
+        if (!existingLead.matched_catalog_item_name) {
+            const catalogMatch = await findCatalogMatch(event, payload) || await searchImportedCatalogKnowledge(event, payload);
+            if (catalogMatch) {
+                return prisma.leadOpportunity.update({
+                    where: { id: existingLead.id },
+                    data: {
+                        matched_catalog_item_id: catalogMatch.id ?? null,
+                        matched_catalog_item_name: catalogMatch.name ?? null,
+                        catalog_match_score: catalogMatch.score ?? null,
+                        catalog_match_reasons: catalogMatch.reasons ?? null,
+                        preferences: {
+                            ...((existingLead.preferences && typeof existingLead.preferences === 'object' && !Array.isArray(existingLead.preferences)) ? existingLead.preferences : {}),
+                            catalog_match: catalogMatch,
+                        },
+                    } as any,
+                });
+            }
+        }
         return existingLead;
     }
 

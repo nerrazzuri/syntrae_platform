@@ -84,6 +84,73 @@ def _split_multi_value(value: Optional[str]) -> List[str]:
     return items[:20]
 
 
+def _is_image_filename(value: Optional[str]) -> bool:
+    return bool(value and re.search(r"\.(png|jpe?g|bmp|tiff?|webp)$", value.strip(), re.IGNORECASE))
+
+
+def _has_cjk(value: str) -> bool:
+    return bool(re.search(r"[\u3400-\u9fff]", value or ""))
+
+
+def _looks_like_ocr_noise(value: Optional[str]) -> bool:
+    text = (value or "").strip()
+    if not text:
+        return True
+
+    if _has_cjk(text):
+        return False
+
+    tokens = re.findall(r"[A-Za-z]{3,}", text)
+    if not tokens:
+        return len(text) < 12
+
+    uppercase_tokens = [token for token in tokens if token.isupper() and len(token) >= 4]
+    vowel_poor_tokens = [
+        token for token in tokens
+        if len(token) >= 6 and (sum(1 for ch in token.lower() if ch in "aeiou") / max(len(token), 1)) < 0.18
+    ]
+    known_words = re.findall(
+        r"\b(product|service|treatment|skin|tea|serum|cream|benefit|suitable|repair|hydrating|sensitive|price|package|care)\b",
+        text,
+        re.IGNORECASE,
+    )
+
+    if known_words:
+        return False
+
+    return len(tokens) >= 2 and (len(uppercase_tokens) + len(vowel_poor_tokens)) / len(tokens) >= 0.55
+
+
+def _candidate_is_meaningful(candidate: Dict[str, Any], filename: str, title: str) -> bool:
+    name = _normalize_cell(candidate.get("name")) or ""
+    description = _normalize_cell(candidate.get("description")) or ""
+    combined = " ".join([
+        name,
+        description,
+        _normalize_cell(candidate.get("category")) or "",
+        _normalize_cell(candidate.get("target_buyer")) or "",
+        " ".join(candidate.get("key_benefits") or [] if isinstance(candidate.get("key_benefits"), list) else []),
+    ]).strip()
+
+    if len(description) < 12:
+        return False
+    if _is_image_filename(name) and name.strip().lower() in {filename.strip().lower(), title.strip().lower()}:
+        return False
+    return not _looks_like_ocr_noise(combined)
+
+
+def _normalize_extracted_text(text: str | None) -> str:
+    normalized = (text or "").strip()
+    if not normalized:
+        return ""
+
+    literal_newlines = normalized.count("\\n")
+    actual_newlines = normalized.count("\n")
+    if literal_newlines > 5 and actual_newlines <= max(1, literal_newlines // 20):
+        normalized = normalized.replace("\\r\\n", "\n").replace("\\n", "\n")
+    return normalized
+
+
 def infer_catalog_candidates(filename: str, data: bytes, svc: DocumentService) -> List[Dict[str, Any]]:
     name = (filename or "").lower()
     if not (name.endswith(".csv") or name.endswith(".xlsx")):
@@ -101,7 +168,16 @@ def infer_catalog_candidates(filename: str, data: bytes, svc: DocumentService) -
         for _, series in normalized_df.head(100).iterrows():
             row = {str(k).strip().lower(): v for k, v in series.to_dict().items()}
             item_name = _pick_first(row, "name", "product", "product_name", "title", "offer", "item")
-            description = _pick_first(row, "description", "details", "product_description", "summary", "intro")
+            description = _pick_first(
+                row,
+                "description",
+                "details",
+                "product_description",
+                "short description",
+                "full description",
+                "summary",
+                "intro",
+            )
             if not item_name:
                 continue
 
@@ -111,16 +187,20 @@ def infer_catalog_candidates(filename: str, data: bytes, svc: DocumentService) -
             seen.add(key)
 
             if not description:
-                benefits_text = _pick_first(row, "benefits", "key_benefits", "features", "highlights")
+                benefits_text = _pick_first(row, "benefits", "key_benefits", "key features", "features", "highlights")
                 description = benefits_text or f"Imported from {sheet_name}"
+            else:
+                full_description = _pick_first(row, "full description")
+                if full_description and full_description != description:
+                    description = f"{description}; {full_description}"
 
             candidate = {
                 "name": item_name,
                 "category": _pick_first(row, "category", "type", "product_type"),
                 "description": description,
-                "price_label": _pick_first(row, "price", "price_label", "amount", "price_range"),
-                "target_buyer": _pick_first(row, "target_buyer", "audience", "suitable_for", "for_who"),
-                "key_benefits": _split_multi_value(_pick_first(row, "benefits", "key_benefits", "features", "highlights")),
+                "price_label": _pick_first(row, "price", "price_label", "price (myr)", "amount", "price_range"),
+                "target_buyer": _pick_first(row, "target_buyer", "target audience", "audience", "suitable_for", "for_who"),
+                "key_benefits": _split_multi_value(_pick_first(row, "benefits", "key_benefits", "key features", "features", "highlights")),
                 "common_objections": _split_multi_value(_pick_first(row, "common_objections", "objections", "concerns", "faq")),
                 "cta_url": _pick_first(row, "cta_url", "url", "product_url", "link"),
                 "cta_label": _pick_first(row, "cta_label", "cta", "button_text"),
@@ -131,6 +211,9 @@ def infer_catalog_candidates(filename: str, data: bytes, svc: DocumentService) -
                     "sheet": sheet_name,
                     "import_source": "tabular",
                     "import_filename": filename,
+                    "sku": _pick_first(row, "sku", "sku id", "sku_id"),
+                    "hook": _pick_first(row, "hook"),
+                    "use_case": _pick_first(row, "use case", "occasion", "scenario"),
                 },
             }
 
@@ -209,24 +292,237 @@ def _extract_section_lines(text: str, markers: List[str], stop_markers: List[str
     return hits
 
 
+def _split_sku_blocks(text: str) -> List[Dict[str, str]]:
+    lines = [line.strip() for line in _normalize_extracted_text(text).splitlines()]
+    blocks: List[Dict[str, str]] = []
+    current_header: str | None = None
+    current_lines: List[str] = []
+    sku_re = re.compile(r"^SKU\s+([^:\n]+):\s*(.+)$", re.IGNORECASE)
+
+    for line in lines:
+        match = sku_re.match(line)
+        if match:
+            if current_header:
+                blocks.append({"header": current_header, "body": "\n".join(current_lines).strip()})
+            current_header = line
+            current_lines = []
+            continue
+        if current_header:
+            current_lines.append(line)
+
+    if current_header:
+        blocks.append({"header": current_header, "body": "\n".join(current_lines).strip()})
+    return blocks
+
+
+def _collect_section(block_text: str, start: str, stops: List[str]) -> List[str]:
+    lines = [line.strip(" -*\t") for line in block_text.splitlines()]
+    hits: List[str] = []
+    collecting = False
+    for line in lines:
+        if not line:
+            continue
+        lower = line.lower()
+        if lower.startswith(start.lower()):
+            collecting = True
+            inline = line.split(":", 1)[1].strip() if ":" in line else ""
+            if inline:
+                hits.append(inline)
+            continue
+        if collecting and any(lower.startswith(stop.lower()) for stop in stops):
+            break
+        if collecting:
+            if line.startswith("[[PAGE:"):
+                continue
+            hits.append(line)
+    return hits[:12]
+
+
+def _extract_field(block_text: str, *labels: str) -> Optional[str]:
+    for label in labels:
+        pattern = re.compile(rf"^{re.escape(label)}\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE)
+        match = pattern.search(block_text or "")
+        if match:
+            value = _normalize_cell(match.group(1))
+            if value:
+                return value
+    return None
+
+
+def _collect_leading_bullets(block_text: str, after_labels: List[str], stops: List[str]) -> List[str]:
+    lines = [line.strip() for line in block_text.splitlines()]
+    hits: List[str] = []
+    collecting = False
+    for line in lines:
+        if not line or line.startswith("[[PAGE:"):
+            continue
+        lower = line.lower()
+        if any(lower.startswith(f"{label.lower()}:") for label in after_labels):
+            collecting = True
+            continue
+        if collecting and any(lower.startswith(stop.lower()) for stop in stops):
+            break
+        if collecting and line.startswith(("-", "*", "•")):
+            hits.append(line.strip(" -*•\t"))
+    return hits[:12]
+
+
+def _candidates_from_sku_blocks(filename: str, blocks: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+    candidates: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+    sku_re = re.compile(r"^SKU\s+([^:\n]+):\s*(.+)$", re.IGNORECASE)
+
+    for index, block in enumerate(blocks[:50], start=1):
+        header = block.get("header") or ""
+        body = block.get("body") or ""
+        match = sku_re.match(header)
+        if not match:
+            continue
+        sku = _normalize_cell(match.group(1))
+        product = _normalize_cell(match.group(2))
+        if not product:
+            continue
+
+        compatible = _extract_field(body, "Compatible Device", "Compatible Devices")
+        if compatible:
+            compatible = compatible.rstrip(" :")
+        features = _collect_section(body, "Features", ["Details", "Selling Points", "SKU"])
+        if not features:
+            features = _collect_leading_bullets(
+                body,
+                after_labels=["Compatible Device", "Compatible Devices"],
+                stops=["Details", "Selling Points", "SKU"],
+            )
+        selling_points = _collect_section(body, "Selling Points", ["SKU"])
+        material = _extract_field(body, "Material")
+        function = _extract_field(body, "Function")
+        target_users = _extract_field(body, "Target Users")
+        category = product
+
+        name_parts = []
+        if compatible:
+            name_parts.append(compatible.replace("(latest models)", "").strip())
+        name_parts.append(product)
+        if sku and not re.search(r"^<[^>]+>$", sku):
+            name_parts.append(f"({sku})")
+        name = " ".join(part for part in name_parts if part).strip()
+
+        description_parts = []
+        if features:
+            description_parts.append(" ".join(features[:3]))
+        details = [item for item in [material, function] if item]
+        if details:
+            description_parts.append("; ".join(details))
+        description = " ".join(description_parts).strip() or f"Imported SKU for {product}"
+
+        sku_is_placeholder = bool(sku and re.search(r"^<[^>]+>$", sku))
+        key = (sku if sku and not sku_is_placeholder else f"{index}:{name}").lower()
+        if key in seen:
+            continue
+        seen.add(key)
+
+        candidate = {
+            "name": name,
+            "category": category,
+            "description": description[:600],
+            "price_label": None,
+            "target_buyer": target_users,
+            "key_benefits": selling_points or features[:6],
+            "common_objections": [],
+            "cta_url": None,
+            "cta_label": None,
+            "availability_status": "AVAILABLE",
+            "forbidden_claims": [],
+            "priority": 50,
+            "metadata": {
+                "sku": sku,
+                "product": product,
+                "compatible_device": compatible,
+                "import_source": "text_sku_block",
+                "import_filename": filename,
+            },
+        }
+        if candidate["name"] and candidate["description"] and _candidate_is_meaningful(candidate, filename, filename):
+            candidates.append(candidate)
+    return candidates[:50]
+
+
+def _chunk_catalog_text(text: str, max_chars: int = 7000, overlap: int = 600) -> List[str]:
+    clean = _normalize_extracted_text(text)
+    if not clean:
+        return []
+    chunks: List[str] = []
+    start = 0
+    while start < len(clean) and len(chunks) < 8:
+        end = min(len(clean), start + max_chars)
+        if end < len(clean):
+            marker = clean.rfind("\nSKU ", start, end)
+            if marker > start + max_chars // 2:
+                end = marker
+        chunks.append(clean[start:end].strip())
+        if end >= len(clean):
+            break
+        start = max(0, end - overlap)
+    return [chunk for chunk in chunks if chunk]
+
+
+def _normalize_llm_candidates(candidates: Any, filename: str, source: str) -> List[Dict[str, Any]]:
+    if not isinstance(candidates, list):
+        return []
+    normalized = []
+    for candidate in candidates[:12]:
+        if not isinstance(candidate, dict):
+            continue
+        normalized.append({
+            "name": _normalize_cell(candidate.get("name")),
+            "category": _normalize_cell(candidate.get("category")),
+            "description": _normalize_cell(candidate.get("description")),
+            "price_label": _normalize_cell(candidate.get("price_label")),
+            "target_buyer": _normalize_cell(candidate.get("target_buyer")),
+            "key_benefits": _split_multi_value(",".join(candidate.get("key_benefits", []) if isinstance(candidate.get("key_benefits"), list) else [])),
+            "common_objections": _split_multi_value(",".join(candidate.get("common_objections", []) if isinstance(candidate.get("common_objections"), list) else [])),
+            "cta_url": _normalize_cell(candidate.get("cta_url")),
+            "cta_label": _normalize_cell(candidate.get("cta_label")),
+            "availability_status": _normalize_cell(candidate.get("availability_status")) or "AVAILABLE",
+            "forbidden_claims": _split_multi_value(",".join(candidate.get("forbidden_claims", []) if isinstance(candidate.get("forbidden_claims"), list) else [])),
+            "priority": candidate.get("priority"),
+            "metadata": {
+                "import_source": source,
+                "import_filename": filename,
+            },
+        })
+    return [
+        item for item in normalized
+        if item.get("name") and item.get("description") and _candidate_is_meaningful(item, filename, filename)
+    ]
+
+
 def infer_catalog_candidates_from_text(
     filename: str,
     title: str,
     extracted_text: str,
 ) -> List[Dict[str, Any]]:
-    text_block = (extracted_text or "").strip()
+    text_block = _normalize_extracted_text(extracted_text)
     if not text_block:
         return []
 
+    sku_candidates = _candidates_from_sku_blocks(filename, _split_sku_blocks(text_block))
+    if sku_candidates:
+        return sku_candidates
+
     llm_client = LLMClient()
-    sample = text_block[:6000]
 
     try:
         if llm_client.client:
-            prompt = f"""
-You extract structured product catalog items from OCR or document text.
-Return strict JSON only in this shape:
-{{
+            aggregated: List[Dict[str, Any]] = []
+            seen: set[str] = set()
+            for index, sample in enumerate(_chunk_catalog_text(text_block)):
+                if len(aggregated) >= 50:
+                    break
+                prompt = f"""
+	You extract structured product catalog items from OCR or document text.
+	Return strict JSON only in this shape:
+	{{
   "candidates": [
     {{
       "name": "string",
@@ -243,56 +539,37 @@ Return strict JSON only in this shape:
       "priority": 50
     }}
   ]
-}}
+	}}
 
-Rules:
-- Return at most 3 candidates.
-- If there is only one product, return one candidate.
-- Use factual product wording from the text.
-- Put safety/contraindication or unsuitable-user statements into forbidden_claims.
-- Do not invent pricing or URLs.
-- description must be concise and commercially usable.
+	Rules:
+	- Return every distinct product/SKU visible in this source text chunk, up to 12 candidates for this chunk.
+	- If the document contains SKU-style records, treat each SKU record as its own candidate.
+	- Use factual product wording from the text.
+	- Put safety/contraindication or unsuitable-user statements into forbidden_claims.
+	- Do not invent pricing or URLs.
+	- description must be concise and commercially usable.
 
-Filename: {filename}
-Suggested title: {title}
-Source text:
-{sample}
-"""
-            completion = llm_client.client.chat.completions.create(
-                model=llm_client.model,
-                temperature=0.1,
-                response_format={"type": "json_object"},
-                messages=[{"role": "user", "content": prompt}],
-            )
-            raw_content = (completion.choices[0].message.content or "").strip()
-            parsed = json.loads(raw_content)
-            candidates = parsed.get("candidates")
-            if isinstance(candidates, list):
-                normalized = []
-                for candidate in candidates[:3]:
-                    if not isinstance(candidate, dict):
-                        continue
-                    normalized.append({
-                        "name": _normalize_cell(candidate.get("name")),
-                        "category": _normalize_cell(candidate.get("category")),
-                        "description": _normalize_cell(candidate.get("description")),
-                        "price_label": _normalize_cell(candidate.get("price_label")),
-                        "target_buyer": _normalize_cell(candidate.get("target_buyer")),
-                        "key_benefits": _split_multi_value(",".join(candidate.get("key_benefits", []) if isinstance(candidate.get("key_benefits"), list) else [])),
-                        "common_objections": _split_multi_value(",".join(candidate.get("common_objections", []) if isinstance(candidate.get("common_objections"), list) else [])),
-                        "cta_url": _normalize_cell(candidate.get("cta_url")),
-                        "cta_label": _normalize_cell(candidate.get("cta_label")),
-                        "availability_status": _normalize_cell(candidate.get("availability_status")) or "AVAILABLE",
-                        "forbidden_claims": _split_multi_value(",".join(candidate.get("forbidden_claims", []) if isinstance(candidate.get("forbidden_claims"), list) else [])),
-                        "priority": candidate.get("priority"),
-                        "metadata": {
-                            "import_source": "ocr_llm",
-                            "import_filename": filename,
-                        },
-                    })
-                valid = [item for item in normalized if item.get("name") and item.get("description")]
-                if valid:
-                    return valid
+	Filename: {filename}
+	Suggested title: {title}
+	Chunk: {index + 1}
+	Source text:
+	{sample}
+	"""
+                completion = llm_client.client.chat.completions.create(
+                    model=llm_client.model,
+                    temperature=0.1,
+                    response_format={"type": "json_object"},
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                raw_content = (completion.choices[0].message.content or "").strip()
+                parsed = json.loads(raw_content)
+                for candidate in _normalize_llm_candidates(parsed.get("candidates"), filename, "ocr_llm"):
+                    key = str(candidate.get("name") or "").strip().lower()
+                    if key and key not in seen:
+                        seen.add(key)
+                        aggregated.append(candidate)
+            if aggregated:
+                return aggregated[:50]
     except Exception:
         pass
 
@@ -351,7 +628,7 @@ Source text:
         },
     }
 
-    if candidate["name"] and candidate["description"]:
+    if candidate["name"] and candidate["description"] and _candidate_is_meaningful(candidate, filename, title):
         return [candidate]
     return []
 
@@ -544,7 +821,10 @@ async def import_catalog_document(
                 doc_meta=doc_meta,
             )
             preview_text = extracted[:500]
-            candidates = infer_catalog_candidates_from_text(filename, title, extracted)
+            sku_blocks = _split_sku_blocks(extracted)
+            candidates = _candidates_from_sku_blocks(filename, sku_blocks) if sku_blocks else []
+            if not candidates:
+                candidates = infer_catalog_candidates_from_text(filename, title, extracted)
     except HTTPException:
         raise
     except Exception as exc:
@@ -566,6 +846,25 @@ class CatalogSearchRequest(BaseModel):
     limit: int = 4
 
 
+class CatalogRerankCandidate(BaseModel):
+    id: str
+    name: str
+    category: Optional[str] = None
+    description: str
+    target_buyer: Optional[str] = None
+    price_label: Optional[str] = None
+    key_benefits: Optional[List[str]] = []
+    common_objections: Optional[List[str]] = []
+    metadata: Optional[Dict[str, Any]] = {}
+
+
+class CatalogRerankRequest(BaseModel):
+    account_id: str
+    query: str
+    limit: int = 3
+    candidates: List[CatalogRerankCandidate]
+
+
 @router.post("/catalog/search")
 def search_catalog_knowledge(
     payload: CatalogSearchRequest,
@@ -583,8 +882,8 @@ def search_catalog_knowledge(
             db.query(Document.id)
             .join(KnowledgeBase, Document.knowledge_base_id == KnowledgeBase.id)
             .filter(KnowledgeBase.tenant_id == payload.account_id)
-            .filter(Document.meta["catalog_scope"].astext == "product_catalog")
-            .filter(Document.meta["brand_id"].astext == payload.brand_id)
+            .filter(Document.meta.op("->>")("catalog_scope") == "product_catalog")
+            .filter(Document.meta.op("->>")("brand_id") == payload.brand_id)
             .all()
         )
     ]
@@ -596,6 +895,7 @@ def search_catalog_knowledge(
         query=query,
         tenant_id=payload.account_id,
         top_k=max(1, min(int(payload.limit or 4), 6)),
+        threshold=0.3,
         role="ADMIN",
         allowed_document_ids=document_ids,
     )
@@ -612,6 +912,86 @@ def search_catalog_knowledge(
         if item.get("content")
     ]
     return {"items": items}
+
+
+@router.post("/catalog/rerank")
+def rerank_catalog_items(
+    payload: CatalogRerankRequest,
+    request: Request,
+):
+    require_internal_catalog_access(request, payload.account_id)
+    query = (payload.query or "").strip()
+    candidates = payload.candidates or []
+    limit = max(1, min(int(payload.limit or 3), 3))
+
+    if not query or not candidates:
+        return {"ranked_ids": []}
+
+    llm_client = LLMClient()
+    if not llm_client.client:
+        return {"ranked_ids": [candidate.id for candidate in candidates[:limit]]}
+
+    serialized_candidates = []
+    for candidate in candidates[:80]:
+        serialized_candidates.append({
+            "id": candidate.id,
+            "name": candidate.name,
+            "category": candidate.category,
+            "description": candidate.description,
+            "target_buyer": candidate.target_buyer,
+            "price_label": candidate.price_label,
+            "key_benefits": (candidate.key_benefits or [])[:6],
+            "common_objections": (candidate.common_objections or [])[:4],
+            "metadata": candidate.metadata or {},
+        })
+
+    prompt = f"""
+You are reranking catalog items for a buyer inquiry.
+Return strict JSON only:
+{{
+  "ranked_ids": ["candidate-id"]
+}}
+
+Rules:
+- Rank only from the provided candidate ids.
+- Prioritize the item(s) that best match the user's actual need, constraints, compatibility, symptoms, use case, target user, or desired outcome.
+- Use the structured fields and metadata. Do not rely on one industry or category list.
+- Prefer specific matches over generic ones.
+- If multiple items are relevant, return the best ones first.
+- Return at most {limit} ids.
+- If none are relevant, return an empty list.
+
+User query:
+{query}
+
+Candidates:
+{json.dumps(serialized_candidates, ensure_ascii=False)}
+"""
+
+    try:
+        completion = llm_client.client.chat.completions.create(
+            model=llm_client.model,
+            temperature=0.1,
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw_content = (completion.choices[0].message.content or "").strip()
+        parsed = json.loads(raw_content)
+        ranked_ids = parsed.get("ranked_ids")
+        if isinstance(ranked_ids, list):
+            allowed_ids = {candidate["id"] for candidate in serialized_candidates}
+            clean_ids: List[str] = []
+            for candidate_id in ranked_ids:
+                candidate_id = str(candidate_id).strip()
+                if candidate_id and candidate_id in allowed_ids and candidate_id not in clean_ids:
+                    clean_ids.append(candidate_id)
+                if len(clean_ids) >= limit:
+                    break
+            return {"ranked_ids": clean_ids}
+    except Exception:
+        pass
+
+    return {"ranked_ids": [candidate["id"] for candidate in serialized_candidates[:limit]]}
 
 
 @router.post("/drafts/generate")

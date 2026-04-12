@@ -61,7 +61,9 @@ class DraftGenerationService:
         product_context = owner_settings.get("product_context") or {}
         knowledge_context = owner_settings.get("knowledge_context") or []
         product_context_text = "N/A"
+        has_product_context = False
         if isinstance(product_context, dict) and product_context.get("name"):
+            has_product_context = True
             benefits = product_context.get("key_benefits") or []
             objections = product_context.get("common_objections") or []
             product_context_text = (
@@ -75,6 +77,8 @@ class DraftGenerationService:
                 f"CTA URL: {product_context.get('cta_url') or 'N/A'}"
             )
         knowledge_context_text = "N/A"
+        has_knowledge_context = False
+        catalog_suggestion_count = 0
         if isinstance(knowledge_context, list) and knowledge_context:
             lines = []
             for item in knowledge_context[:3]:
@@ -86,6 +90,22 @@ class DraftGenerationService:
                     lines.append(f"{title}: {content[:240]}")
             if lines:
                 knowledge_context_text = "\n".join(lines)
+                has_knowledge_context = True
+                catalog_suggestion_count = min(len(lines), 3)
+
+        catalog_guidance = (
+            "No catalog item or imported knowledge matched this comment. Answer generally, acknowledge the user's broad interest, "
+            "and ask one concise clarifying question about their main goal or symptom. Do not name or imply any specific product."
+            if not has_product_context and not has_knowledge_context
+            else (
+                f"Use exactly {catalog_suggestion_count} imported catalog suggestion(s) if they match the user's need. "
+                f"If there is 1 suggestion, mention 1; if there are 2, mention 2; if there are 3, mention all 3; if there are more than 3, mention only the top 3. "
+                "Extract product names from the imported content and do not mention filenames or document titles. "
+                "Present them as possible options, not medical guarantees, then ask one concise clarifying question about other symptoms or goals."
+                if has_knowledge_context
+                else "Use the matched product as supporting context. If the user's need is still broad, ask one concise clarifying question instead of forcing a product recommendation."
+            )
+        )
 
         cta_map = {
             "STORE": "the brand's store",
@@ -107,6 +127,7 @@ class DraftGenerationService:
         Original Comment: {comment_text or "N/A"}
         Brand Name: {brand_name}
         Brand Domain: {brand_domain or "N/A"}
+        Catalog Suggestion Count: {catalog_suggestion_count}
         Matched Product / Offer: {product_context_text}
         Imported Product Knowledge:
         {knowledge_context_text}
@@ -127,8 +148,9 @@ class DraftGenerationService:
         8. NO absolute guarantees ("best", "cheapest", "guaranteed").
         9. If a matched product or imported knowledge is provided, use it as context but do not overclaim or force a hard sell.
         10. Never repeat medical, guaranteed, or unsafe claims just because they appear in imported material.
-        11. Keep it under 45 words unless Mandarin requires slightly more natural phrasing.
+        11. Keep it under 45 words unless multiple catalog suggestions are needed; then keep it under 75 words.
         12. Output must be only the reply text, with no quotation marks or explanation.
+        13. Catalog fallback: {catalog_guidance}
         
         Draft:
         """

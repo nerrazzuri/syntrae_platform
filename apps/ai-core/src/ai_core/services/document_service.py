@@ -93,11 +93,8 @@ class DocumentService:
         except Exception:
             extracted = ""
 
-        if not self._looks_like_garbage_text(extracted):
-            return extracted
-
         if not self.openai_client:
-            return ""
+            return "" if self._looks_like_garbage_text(extracted) else extracted
 
         try:
             data_url = f"data:{mime_type or 'image/jpeg'};base64,{base64.b64encode(data).decode('ascii')}"
@@ -121,9 +118,17 @@ class DocumentService:
                     }
                 ],
             )
-            return self._sanitize_text(response.choices[0].message.content or "")
+            vision_text = self._sanitize_text(response.choices[0].message.content or "")
+            if vision_text and not self._looks_like_garbage_text(vision_text):
+                return vision_text
         except Exception:
-            return ""
+            pass
+
+        return "" if self._looks_like_garbage_text(extracted) else extracted
+
+    @staticmethod
+    def _catalog_redaction_allows_address(doc_meta: Dict[str, Any] | None = None) -> bool:
+        return bool(isinstance(doc_meta, dict) and doc_meta.get("catalog_scope") == "product_catalog")
 
     # ------------------------------
     # Normalized connector ingestion
@@ -612,7 +617,9 @@ class DocumentService:
             try:
                 from ai_core.services.redactor import Redactor
 
-                content = Redactor().sanitize(content)
+                content = Redactor(
+                    redact_address=not self._catalog_redaction_allows_address(doc_meta)
+                ).sanitize(content)
             except Exception:
                 pass
             # Optional encryption at rest
@@ -641,16 +648,20 @@ class DocumentService:
             try:
                 if isinstance(doc_meta, dict) and doc_meta:
                     base_meta = getattr(doc, "meta", {}) or {}
-                    # Normalize keys
-                    if "access" in doc_meta and isinstance(doc_meta["access"], str):
-                        base_meta["access"] = doc_meta["access"]
-                    if "owner_user_id" in doc_meta and doc_meta["owner_user_id"]:
-                        base_meta["owner_user_id"] = str(doc_meta["owner_user_id"])
-                    if "allowed_user_ids" in doc_meta and isinstance(
-                        doc_meta["allowed_user_ids"], list
+                    # Preserve all supplied document metadata so downstream
+                    # catalog search and retrieval can scope documents correctly.
+                    for meta_key, meta_val in doc_meta.items():
+                        if meta_val is None:
+                            continue
+                        base_meta[meta_key] = meta_val
+                    # Normalize RBAC-related keys.
+                    if "owner_user_id" in base_meta and base_meta["owner_user_id"]:
+                        base_meta["owner_user_id"] = str(base_meta["owner_user_id"])
+                    if "allowed_user_ids" in base_meta and isinstance(
+                        base_meta["allowed_user_ids"], list
                     ):
                         base_meta["allowed_user_ids"] = [
-                            str(x) for x in doc_meta["allowed_user_ids"]
+                            str(x) for x in base_meta["allowed_user_ids"]
                         ]
                     setattr(doc, "meta", base_meta)
             except Exception:
@@ -921,35 +932,38 @@ class DocumentService:
                     if text_variants
                     else data.decode("utf-8", errors="ignore")
                 )
-                for header_depth in [None, [0], [0, 1], [0, 1, 2]]:
+                best_df: pd.DataFrame | None = None
+                best_score = float("-inf")
+                for header_depth in [0, [0, 1], [0, 1, 2]]:
                     try:
-                        df = (
-                            pd.read_csv(pd.io.common.StringIO(raw), header=header_depth)
-                            if header_depth is not None
-                            else pd.read_csv(pd.io.common.StringIO(raw))
-                        )
-                        if df is not None and df.shape[0] > 0:
-                            dfs["Sheet1"] = df
-                            break
+                        df_try = pd.read_csv(pd.io.common.StringIO(raw), header=header_depth)
+                        score = DocumentService._score_tabular_header(df_try)
+                        if score > best_score:
+                            best_df = df_try
+                            best_score = score
                     except Exception:
                         continue
+                if best_df is not None and best_df.shape[0] > 0:
+                    dfs["Sheet1"] = best_df
                 if not dfs:
                     # final fallback
                     dfs["Sheet1"] = pd.read_csv(pd.io.common.StringIO(raw), header=0)
             elif name.endswith(".xlsx"):
                 buf = io.BytesIO(data)
-                # Try multiple header depths per sheet
+                # Try multiple header depths per sheet and choose the best candidate.
                 xls = pd.ExcelFile(buf, engine="openpyxl")
                 for sheet in xls.sheet_names:
                     df: pd.DataFrame | None = None
-                    for header_depth in [[0, 1, 2], [0, 1], [0]]:
+                    best_score = float("-inf")
+                    for header_depth in [0, [0, 1], [0, 1, 2]]:
                         try:
                             df_try = pd.read_excel(
                                 xls, sheet_name=sheet, header=header_depth
                             )
-                            if df_try is not None and df_try.shape[0] > 0:
+                            score = DocumentService._score_tabular_header(df_try)
+                            if score > best_score:
                                 df = df_try
-                                break
+                                best_score = score
                         except Exception:
                             continue
                     if df is None:
@@ -969,6 +983,61 @@ class DocumentService:
                 f"Failed to load '{filename}' into pandas: {e}"
             )
             raise
+
+    @staticmethod
+    def _score_tabular_header(df: pd.DataFrame) -> float:
+        """Prefer real column headers over accidentally consuming data rows as headers."""
+        if df is None or df.shape[0] <= 0:
+            return float("-inf")
+
+        normalized = DocumentService.normalize_headers(df)
+        columns = [str(col).strip() for col in normalized.columns]
+        if not columns:
+            return float("-inf")
+
+        known_terms = (
+            "sku",
+            "title",
+            "name",
+            "product",
+            "description",
+            "feature",
+            "benefit",
+            "price",
+            "cta",
+            "target",
+            "audience",
+            "use case",
+            "hook",
+            "shade",
+            "color",
+        )
+        known_hits = sum(1 for col in columns if any(term in col.lower() for term in known_terms))
+        empty_or_auto = sum(
+            1
+            for col in columns
+            if not col or col.lower().startswith("unnamed") or col.lower() == "nan"
+        )
+        multi_level_parts = 0
+        data_like_header_parts = 0
+        if isinstance(df.columns, pd.MultiIndex):
+            for col in df.columns.values:
+                parts = [str(part).strip() for part in col if str(part).strip() and str(part) != "nan"]
+                multi_level_parts += max(0, len(parts) - 1)
+                data_like_header_parts += sum(
+                    1
+                    for part in parts[1:]
+                    if re.search(r"[\u4e00-\u9fff]", part) or re.search(r"\b[A-Z]{2,}\d{2,}\b", part)
+                )
+
+        return (
+            (len(columns) * 3)
+            + (known_hits * 6)
+            + min(int(df.shape[0]), 50)
+            - (empty_or_auto * 8)
+            - (multi_level_parts * 4)
+            - (data_like_header_parts * 8)
+        )
 
     @staticmethod
     def normalize_headers(df: pd.DataFrame) -> pd.DataFrame:
@@ -1196,7 +1265,9 @@ class DocumentService:
             try:
                 from ai_core.services.redactor import Redactor
 
-                red = Redactor()
+                red = Redactor(
+                    redact_address=not self._catalog_redaction_allows_address(doc_meta)
+                )
                 texts = [red.sanitize(t) for (t, _m) in docs]
             except Exception:
                 texts = [t for (t, _m) in docs]
@@ -1210,6 +1281,22 @@ class DocumentService:
                 import uuid as _uuid
 
                 chunk_id = _uuid.uuid4()
+                try:
+                    dmeta = getattr(parent, "meta", {}) or {}
+                    if isinstance(dmeta, dict):
+                        for meta_key in (
+                            "brand_id",
+                            "workspace_id",
+                            "catalog_scope",
+                            "source_type",
+                            "original_filename",
+                            "mime_type",
+                        ):
+                            meta_val = dmeta.get(meta_key)
+                            if meta_val and meta_key not in m:
+                                m[meta_key] = meta_val
+                except Exception:
+                    pass
                 # Encrypt chunk content; store preview only in plaintext
                 try:
                     enc = crypto_service.encrypt(tenant_id, t.encode("utf-8"))
@@ -1236,26 +1323,13 @@ class DocumentService:
                 total_chunks += 1
                 # Prepare optional vector payload
                 try:
-                    dmeta = getattr(doc, "meta", {}) or {}
-                    if isinstance(dmeta, dict):
-                        for meta_key in (
-                            "brand_id",
-                            "workspace_id",
-                            "catalog_scope",
-                            "source_type",
-                            "original_filename",
-                            "mime_type",
-                        ):
-                            meta_val = dmeta.get(meta_key)
-                            if meta_val and meta_key not in m:
-                                m[meta_key] = meta_val
                     qdrant_payload.append(
                         {
                             "id": str(chunk_id),
                             "embedding": emb,
                             "document_id": str(parent.id),
                             "document_title": parent.title,
-                            "content": t[:160],
+                            "content": t[:600],
                             "chunk_index": idx,
                             "chapter_num": None,
                             "chapter_title": None,

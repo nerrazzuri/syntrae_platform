@@ -6,8 +6,9 @@ import hashlib
 
 
 class Redactor:
-    def __init__(self, mode: str | None = None) -> None:
+    def __init__(self, mode: str | None = None, redact_address: bool | None = None) -> None:
         self.mode = (mode or os.getenv("PII_REDACTION_MODE", "redact")).lower()
+        self.redact_address = redact_address
         self.patterns = {
             "EMAIL": re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),
             "PHONE": re.compile(
@@ -38,11 +39,12 @@ class Redactor:
 
         out = text
         for kind, pat in self.patterns.items():
-            if kind == "ADDRESS" and os.getenv("PII_REDACT_ADDRESS", "1") not in (
-                "1",
-                "true",
-                "yes",
-            ):
-                continue
+            if kind == "ADDRESS":
+                if self.redact_address is None:
+                    enabled = os.getenv("PII_REDACT_ADDRESS", "1") in ("1", "true", "yes")
+                else:
+                    enabled = bool(self.redact_address)
+                if not enabled:
+                    continue
             out = pat.sub(repl(kind), out)
         return out

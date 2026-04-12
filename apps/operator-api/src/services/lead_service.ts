@@ -331,6 +331,9 @@ export class LeadService {
             knowledgeQuery,
             3
         );
+        const catalogSuggestions = Array.isArray(knowledgeContext)
+            ? knowledgeContext.filter((item: any) => item?.content).slice(0, 3)
+            : [];
         // @ts-ignore
         const response = await fetch(`${aiCoreUrl}/v1/internal/drafts/generate`, {
             method: 'POST',
@@ -371,7 +374,7 @@ export class LeadService {
                     match_score: lead.catalog_match_score,
                     match_reasons: lead.catalog_match_reasons,
                 } : null,
-                knowledge_context: knowledgeContext,
+                knowledge_context: catalogSuggestions,
             })
         });
 
@@ -417,7 +420,7 @@ export class LeadService {
                         cta_url: lead.matched_catalog_item.cta_url,
                         cta_label: lead.matched_catalog_item.cta_label,
                     } : null,
-                    imported_knowledge: knowledgeContext,
+                    imported_knowledge: catalogSuggestions,
                 }
             }
         });
