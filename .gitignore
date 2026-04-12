@@ -42,3 +42,8 @@ browser_profiles/
 .DS_Store
 .idea/
 .vscode/
+
+# Local agent/tooling artifacts
+.codex/
+.docker/
+DESIGN.md
