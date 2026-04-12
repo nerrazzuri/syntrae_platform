@@ -84,12 +84,54 @@ def _split_multi_value(value: Optional[str]) -> List[str]:
     return items[:20]
 
 
+def _normalize_string_list(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        items: List[str] = []
+        for item in value:
+            clean = _normalize_cell(item)
+            if clean:
+                items.append(clean)
+        return items[:20]
+    return _split_multi_value(_normalize_cell(value))
+
+
 def _is_image_filename(value: Optional[str]) -> bool:
     return bool(value and re.search(r"\.(png|jpe?g|bmp|tiff?|webp)$", value.strip(), re.IGNORECASE))
 
 
 def _has_cjk(value: str) -> bool:
     return bool(re.search(r"[\u3400-\u9fff]", value or ""))
+
+
+def _extract_non_english_aliases(text: str, max_items: int = 16) -> List[str]:
+    aliases: List[str] = []
+    seen: set[str] = set()
+    normalized = _normalize_extracted_text(text)
+    if not _has_cjk(normalized):
+        return []
+
+    for line in normalized.splitlines():
+        clean = line.strip(" -*•\t")
+        if not clean or not _has_cjk(clean):
+            continue
+
+        pieces = re.split(r"[，,。；;：:\|\(\)（）/]+", clean)
+        for piece in pieces:
+            phrase = piece.strip(" -*•\t")
+            if not phrase or not _has_cjk(phrase):
+                continue
+            if len(phrase) < 2 or len(phrase) > 24:
+                continue
+            key = phrase.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            aliases.append(phrase)
+            if len(aliases) >= max_items:
+                return aliases
+    return aliases
 
 
 def _looks_like_ocr_noise(value: Optional[str]) -> bool:
@@ -214,6 +256,8 @@ def infer_catalog_candidates(filename: str, data: bytes, svc: DocumentService) -
                     "sku": _pick_first(row, "sku", "sku id", "sku_id"),
                     "hook": _pick_first(row, "hook"),
                     "use_case": _pick_first(row, "use case", "occasion", "scenario"),
+                    "aliases": _normalize_string_list(_pick_first(row, "aliases", "alias", "keywords", "search_terms")),
+                    "symptoms": _normalize_string_list(_pick_first(row, "symptoms", "needs", "pain_points")),
                 },
             }
 
@@ -297,7 +341,7 @@ def _split_sku_blocks(text: str) -> List[Dict[str, str]]:
     blocks: List[Dict[str, str]] = []
     current_header: str | None = None
     current_lines: List[str] = []
-    sku_re = re.compile(r"^SKU\s+([^:\n]+):\s*(.+)$", re.IGNORECASE)
+    sku_re = re.compile(r"^SKU\s+\S+\s*(?::|\-|–|—)\s*\S+.*$", re.IGNORECASE)
 
     for line in lines:
         match = sku_re.match(line)
@@ -370,7 +414,7 @@ def _collect_leading_bullets(block_text: str, after_labels: List[str], stops: Li
 def _candidates_from_sku_blocks(filename: str, blocks: List[Dict[str, str]]) -> List[Dict[str, Any]]:
     candidates: List[Dict[str, Any]] = []
     seen: set[str] = set()
-    sku_re = re.compile(r"^SKU\s+([^:\n]+):\s*(.+)$", re.IGNORECASE)
+    sku_re = re.compile(r"^SKU\s+([^\s:\-–—]+)\s*(?::|\-|–|—)\s*(.+)$", re.IGNORECASE)
 
     for index, block in enumerate(blocks[:50], start=1):
         header = block.get("header") or ""
@@ -489,6 +533,9 @@ def _normalize_llm_candidates(candidates: Any, filename: str, source: str) -> Li
             "metadata": {
                 "import_source": source,
                 "import_filename": filename,
+                "aliases": _normalize_string_list(candidate.get("aliases")),
+                "use_cases": _normalize_string_list(candidate.get("use_cases")),
+                "symptoms": _normalize_string_list(candidate.get("symptoms")),
             },
         })
     return [
@@ -536,7 +583,10 @@ def infer_catalog_candidates_from_text(
       "cta_label": "string or null",
       "availability_status": "AVAILABLE",
       "forbidden_claims": ["string"],
-      "priority": 50
+      "priority": 50,
+      "aliases": ["original-language search phrases visible in the source, especially non-English terms"],
+      "use_cases": ["short user needs or scenarios visible or directly implied by the source"],
+      "symptoms": ["short symptom or problem phrases only when the source explicitly supports them"]
     }}
   ]
 	}}
@@ -545,6 +595,9 @@ def infer_catalog_candidates_from_text(
 	- Return every distinct product/SKU visible in this source text chunk, up to 12 candidates for this chunk.
 	- If the document contains SKU-style records, treat each SKU record as its own candidate.
 	- Use factual product wording from the text.
+	- Preserve important non-English source phrases as aliases instead of translating them away.
+	- For aliases, include original-language benefits, use cases, model names, symptoms, and search keywords that users may type.
+	- Do not invent medical symptoms or treatment claims. Only add symptoms if the source explicitly supports the meaning.
 	- Put safety/contraindication or unsuitable-user statements into forbidden_claims.
 	- Do not invent pricing or URLs.
 	- description must be concise and commercially usable.
@@ -625,6 +678,7 @@ def infer_catalog_candidates_from_text(
         "metadata": {
             "import_source": "ocr_heuristic",
             "import_filename": filename,
+            "aliases": _extract_non_english_aliases(text_block),
         },
     }
 
@@ -925,11 +979,11 @@ def rerank_catalog_items(
     limit = max(1, min(int(payload.limit or 3), 3))
 
     if not query or not candidates:
-        return {"ranked_ids": []}
+        return {"ranked_ids": [], "mode": "empty"}
 
     llm_client = LLMClient()
     if not llm_client.client:
-        return {"ranked_ids": [candidate.id for candidate in candidates[:limit]]}
+        return {"ranked_ids": [], "mode": "unavailable"}
 
     serialized_candidates = []
     for candidate in candidates[:80]:
@@ -987,11 +1041,11 @@ Candidates:
                     clean_ids.append(candidate_id)
                 if len(clean_ids) >= limit:
                     break
-            return {"ranked_ids": clean_ids}
+            return {"ranked_ids": clean_ids, "mode": "ai"}
     except Exception:
-        pass
+        return {"ranked_ids": [], "mode": "error"}
 
-    return {"ranked_ids": [candidate["id"] for candidate in serialized_candidates[:limit]]}
+    return {"ranked_ids": [], "mode": "error"}
 
 
 @router.post("/drafts/generate")

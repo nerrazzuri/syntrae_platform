@@ -71,6 +71,10 @@ function compactList(value: unknown): string[] {
     return list(value).slice(0, 6);
 }
 
+function metadataList(metadata: Record<string, unknown>, key: string): string[] {
+    return list(metadata[key]).slice(0, 12);
+}
+
 function buildItemContent(item: any): string {
     const parts = [
         text(item.name),
@@ -98,6 +102,9 @@ function itemSearchText(item: any): string {
         text(metadata.sku),
         text(metadata.hook),
         text(metadata.use_case),
+        ...metadataList(metadata, 'aliases'),
+        ...metadataList(metadata, 'use_cases'),
+        ...metadataList(metadata, 'symptoms'),
     ].filter(Boolean);
     return normalizeSearchText(parts.join(' '));
 }
@@ -113,10 +120,11 @@ function fieldSearchTexts(item: any): Record<string, string> {
             text(metadata.compatible_device),
             text(metadata.use_case),
             text(metadata.hook),
-            text(metadata.audience),
-            text(metadata.aliases),
-            text(metadata.constraints),
-            text(metadata.symptoms),
+            ...metadataList(metadata, 'audience'),
+            ...metadataList(metadata, 'aliases'),
+            ...metadataList(metadata, 'constraints'),
+            ...metadataList(metadata, 'symptoms'),
+            ...metadataList(metadata, 'use_cases'),
             text(metadata.service_area),
             text(metadata.material),
             text(metadata.variant),
@@ -192,6 +200,8 @@ function serializeRerankCandidate(item: any) {
 }
 
 function orderByRerankedIds(items: any[], rankedIds: string[], limit: number) {
+    if (rankedIds.length === 0) return [];
+
     const byId = new Map(items.map((item) => [String(item.id), item]));
     const ordered: any[] = [];
     const seen = new Set<string>();
@@ -458,7 +468,9 @@ export class CatalogImportService {
         }
 
         const fallbackLimited = heuristicRanked.slice(0, Math.max(1, Math.min(limit, 3))).map((entry) => entry.item);
-        const finalItems = (orderedItems.length > 0 ? orderedItems : fallbackLimited).slice(0, Math.max(1, Math.min(limit, 3)));
+        const finalItems = (orderedItems.length > 0 ? orderedItems : fallbackLimited)
+            .filter((item) => scoreCatalogItem(item, queryTerms) > 0.5)
+            .slice(0, Math.max(1, Math.min(limit, 3)));
 
         return finalItems.map((item) => ({
             id: item.id,
