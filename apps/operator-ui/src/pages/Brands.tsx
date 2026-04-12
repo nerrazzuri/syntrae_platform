@@ -189,11 +189,11 @@ export function BrandsPage() {
 
             {/* PILOT: Discovery Behavior Explanation */}
             <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h3 className="text-sm font-semibold text-blue-900 mb-2">How Video Discovery Works (Pilot)</h3>
+                <h3 className="text-sm font-semibold text-blue-900 mb-2">How Source Post Discovery Works (Pilot)</h3>
                 <p className="text-sm text-blue-800 leading-relaxed">
                     Discovery uses up to <strong>3 keywords per run</strong>, reviews up to <strong>60 XHS source posts total</strong>,
                     and captures up to <strong>10 comments per post</strong>. The system does not continuously scroll or attempt to find every
-                    video on the platform. This bounded behavior is intentional to ensure platform safety and predictable run scope during the pilot.
+                    post on the platform. This bounded behavior is intentional to ensure platform safety and predictable run scope during the pilot.
                 </p>
             </div>
 
@@ -262,6 +262,12 @@ export function BrandsPage() {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-3">
+                                <Link
+                                    to={`/brands/${brand.id}/catalog`}
+                                    className="inline-flex items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                                >
+                                    Product Catalog
+                                </Link>
                                 <Link
                                     to={`/brands/${brand.id}/policy`}
                                     className="inline-flex items-center justify-center rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"

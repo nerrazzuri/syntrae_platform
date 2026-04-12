@@ -2,6 +2,7 @@ import hashlib
 import json as json_lib
 import logging
 import math
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -67,6 +68,7 @@ class XiaohongshuPlatform:
         logger.info("Extracted %s posts from XHS search results", len(posts))
 
         final_events = []
+        source_posts = []
         processed_note_ids = set()
         for post in posts[:posts_limit]:
             note_id = post["note_id"]
@@ -115,13 +117,15 @@ class XiaohongshuPlatform:
                 "video_author_name": post_author,
                 "like_count": post["like_count"],
                 "reply_count": 0,
-                "hashtags": [],
+                "hashtags": post.get("hashtags") or [],
+                "search_keyword": keyword,
                 "page_url": post_url,
                 "page_timestamp": now,
                 "search_keyword": keyword,
                 "search_page": post.get("search_page", 1),
                 "search_rank": post.get("search_rank", 1),
             }
+            source_posts.append(base_event.copy())
 
             logger.info("Fetching real comments for note %s using XHS client...", note_id)
             real_comments = []
@@ -179,6 +183,7 @@ class XiaohongshuPlatform:
 
         return {
             "events": final_events,
+            "source_posts": source_posts,
             "source_posts_processed": len(processed_note_ids),
         }
 
@@ -254,8 +259,18 @@ class XiaohongshuPlatform:
         return {
             "note_id": self._extract_note_id(note_ref),
             "note_ref": note_ref,
-            "title": note_card.get("display_title", keyword),
-            "author": note_card.get("user", {}).get("nickname", "unknown"),
+            "title": self._normalize_text(
+                note_card.get("display_title")
+                or note_card.get("title")
+                or note_card.get("desc")
+                or keyword
+            ),
+            "hashtags": self._extract_hashtags(
+                note_card.get("display_title"),
+                note_card.get("desc"),
+                note_card.get("tag_list"),
+            ),
+            "author": self._normalize_text(note_card.get("user", {}).get("nickname")) or "unknown",
             "like_count": int(note_card.get("interact_info", {}).get("liked_count", 0)),
             "xsec_token": xsec_token,
             "xsec_source": xsec_source,
@@ -351,6 +366,40 @@ class XiaohongshuPlatform:
         if value is None:
             return ""
         return str(value).strip()
+
+    @staticmethod
+    def _extract_hashtags(*values):
+        tags = []
+
+        for value in values:
+            if not value:
+                continue
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        tags.append(XiaohongshuPlatform._normalize_text(
+                            item.get("name") or item.get("tag_name") or item.get("tagName") or item.get("title")
+                        ))
+                    else:
+                        tags.append(XiaohongshuPlatform._normalize_text(item))
+                continue
+
+            text = XiaohongshuPlatform._normalize_text(value)
+            tags.extend(re.findall(r"#([\w\u4e00-\u9fff-]+)", text))
+
+        normalized = []
+        seen = set()
+        for tag in tags:
+            clean = XiaohongshuPlatform._normalize_text(tag).lstrip("#")
+            if not clean:
+                continue
+            key = clean.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            normalized.append(clean)
+
+        return normalized[:12]
 
     @staticmethod
     def _normalize_comment_id(value):

@@ -704,6 +704,10 @@ class LeadOpportunity(Base):
     market_profile_version = Column(Integer, nullable=True)
     market_match_score = Column(postgresql.DOUBLE_PRECISION, nullable=True)
     market_match_reasons = Column(JSON, nullable=True)
+    matched_catalog_item_id = Column(String(36), nullable=True)
+    matched_catalog_item_name = Column(String(255), nullable=True)
+    catalog_match_score = Column(postgresql.DOUBLE_PRECISION, nullable=True)
+    catalog_match_reasons = Column(JSON, nullable=True)
 
     # Constraints
     # @@unique([platform, comment_id]) -> UniqueConstraint in SQLAlchemy

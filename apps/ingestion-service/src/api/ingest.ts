@@ -76,7 +76,7 @@ function extractPayloadFromEventMetadata(event: any): any {
 
 async function reserveLeadQuotaCapacity(workspaceId: string) {
     const operatorApiUrl = (process.env.OPERATOR_API_URL || 'http://operator-api:3001').replace(/\/$/, '');
-    const internalSecret = process.env.AI_ENGAGEMENT_INTERNAL_SECRET || process.env.AI_CORE_INTERNAL_SECRET || '';
+    const internalSecret = process.env.AI_CORE_INTERNAL_SECRET || process.env.AI_ENGAGEMENT_INTERNAL_SECRET || '';
     const response = await fetch(`${operatorApiUrl}/internal/billing/lead-quota/reserve`, {
         method: 'POST',
         headers: {
@@ -382,6 +382,11 @@ router.post('/events', async (req: Request, res: Response) => {
                 video_id: eventData.video.video_id,
                 comment_id: eventData.comment.comment_id,
                 content_text: eventData.comment.text,
+                source_post_caption: eventData.context.source_post?.caption || eventData.video.title || null,
+                source_post_hashtags: eventData.context.source_post?.hashtags || eventData.video.hashtags || [],
+                source_post_url: eventData.context.source_post?.url || eventData.video.video_url || eventData.page.url || null,
+                source_post_author_name: eventData.context.source_post?.author_name || eventData.video.author_name || null,
+                source_post_search_keyword: eventData.context.source_post?.search_keyword || eventData.context.search_keyword || null,
                 metadata: eventData as any,
                 status: initialStatus,
                 failure_reason: failureReason,
@@ -609,6 +614,214 @@ async function processAsyncIngest(eventId: string, rawData: any) {
     });
 }
 
+function jsonList(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map((item) => typeof item === 'string' ? item.trim() : '')
+        .filter(Boolean);
+}
+
+const GENERIC_CATALOG_TOKENS = new Set([
+    '茶',
+    '茶饮',
+    '养生',
+    '养身',
+    '生茶',
+    '养生茶',
+    '调理',
+    '介绍',
+    '推荐',
+    '产品',
+    '商品',
+    '配套',
+    '价格',
+    '多少钱',
+    '怎么喝',
+    '怎么用',
+    '私信',
+    '购买',
+    '想买',
+    '有什么',
+    '有没有',
+    '适合',
+    '身体',
+    '保健',
+    'herbal',
+    'tea',
+    'product',
+    'recommend',
+    'recommendation',
+    'price',
+    'buy',
+    'wellness',
+    'health',
+]);
+
+function isGenericCatalogToken(token: string): boolean {
+    const clean = token.toLowerCase().replace(/^#/, '').trim();
+    if (!clean) return true;
+    return GENERIC_CATALOG_TOKENS.has(clean);
+}
+
+function meaningfulCatalogTokens(value: string): string[] {
+    return tokenize(value).filter((token) => !isGenericCatalogToken(token));
+}
+
+function tokenize(value: string): string[] {
+    const normalized = value
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s#-]/gu, ' ')
+        .split(/\s+/)
+        .map((token) => token.replace(/^#/, '').trim())
+        .filter((token) => token.length >= 2);
+    const cjkTokens = Array.from(value.matchAll(/[\p{Script=Han}]{2,}/gu))
+        .flatMap((match) => {
+            const chars = Array.from(match[0]);
+            const grams = [...chars];
+            for (let size = 2; size <= 4; size += 1) {
+                for (let index = 0; index <= chars.length - size; index += 1) {
+                    grams.push(chars.slice(index, index + size).join(''));
+                }
+            }
+            return grams;
+        })
+        .filter((token) => token.length >= 2);
+    return [...new Set([...normalized, ...cjkTokens])];
+}
+
+async function findCatalogMatch(event: any, payload: any) {
+    if (!event.account_id || !event.brand_id) return null;
+
+    const items = await prisma.productCatalogItem.findMany({
+        where: {
+            workspace_id: event.account_id,
+            brand_id: event.brand_id,
+            status: 'ACTIVE',
+        },
+        orderBy: [
+            { priority: 'desc' },
+            { updated_at: 'desc' },
+        ],
+        take: 50,
+    });
+
+    if (!items.length) return null;
+
+    const postHashtags = [
+        ...jsonList(payload.video?.hashtags),
+        ...jsonList(payload.context?.source_post?.hashtags),
+    ];
+    const sourceText = [
+        event.content_text,
+        payload.video?.title,
+        payload.context?.source_post?.caption,
+        postHashtags.join(' '),
+    ].filter(Boolean).join(' ');
+    const sourceTokens = new Set(tokenize(sourceText));
+    const meaningfulSourceTokens = new Set([...sourceTokens].filter((token) => !isGenericCatalogToken(token)));
+    if (!meaningfulSourceTokens.size) return null;
+
+    let best: any = null;
+    for (const item of items) {
+        const productText = [
+            item.name,
+            item.category,
+            item.description,
+            item.target_buyer,
+            item.price_label,
+            ...jsonList(item.key_benefits),
+            ...jsonList(item.common_objections),
+        ].filter(Boolean).join(' ');
+        const productTokens = new Set(meaningfulCatalogTokens(productText));
+        const matches = [...productTokens].filter((token) => meaningfulSourceTokens.has(token));
+        const nameMatched = meaningfulCatalogTokens(item.name).some((token) => meaningfulSourceTokens.has(token));
+        const categoryMatched = item.category ? meaningfulCatalogTokens(item.category).some((token) => meaningfulSourceTokens.has(token)) : false;
+        const score = Math.min(1, (matches.length / Math.max(productTokens.size, 1)) + (nameMatched ? 0.35 : 0) + (categoryMatched ? 0.2 : 0) + Math.min(item.priority, 100) / 500);
+
+        if (!best || score > best.score) {
+            best = {
+                id: item.id,
+                name: item.name,
+                category: item.category,
+                cta_url: item.cta_url,
+                score: Number(score.toFixed(3)),
+                reasons: [
+                    ...(nameMatched ? ['product name matched source post or comment'] : []),
+                    ...(categoryMatched ? ['category matched source post or comment'] : []),
+                    ...(matches.length ? [`matched terms: ${matches.slice(0, 8).join(', ')}`] : []),
+                ],
+            };
+        }
+    }
+
+    return best && best.score >= 0.12 ? best : null;
+}
+
+async function searchImportedCatalogKnowledge(event: any, payload: any) {
+    if (!event.account_id || !event.brand_id) return null;
+
+    const query = [
+        event.content_text,
+        payload.video?.title,
+        payload.context?.source_post?.caption,
+        ...jsonList(payload.video?.hashtags),
+        ...jsonList(payload.context?.source_post?.hashtags),
+    ].filter(Boolean).join(' ').trim();
+
+    if (!query) return null;
+
+    const aiCoreUrl = process.env.AI_CORE_BASE_URL || 'http://ai-core:8000';
+    const secret = process.env.AI_CORE_INTERNAL_SECRET;
+    if (!secret) return null;
+
+    try {
+        const response = await fetch(`${aiCoreUrl}/v1/internal/catalog/search`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Internal-Secret': secret,
+                'X-Account-Id': event.account_id,
+            },
+            body: JSON.stringify({
+                account_id: event.account_id,
+                brand_id: event.brand_id,
+                query,
+                limit: 3,
+            }),
+        });
+
+        const payloadJson = await response.json().catch(() => ({}));
+        if (!response.ok || !Array.isArray(payloadJson?.items) || payloadJson.items.length === 0) {
+            return null;
+        }
+
+        const [topItem] = payloadJson.items;
+        const rawScore = Number(topItem?.score ?? 0);
+        const score = Number.isFinite(rawScore) ? Math.max(0, Math.min(1, rawScore)) : 0;
+        if (score < 0.15) return null;
+
+        const content = String(topItem?.content || '').trim();
+        const documentTitle = String(topItem?.document_title || 'Imported catalog knowledge').trim();
+        const importSource = String(topItem?.meta?.import_source || topItem?.meta?.source_type || 'imported_knowledge');
+
+        return {
+            id: null,
+            name: documentTitle,
+            category: null,
+            cta_url: null,
+            score: Number(score.toFixed(3)),
+            reasons: [
+                `matched imported ${importSource} knowledge`,
+                ...(content ? [`knowledge excerpt: ${content.slice(0, 160)}`] : []),
+            ],
+            source_type: 'IMPORTED_KNOWLEDGE',
+            source_document_id: topItem?.document_id || null,
+        };
+    } catch (error) {
+        console.warn('[Ingest] Imported catalog search failed:', error);
+        return null;
+    }
+}
 async function persistLeadOpportunity(event: any, payload: any, trace: any, confidence: number) {
     const intent = trace?.intent;
     if (!intent?.intent || !event.comment_id || !event.account_id || !event.brand_id) {
@@ -642,6 +855,24 @@ async function persistLeadOpportunity(event: any, payload: any, trace: any, conf
     });
 
     if (existingLead) {
+        if (!existingLead.matched_catalog_item_name) {
+            const catalogMatch = await findCatalogMatch(event, payload) || await searchImportedCatalogKnowledge(event, payload);
+            if (catalogMatch) {
+                return prisma.leadOpportunity.update({
+                    where: { id: existingLead.id },
+                    data: {
+                        matched_catalog_item_id: catalogMatch.id ?? null,
+                        matched_catalog_item_name: catalogMatch.name ?? null,
+                        catalog_match_score: catalogMatch.score ?? null,
+                        catalog_match_reasons: catalogMatch.reasons ?? null,
+                        preferences: {
+                            ...((existingLead.preferences && typeof existingLead.preferences === 'object' && !Array.isArray(existingLead.preferences)) ? existingLead.preferences : {}),
+                            catalog_match: catalogMatch,
+                        },
+                    } as any,
+                });
+            }
+        }
         return existingLead;
     }
 
@@ -650,6 +881,7 @@ async function persistLeadOpportunity(event: any, payload: any, trace: any, conf
     const leadConfidence = buyerStage === 'READY'
         ? Math.max(confidence || 0, 0.9)
         : Math.max(confidence || 0, 0.6);
+    const catalogMatch = await findCatalogMatch(event, payload) || await searchImportedCatalogKnowledge(event, payload);
 
     return prisma.leadOpportunity.create({
         data: {
@@ -667,10 +899,15 @@ async function persistLeadOpportunity(event: any, payload: any, trace: any, conf
             source_event_id: event.id,
             account_id: event.account_id,
             brand_id: event.brand_id,
+            matched_catalog_item_id: catalogMatch?.id ?? null,
+            matched_catalog_item_name: catalogMatch?.name ?? null,
+            catalog_match_score: catalogMatch?.score ?? null,
+            catalog_match_reasons: catalogMatch?.reasons ?? null,
             preferences: {
                 source: 'ingestion-service',
                 strength: intent.strength,
-                strategy: trace?.final_strategy || null
+                strategy: trace?.final_strategy || null,
+                catalog_match: catalogMatch
             }
         }
     });
@@ -704,6 +941,10 @@ async function triggerAutoSuggest(event: any, accountId: string, installId: stri
     }
 
     const eventPayload = Object.keys(payload || {}).length > 0 ? payload : extractPayloadFromEventMetadata(event);
+    const postHashtags = [
+        ...jsonList(eventPayload.video?.hashtags),
+        ...jsonList(eventPayload.context?.source_post?.hashtags),
+    ];
 
     // 1. Adapter
     const videoEvent: VideoEvent = {
@@ -712,8 +953,8 @@ async function triggerAutoSuggest(event: any, accountId: string, installId: stri
         creator_id: eventPayload.video?.author_id || 'unknown',
         creator_name: eventPayload.video?.author_name || 'unknown',
         video_title: eventPayload.video?.title || 'Untitled',
-        video_description: '',
-        video_tags: [],
+        video_description: eventPayload.context?.source_post?.caption || eventPayload.video?.title || '',
+        video_tags: postHashtags,
         timestamp: eventPayload.page?.timestamp || new Date().toISOString(),
         session_id: eventPayload.session?.session_id || 'unknown_session',
         install_id: installId,
@@ -984,8 +1225,11 @@ router.post('/suggestions', async (req: Request, res: Response) => {
             creator_id: rawMeta.video?.author_id || 'unknown',
             creator_name: rawMeta.video?.author_name || 'unknown',
             video_title: rawMeta.video?.title || 'Untitled Video',
-            video_description: '',
-            video_tags: [],
+            video_description: rawMeta.context?.source_post?.caption || rawMeta.video?.title || '',
+            video_tags: [
+                ...jsonList(rawMeta.video?.hashtags),
+                ...jsonList(rawMeta.context?.source_post?.hashtags),
+            ],
             timestamp: rawMeta.page?.timestamp || new Date().toISOString(),
             session_id: rawMeta.session?.session_id || 'unknown_session',
             install_id: installId,

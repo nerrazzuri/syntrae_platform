@@ -20,6 +20,7 @@ import { BrandsAnalytics } from './pages/analytics/BrandsAnalytics';
 import { UsageAnalytics } from './pages/analytics/UsageAnalytics';
 import { AutomationPolicySettings } from './pages/settings/AutomationPolicy';
 import { MarketProfiles } from './pages/settings/MarketProfiles';
+import { ProductCatalogPage } from './pages/settings/ProductCatalog';
 
 function App() {
     return (
@@ -39,6 +40,7 @@ function App() {
                     <Route path="brands" element={<BrandsPage />} />
                     <Route path="brands/:brandId/connections" element={<BrandConnectionsPage />} />
                     <Route path="brands/:brandId/policy" element={<AutomationPolicySettings />} />
+                    <Route path="brands/:brandId/catalog" element={<ProductCatalogPage />} />
                     <Route path="brands/:brandId/market-profiles" element={<MarketProfiles />} />
                     <Route path="billing" element={<BillingPage />} />
                     <Route path="onboarding" element={<OnboardingPage />} />

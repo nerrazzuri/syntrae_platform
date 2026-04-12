@@ -29,6 +29,22 @@ dotenv.config();
 
 const port = process.env.PORT || 3001;
 
+function parseAllowedOrigins() {
+    const configured = (process.env.CORS_ALLOWED_ORIGINS || '')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean);
+
+    return [
+        'https://app.syntraeai.com',
+        'https://admin.syntraeai.com',
+        'https://syntraeai.com',
+        'http://localhost:5173',
+        'http://localhost:3000',
+        ...configured,
+    ];
+}
+
 export function createApp() {
     const app = express();
 
@@ -43,13 +59,7 @@ export function createApp() {
 
     // CORS Configuration
     app.use(cors({
-        origin: [
-            'https://app.syntraeai.com',
-            'https://admin.syntraeai.com',
-            'https://syntraeai.com',
-            'http://localhost:5173', // Dev
-            'http://localhost:3000'
-        ],
+        origin: parseAllowedOrigins(),
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
     }));
@@ -57,7 +67,7 @@ export function createApp() {
     app.use(cookieParser());
     // Stripe signs the raw request body, so this route must be mounted before JSON parsing.
     app.post('/billing/webhooks/stripe', express.raw({ type: 'application/json' }), stripeWebhookHandler);
-    app.use(express.json());
+    app.use(express.json({ limit: '25mb' }));
     app.use(morgan('dev'));
 
     app.get('/health', (req, res) => {

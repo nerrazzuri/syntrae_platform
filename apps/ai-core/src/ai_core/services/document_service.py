@@ -11,6 +11,7 @@ import hashlib
 import random
 import io
 import csv
+import base64
 from docx import Document as DocxDocument
 from pptx import Presentation
 from openpyxl import load_workbook
@@ -59,6 +60,75 @@ class DocumentService:
         except Exception:
             self.client = None
             self.openai_client = None
+
+    @staticmethod
+    def _sanitize_text(value: str | None) -> str:
+        if not value:
+            return ""
+        return str(value).replace("\x00", "").strip()
+
+    @staticmethod
+    def _looks_like_garbage_text(value: str | None) -> bool:
+        text = (value or "").strip()
+        if not text:
+            return True
+        if "JFIF" in text or "Exif" in text:
+            return True
+        sample = text[:500]
+        control_count = sum(1 for ch in sample if ord(ch) < 32 and ch not in "\n\r\t")
+        weird_count = sum(1 for ch in sample if ord(ch) in (65533,) or (127 <= ord(ch) <= 159))
+        if sample and (control_count / len(sample) > 0.02 or weird_count / len(sample) > 0.05):
+            return True
+        alnum_count = sum(1 for ch in sample if ch.isalnum())
+        return len(sample) >= 40 and (alnum_count / len(sample) < 0.2)
+
+    def _extract_text_from_image(self, data: bytes, mime_type: str | None = None) -> str:
+        extracted = ""
+        try:
+            from PIL import Image
+            import pytesseract
+
+            img = Image.open(io.BytesIO(data))
+            extracted = self._sanitize_text(pytesseract.image_to_string(img))
+        except Exception:
+            extracted = ""
+
+        if not self.openai_client:
+            return "" if self._looks_like_garbage_text(extracted) else extracted
+
+        try:
+            data_url = f"data:{mime_type or 'image/jpeg'};base64,{base64.b64encode(data).decode('ascii')}"
+            response = self.openai_client.chat.completions.create(
+                model=os.getenv("VISION_MODEL", os.getenv("RAG_CHAT_MODEL", "gpt-4o-mini")),
+                temperature=0,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": (
+                                    "Extract readable product knowledge from this product image. "
+                                    "Return plain text only with sections if present: Product, Benefits, Ingredients, "
+                                    "Suitable Users, Unsuitable Users, Notes. Do not invent missing facts."
+                                ),
+                            },
+                            {"type": "image_url", "image_url": {"url": data_url}},
+                        ],
+                    }
+                ],
+            )
+            vision_text = self._sanitize_text(response.choices[0].message.content or "")
+            if vision_text and not self._looks_like_garbage_text(vision_text):
+                return vision_text
+        except Exception:
+            pass
+
+        return "" if self._looks_like_garbage_text(extracted) else extracted
+
+    @staticmethod
+    def _catalog_redaction_allows_address(doc_meta: Dict[str, Any] | None = None) -> bool:
+        return bool(isinstance(doc_meta, dict) and doc_meta.get("catalog_scope") == "product_catalog")
 
     # ------------------------------
     # Normalized connector ingestion
@@ -523,9 +593,13 @@ class DocumentService:
         progress_job_id: str | None = None,
         doc_meta: Dict[str, Any] | None = None,
     ) -> Tuple[str, int]:
-        # Wrap entire ingest in a single transaction for atomicity
-        trans = self.db.begin()
+        # SQLAlchemy sessions may already be in an auto-begun transaction after earlier reads.
+        # Reuse it instead of starting a nested root transaction.
+        owns_transaction = not self.db.in_transaction()
+        trans = self.db.begin() if owns_transaction else None
         try:
+            title = self._sanitize_text(title)
+            content = self._sanitize_text(content)
             # Validate tenant_id is a valid UUID
             import uuid
 
@@ -543,7 +617,9 @@ class DocumentService:
             try:
                 from ai_core.services.redactor import Redactor
 
-                content = Redactor().sanitize(content)
+                content = Redactor(
+                    redact_address=not self._catalog_redaction_allows_address(doc_meta)
+                ).sanitize(content)
             except Exception:
                 pass
             # Optional encryption at rest
@@ -572,16 +648,20 @@ class DocumentService:
             try:
                 if isinstance(doc_meta, dict) and doc_meta:
                     base_meta = getattr(doc, "meta", {}) or {}
-                    # Normalize keys
-                    if "access" in doc_meta and isinstance(doc_meta["access"], str):
-                        base_meta["access"] = doc_meta["access"]
-                    if "owner_user_id" in doc_meta and doc_meta["owner_user_id"]:
-                        base_meta["owner_user_id"] = str(doc_meta["owner_user_id"])
-                    if "allowed_user_ids" in doc_meta and isinstance(
-                        doc_meta["allowed_user_ids"], list
+                    # Preserve all supplied document metadata so downstream
+                    # catalog search and retrieval can scope documents correctly.
+                    for meta_key, meta_val in doc_meta.items():
+                        if meta_val is None:
+                            continue
+                        base_meta[meta_key] = meta_val
+                    # Normalize RBAC-related keys.
+                    if "owner_user_id" in base_meta and base_meta["owner_user_id"]:
+                        base_meta["owner_user_id"] = str(base_meta["owner_user_id"])
+                    if "allowed_user_ids" in base_meta and isinstance(
+                        base_meta["allowed_user_ids"], list
                     ):
                         base_meta["allowed_user_ids"] = [
-                            str(x) for x in doc_meta["allowed_user_ids"]
+                            str(x) for x in base_meta["allowed_user_ids"]
                         ]
                     setattr(doc, "meta", base_meta)
             except Exception:
@@ -593,7 +673,7 @@ class DocumentService:
             # AI-driven ingest plan and chunking
             plan = self.plan_ingest(title, content[:8000])
             chunk_pairs = self._build_chunks_with_metadata(raw_content)
-            chunks = [t for (t, _m) in chunk_pairs]
+            chunks = [self._sanitize_text(t) for (t, _m) in chunk_pairs]
             [m for (_t, m) in chunk_pairs]
             if not chunks:
                 raise ValueError("No chunks could be created from the content")
@@ -629,6 +709,7 @@ class DocumentService:
             for idx, ((chunk_text_val, meta_chunk), emb) in enumerate(
                 zip(chunk_pairs, embeddings)
             ):
+                chunk_text_val = self._sanitize_text(chunk_text_val)
                 # Ensure a concrete UUID is assigned before using the ID
                 import uuid as _uuid
 
@@ -636,6 +717,22 @@ class DocumentService:
                 # Merge auto-headline detection with chunk-derived meta
                 chapter_meta = self._extract_chapter_info(chunk_text_val)
                 merged_meta = dict(meta_chunk)
+                try:
+                    dmeta = getattr(doc, "meta", {}) or {}
+                    if isinstance(dmeta, dict):
+                        for meta_key in (
+                            "brand_id",
+                            "workspace_id",
+                            "catalog_scope",
+                            "source_type",
+                            "original_filename",
+                            "mime_type",
+                        ):
+                            meta_val = dmeta.get(meta_key)
+                            if meta_val and meta_key not in merged_meta:
+                                merged_meta[meta_key] = meta_val
+                except Exception:
+                    pass
                 for k, v in chapter_meta.items():
                     if v and k not in merged_meta:
                         merged_meta[k] = v
@@ -778,8 +875,13 @@ class DocumentService:
                     )
                 except Exception:
                     pass
-            # Commit the DB transaction only after all DB writes succeed
-            trans.commit()
+            # Commit the DB transaction only after all DB writes succeed.
+            # SQLAlchemy sessions may already be auto-begun by prior reads; those still need
+            # an explicit commit here or the document/chunk rows disappear when the session ends.
+            if trans is not None:
+                trans.commit()
+            else:
+                self.db.commit()
             try:
                 from shared.metrics.ingestion_metrics import ingestion_metrics
 
@@ -790,7 +892,10 @@ class DocumentService:
         except Exception as e:
             # If there's an error, rollback the transaction
             try:
-                trans.rollback()
+                if trans is not None:
+                    trans.rollback()
+                else:
+                    self.db.rollback()
             except Exception:
                 pass
             try:
@@ -827,35 +932,38 @@ class DocumentService:
                     if text_variants
                     else data.decode("utf-8", errors="ignore")
                 )
-                for header_depth in [None, [0], [0, 1], [0, 1, 2]]:
+                best_df: pd.DataFrame | None = None
+                best_score = float("-inf")
+                for header_depth in [0, [0, 1], [0, 1, 2]]:
                     try:
-                        df = (
-                            pd.read_csv(pd.io.common.StringIO(raw), header=header_depth)
-                            if header_depth is not None
-                            else pd.read_csv(pd.io.common.StringIO(raw))
-                        )
-                        if df is not None and df.shape[0] > 0:
-                            dfs["Sheet1"] = df
-                            break
+                        df_try = pd.read_csv(pd.io.common.StringIO(raw), header=header_depth)
+                        score = DocumentService._score_tabular_header(df_try)
+                        if score > best_score:
+                            best_df = df_try
+                            best_score = score
                     except Exception:
                         continue
+                if best_df is not None and best_df.shape[0] > 0:
+                    dfs["Sheet1"] = best_df
                 if not dfs:
                     # final fallback
                     dfs["Sheet1"] = pd.read_csv(pd.io.common.StringIO(raw), header=0)
             elif name.endswith(".xlsx"):
                 buf = io.BytesIO(data)
-                # Try multiple header depths per sheet
+                # Try multiple header depths per sheet and choose the best candidate.
                 xls = pd.ExcelFile(buf, engine="openpyxl")
                 for sheet in xls.sheet_names:
                     df: pd.DataFrame | None = None
-                    for header_depth in [[0, 1, 2], [0, 1], [0]]:
+                    best_score = float("-inf")
+                    for header_depth in [0, [0, 1], [0, 1, 2]]:
                         try:
                             df_try = pd.read_excel(
                                 xls, sheet_name=sheet, header=header_depth
                             )
-                            if df_try is not None and df_try.shape[0] > 0:
+                            score = DocumentService._score_tabular_header(df_try)
+                            if score > best_score:
                                 df = df_try
-                                break
+                                best_score = score
                         except Exception:
                             continue
                     if df is None:
@@ -875,6 +983,61 @@ class DocumentService:
                 f"Failed to load '{filename}' into pandas: {e}"
             )
             raise
+
+    @staticmethod
+    def _score_tabular_header(df: pd.DataFrame) -> float:
+        """Prefer real column headers over accidentally consuming data rows as headers."""
+        if df is None or df.shape[0] <= 0:
+            return float("-inf")
+
+        normalized = DocumentService.normalize_headers(df)
+        columns = [str(col).strip() for col in normalized.columns]
+        if not columns:
+            return float("-inf")
+
+        known_terms = (
+            "sku",
+            "title",
+            "name",
+            "product",
+            "description",
+            "feature",
+            "benefit",
+            "price",
+            "cta",
+            "target",
+            "audience",
+            "use case",
+            "hook",
+            "shade",
+            "color",
+        )
+        known_hits = sum(1 for col in columns if any(term in col.lower() for term in known_terms))
+        empty_or_auto = sum(
+            1
+            for col in columns
+            if not col or col.lower().startswith("unnamed") or col.lower() == "nan"
+        )
+        multi_level_parts = 0
+        data_like_header_parts = 0
+        if isinstance(df.columns, pd.MultiIndex):
+            for col in df.columns.values:
+                parts = [str(part).strip() for part in col if str(part).strip() and str(part) != "nan"]
+                multi_level_parts += max(0, len(parts) - 1)
+                data_like_header_parts += sum(
+                    1
+                    for part in parts[1:]
+                    if re.search(r"[\u4e00-\u9fff]", part) or re.search(r"\b[A-Z]{2,}\d{2,}\b", part)
+                )
+
+        return (
+            (len(columns) * 3)
+            + (known_hits * 6)
+            + min(int(df.shape[0]), 50)
+            - (empty_or_auto * 8)
+            - (multi_level_parts * 4)
+            - (data_like_header_parts * 8)
+        )
 
     @staticmethod
     def normalize_headers(df: pd.DataFrame) -> pd.DataFrame:
@@ -1004,6 +1167,7 @@ class DocumentService:
         data: bytes,
         knowledge_base_id: str,
         progress_job_id: str | None = None,
+        doc_meta: Dict[str, Any] | None = None,
     ) -> Tuple[str, int]:
         """End-to-end: load file to DataFrame(s), convert to semantic docs, embed and store one chunk per doc.
         Returns (document_id_of_first, total_chunks).
@@ -1058,7 +1222,10 @@ class DocumentService:
             )
             # Optionally store flattened columns on meta
             try:
-                parent.meta = {"columns": list(df.columns)}
+                parent.meta = {
+                    **(doc_meta or {}),
+                    "columns": list(df.columns),
+                }
             except Exception:
                 pass
             self.db.add(parent)
@@ -1098,7 +1265,9 @@ class DocumentService:
             try:
                 from ai_core.services.redactor import Redactor
 
-                red = Redactor()
+                red = Redactor(
+                    redact_address=not self._catalog_redaction_allows_address(doc_meta)
+                )
                 texts = [red.sanitize(t) for (t, _m) in docs]
             except Exception:
                 texts = [t for (t, _m) in docs]
@@ -1112,6 +1281,22 @@ class DocumentService:
                 import uuid as _uuid
 
                 chunk_id = _uuid.uuid4()
+                try:
+                    dmeta = getattr(parent, "meta", {}) or {}
+                    if isinstance(dmeta, dict):
+                        for meta_key in (
+                            "brand_id",
+                            "workspace_id",
+                            "catalog_scope",
+                            "source_type",
+                            "original_filename",
+                            "mime_type",
+                        ):
+                            meta_val = dmeta.get(meta_key)
+                            if meta_val and meta_key not in m:
+                                m[meta_key] = meta_val
+                except Exception:
+                    pass
                 # Encrypt chunk content; store preview only in plaintext
                 try:
                     enc = crypto_service.encrypt(tenant_id, t.encode("utf-8"))
@@ -1144,7 +1329,7 @@ class DocumentService:
                             "embedding": emb,
                             "document_id": str(parent.id),
                             "document_title": parent.title,
-                            "content": t[:160],
+                            "content": t[:600],
                             "chunk_index": idx,
                             "chapter_num": None,
                             "chapter_title": None,
@@ -1412,7 +1597,7 @@ class DocumentService:
                     id=tenant_uuid, name="Seeded Tenant", domain="seeded", settings={}
                 )
                 self.db.add(t)
-                self.db.commit()
+                self.db.flush()
         except Exception:
             # Best-effort; if this fails, the subsequent KB creation will surface the error
             self.db.rollback()
@@ -1443,7 +1628,7 @@ class DocumentService:
             tenant_id=tenant_uuid, name="Default", status="ACTIVE", document_count=0
         )
         self.db.add(new_kb)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(new_kb)
         return str(new_kb.id)
 
@@ -1451,13 +1636,13 @@ class DocumentService:
         name = filename.lower()
         if name.endswith(".txt") or name.endswith(".csv"):
             try:
-                return data.decode("utf-8")
+                return self._sanitize_text(data.decode("utf-8"))
             except Exception:
-                return data.decode("latin-1", errors="ignore")
+                return self._sanitize_text(data.decode("latin-1", errors="ignore"))
         if name.endswith(".docx"):
             buf = io.BytesIO(data)
             d = DocxDocument(buf)
-            return "\n".join(p.text for p in d.paragraphs)
+            return self._sanitize_text("\n".join(p.text for p in d.paragraphs))
         if name.endswith(".pptx"):
             buf = io.BytesIO(data)
             prs = Presentation(buf)
@@ -1466,7 +1651,7 @@ class DocumentService:
                 for shape in slide.shapes:
                     if hasattr(shape, "text"):
                         texts.append(shape.text)
-            return "\n".join(texts)
+            return self._sanitize_text("\n".join(texts))
         if name.endswith(".xlsx"):
             buf = io.BytesIO(data)
             wb = load_workbook(buf, data_only=True)
@@ -1474,7 +1659,7 @@ class DocumentService:
             for ws in wb.worksheets:
                 for row in ws.iter_rows(values_only=True):
                     texts.append("\t".join("" if v is None else str(v) for v in row))
-            return "\n".join(texts)
+            return self._sanitize_text("\n".join(texts))
         # PDF handled by PyPDF2 with OCR fallback
         if name.endswith(".pdf"):
             try:
@@ -1504,27 +1689,33 @@ class DocumentService:
                         except Exception:
                             pass
                     texts.append(f"[[PAGE:{i}]]\n" + extracted)
-                return "\n".join(texts)
+                return self._sanitize_text("\n".join(texts))
             except Exception:
                 pass
-        # Fallback raw decode and OCR for common image formats
+        # OCR for common image formats
         try:
-            return data.decode("utf-8")
+            import imghdr
+
+            kind = imghdr.what(None, h=data)
+            if kind in ("png", "jpeg", "jpg", "bmp", "tiff"):
+                mime_map = {
+                    "png": "image/png",
+                    "jpeg": "image/jpeg",
+                    "jpg": "image/jpeg",
+                    "bmp": "image/bmp",
+                    "tiff": "image/tiff",
+                }
+                return self._extract_text_from_image(data, mime_map.get(kind))
         except Exception:
-            # Try image OCR if this appears to be an image
-            try:
-                import imghdr
+            pass
 
-                kind = imghdr.what(None, h=data)
-                if kind in ("png", "jpeg", "jpg", "bmp", "tiff"):
-                    from PIL import Image
-                    import pytesseract
+        if name.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".webp")):
+            return self._extract_text_from_image(data)
 
-                    img = Image.open(io.BytesIO(data))
-                    return pytesseract.image_to_string(img)
-            except Exception:
-                pass
-            return data.decode("latin-1", errors="ignore")
+        try:
+            return self._sanitize_text(data.decode("utf-8"))
+        except Exception:
+            return self._sanitize_text(data.decode("latin-1", errors="ignore"))
 
     def extract_rows_from_file(self, filename: str, data: bytes) -> List[str]:
         name = filename.lower()

@@ -26,6 +26,7 @@ class VideoCandidate(BaseModel):
     caption: Optional[str] = None
     hashtags: List[str] = Field(default_factory=list)
     author_handle: Optional[str] = None
+    search_keyword: Optional[str] = None
     platform: str = "tiktok"
 
 class DiscoveredVideo(BaseModel):
@@ -35,6 +36,10 @@ class DiscoveredVideo(BaseModel):
     """
     video_id: str
     video_url: str
+    caption: Optional[str] = None
+    hashtags: List[str] = Field(default_factory=list)
+    search_keyword: Optional[str] = None
+    source_post_author_name: Optional[str] = None
     platform: str
     market_score: Optional[float] = None  # WF-3.1: None for ERROR decisions
     decision: VideoDiscoveryDecision

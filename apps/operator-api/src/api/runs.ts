@@ -337,7 +337,11 @@ router.post('/runs/:runId/discovery', requireInternalSecret, async (req: any, re
             market_score,
             reasons,
             market_profile_id,
-            market_profile_version
+            market_profile_version,
+            caption,
+            hashtags,
+            search_keyword,
+            source_post_author_name
         } = req.body;
 
         const discovered = await prisma.discoveredVideo.create({
@@ -347,6 +351,10 @@ router.post('/runs/:runId/discovery', requireInternalSecret, async (req: any, re
                 platform,
                 video_id,
                 video_url,
+                caption: caption || null,
+                hashtags: Array.isArray(hashtags) ? hashtags : [],
+                search_keyword: search_keyword || null,
+                source_post_author_name: source_post_author_name || null,
                 market_score,
                 decision_reasons: reasons || [],
                 decision,

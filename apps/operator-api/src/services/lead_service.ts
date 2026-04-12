@@ -1,6 +1,7 @@
 import { prisma, LeadStatus, OutcomeSource } from '../db';
 import { OwnerSettingsService } from './owner/owner_settings_service';
 import { buildThreadReference } from '../utils/thread_reference';
+import { CatalogImportService } from './catalog_import.service';
 
 export interface LeadFilters {
     buyer_stage?: 'AWARENESS' | 'EVALUATING' | 'READY';
@@ -94,6 +95,20 @@ export class LeadService {
                     deal_value: true,
                     outcome_reason: true,
                     outcome_source: true,
+                    matched_catalog_item_id: true,
+                    matched_catalog_item_name: true,
+                    catalog_match_score: true,
+                    catalog_match_reasons: true,
+                    matched_catalog_item: {
+                        select: {
+                            id: true,
+                            name: true,
+                            category: true,
+                            price_label: true,
+                            cta_url: true,
+                            cta_label: true,
+                        }
+                    },
                     source_event_id: true,
                     created_at: true,
                     event: {
@@ -151,6 +166,20 @@ export class LeadService {
                         status: true,
                         created_at: true,
                         sent_at: true,
+                    }
+                },
+                matched_catalog_item: {
+                    select: {
+                        id: true,
+                        name: true,
+                        category: true,
+                        description: true,
+                        price_label: true,
+                        target_buyer: true,
+                        key_benefits: true,
+                        common_objections: true,
+                        cta_url: true,
+                        cta_label: true,
                     }
                 }
             }
@@ -219,6 +248,9 @@ export class LeadService {
                 deal_value: true,
                 outcome_reason: true,
                 outcome_source: true,
+                matched_catalog_item_name: true,
+                catalog_match_score: true,
+                catalog_match_reasons: true,
                 user_handle: true,
                 user_profile_url: true,
                 video_id: true,
@@ -247,6 +279,20 @@ export class LeadService {
                         name: true,
                         domain: true,
                     }
+                },
+                matched_catalog_item: {
+                    select: {
+                        id: true,
+                        name: true,
+                        category: true,
+                        description: true,
+                        price_label: true,
+                        target_buyer: true,
+                        key_benefits: true,
+                        common_objections: true,
+                        cta_url: true,
+                        cta_label: true,
+                    }
                 }
             }
         });
@@ -273,6 +319,21 @@ export class LeadService {
         // 2. Call AI Core (Pure Generation)
         const aiCoreUrl = process.env.AI_CORE_BASE_URL || 'http://ai-core:8000';
         const secret = process.env.AI_CORE_INTERNAL_SECRET;
+        const knowledgeQuery = [
+            lead.event?.content_text || '',
+            lead.intent || '',
+            lead.matched_catalog_item_name || '',
+            lead.brand?.name || '',
+        ].filter(Boolean).join('\n');
+        const knowledgeContext = await CatalogImportService.searchKnowledge(
+            accountId,
+            lead.brand_id,
+            knowledgeQuery,
+            3
+        );
+        const catalogSuggestions = Array.isArray(knowledgeContext)
+            ? knowledgeContext.filter((item: any) => item?.content).slice(0, 3)
+            : [];
         // @ts-ignore
         const response = await fetch(`${aiCoreUrl}/v1/internal/drafts/generate`, {
             method: 'POST',
@@ -300,6 +361,20 @@ export class LeadService {
                 platform: lead.platform,
                 buyer_stage: lead.buyer_stage,
                 intent: lead.intent,
+                product_context: lead.matched_catalog_item ? {
+                    name: lead.matched_catalog_item.name,
+                    category: lead.matched_catalog_item.category,
+                    description: lead.matched_catalog_item.description,
+                    price_label: lead.matched_catalog_item.price_label,
+                    target_buyer: lead.matched_catalog_item.target_buyer,
+                    key_benefits: lead.matched_catalog_item.key_benefits,
+                    common_objections: lead.matched_catalog_item.common_objections,
+                    cta_url: lead.matched_catalog_item.cta_url,
+                    cta_label: lead.matched_catalog_item.cta_label,
+                    match_score: lead.catalog_match_score,
+                    match_reasons: lead.catalog_match_reasons,
+                } : null,
+                knowledge_context: catalogSuggestions,
             })
         });
 
@@ -337,6 +412,15 @@ export class LeadService {
                     human_review_required: result.human_review_required ?? true,
                     reply_redirect_target: result.cta_target || (ownerSettings as any).reply_redirect_target || 'STORE',
                     original_comment: lead.event?.content_text || null,
+                    matched_catalog_item: lead.matched_catalog_item ? {
+                        id: lead.matched_catalog_item.id,
+                        name: lead.matched_catalog_item.name,
+                        category: lead.matched_catalog_item.category,
+                        price_label: lead.matched_catalog_item.price_label,
+                        cta_url: lead.matched_catalog_item.cta_url,
+                        cta_label: lead.matched_catalog_item.cta_label,
+                    } : null,
+                    imported_knowledge: catalogSuggestions,
                 }
             }
         });

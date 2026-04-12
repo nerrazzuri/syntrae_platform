@@ -187,7 +187,7 @@ export const AutomationPolicySettings: React.FC = () => {
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Discovery Cap</div>
                         <div className="mt-3 text-2xl font-bold text-slate-900">{policy.max_source_posts_per_run}</div>
-                    <p className="mt-2 text-sm text-slate-500">Maximum videos the current run can inspect before capture stops.</p>
+                    <p className="mt-2 text-sm text-slate-500">Maximum source posts the current run can inspect before capture stops.</p>
                 </div>
             </div>
 
@@ -253,12 +253,12 @@ export const AutomationPolicySettings: React.FC = () => {
                     <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Operational Limits</div>
                     <h2 className="mt-2 text-xl font-bold text-slate-900">Discovery caps</h2>
                     <p className="mt-2 text-sm text-slate-600">
-                        Set how many videos a run can inspect and how many comments can be collected from each video. These are the only discovery limits applied in the current workflow.
+                        Set how many source posts a run can inspect and how many comments can be collected from each source post. These are the only discovery limits applied in the current workflow.
                     </p>
 
                     <div className="mt-6 space-y-4">
                         <label className="block">
-                            <span className="text-sm font-medium text-slate-700">Max Videos / Run</span>
+                            <span className="text-sm font-medium text-slate-700">Max Source Posts / Run</span>
                             <input
                                 type="number"
                                 value={policy.max_source_posts_per_run}
@@ -267,10 +267,10 @@ export const AutomationPolicySettings: React.FC = () => {
                                 onChange={(e) => handleChange('max_source_posts_per_run', clamp(numberValue(e.target.value), 1, 60))}
                                 className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
                             />
-                            <span className="mt-2 block text-xs text-slate-500">Up to 60 videos can be scanned in one run. Basic tier will still be capped lower by plan rules.</span>
+                            <span className="mt-2 block text-xs text-slate-500">Up to 60 source posts can be scanned in one run. Basic tier will still be capped lower by plan rules.</span>
                         </label>
                         <label className="block">
-                            <span className="text-sm font-medium text-slate-700">Max Comments / Video</span>
+                            <span className="text-sm font-medium text-slate-700">Max Comments / Source Post</span>
                             <input
                                 type="number"
                                 value={policy.max_comments_per_source_post}
@@ -279,7 +279,7 @@ export const AutomationPolicySettings: React.FC = () => {
                                 onChange={(e) => handleChange('max_comments_per_source_post', clamp(numberValue(e.target.value), 1, 10))}
                                 className="mt-2 block w-full rounded-2xl border border-slate-200 px-4 py-3 shadow-sm"
                             />
-                            <span className="mt-2 block text-xs text-slate-500">Up to 10 comments can be collected from each discovered video. Basic tier will still be capped lower by plan rules.</span>
+                            <span className="mt-2 block text-xs text-slate-500">Up to 10 comments can be collected from each discovered source post. Basic tier will still be capped lower by plan rules.</span>
                         </label>
                         <label className="block">
                             <span className="text-sm font-medium text-slate-700">Action Pacing (ms)</span>

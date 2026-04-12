@@ -32,6 +32,8 @@ model Account {
   usage_counters     WorkspaceUsageCounter[]
   platform_connections BrandPlatformConnection[]
   platform_connection_challenges PlatformConnectionChallenge[]
+  product_catalog_items ProductCatalogItem[]
+  product_catalog_documents ProductCatalogDocument[]
 
   suggestions        Suggestion[]
   decisions          SuggestionDecision[]
@@ -63,8 +65,81 @@ model Brand {
   usage_counters  WorkspaceUsageCounter[]
   platform_connections BrandPlatformConnection[]
   platform_connection_challenges PlatformConnectionChallenge[]
+  product_catalog_items ProductCatalogItem[]
+  product_catalog_documents ProductCatalogDocument[]
 
   @@index([workspace_id])
+  @@schema("core")
+}
+
+enum ProductCatalogStatus {
+  ACTIVE
+  REVIEW_PENDING
+  ARCHIVED
+
+  @@schema("core")
+}
+
+enum ProductCatalogDocumentStatus {
+  IMPORTED
+  FAILED
+  ARCHIVED
+
+  @@schema("core")
+}
+
+model ProductCatalogItem {
+  id                 String               @id @default(uuid())
+  workspace_id       String
+  brand_id           String
+  name               String
+  category           String?
+  description        String
+  price_label        String?
+  target_buyer       String?
+  key_benefits       Json                 @default("[]")
+  common_objections  Json                 @default("[]")
+  cta_url            String?
+  cta_label          String?
+  availability_status String              @default("AVAILABLE")
+  forbidden_claims   Json                 @default("[]")
+  priority           Int                  @default(0)
+  status             ProductCatalogStatus @default(ACTIVE)
+  metadata           Json                 @default("{}")
+  created_at         DateTime             @default(now())
+  updated_at         DateTime             @updatedAt
+
+  account            Account              @relation(fields: [workspace_id], references: [id])
+  brand              Brand                @relation(fields: [brand_id], references: [id])
+  matched_leads      LeadOpportunity[]
+
+  @@index([workspace_id, brand_id, status])
+  @@index([brand_id, priority])
+  @@schema("core")
+}
+
+model ProductCatalogDocument {
+  id                  String                       @id @default(uuid())
+  workspace_id        String
+  brand_id            String
+  title               String
+  original_filename   String
+  mime_type           String?
+  source_type         String                       @default("FILE")
+  file_size_bytes     Int?
+  ai_core_document_id String?
+  ai_core_chunk_count Int?
+  preview_text        String?
+  status              ProductCatalogDocumentStatus @default(IMPORTED)
+  metadata            Json                         @default("{}")
+  created_at          DateTime                     @default(now())
+  updated_at          DateTime                     @updatedAt
+
+  account             Account                      @relation(fields: [workspace_id], references: [id])
+  brand               Brand                        @relation(fields: [brand_id], references: [id])
+
+  @@index([workspace_id, brand_id, status])
+  @@index([brand_id, created_at])
   @@schema("core")
 }
 
@@ -299,6 +374,11 @@ model EngagementEvent {
   video_id     String?
   comment_id   String?
   content_text String?
+  source_post_caption String?
+  source_post_hashtags String[] @default([])
+  source_post_url String?
+  source_post_author_name String?
+  source_post_search_keyword String?
   metadata     Json
   status       String
   failure_reason String? // Phase 28.2: Lossless Ingestion Reason
@@ -532,6 +612,12 @@ model LeadOpportunity {
   market_profile_version Int?
   market_match_score     Float?
   market_match_reasons   Json? // String[] of reasons
+
+  matched_catalog_item_id String?
+  matched_catalog_item_name String?
+  catalog_match_score Float?
+  catalog_match_reasons Json?
+  matched_catalog_item ProductCatalogItem? @relation(fields: [matched_catalog_item_id], references: [id], onDelete: SetNull)
 
   @@unique([platform, comment_id])
   @@index([brand_id])
@@ -831,6 +917,10 @@ model DiscoveredVideo {
   platform              String
   video_id              String
   video_url             String
+  caption               String?
+  hashtags              String[]               @default([])
+  search_keyword        String?
+  source_post_author_name String?
   market_profile_id     String?
   market_profile_version Int?
   market_score          Float                  @default(0.0)

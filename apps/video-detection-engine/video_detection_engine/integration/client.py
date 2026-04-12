@@ -445,7 +445,10 @@ class IntegrationClient:
         
         # Ingestion requires ISO datetime with Z suffix
         timestamp = data.get("page_timestamp") or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        
+        hashtags = data.get("hashtags") or []
+        if not isinstance(hashtags, list):
+            hashtags = []
+
         payload = {
             "event_type": "DESKTOP_CAPTURE",
             "platform": data.get("platform", "tiktok"),
@@ -463,6 +466,7 @@ class IntegrationClient:
                 "video_id": data.get("video_id", "unknown"),
                 "video_url": video_url,
                 "title": data.get("caption", ""),
+                "hashtags": hashtags,
                 "author_id": data.get("video_author_id", "unknown"),
                 "author_name": data.get("video_author_name", data.get("author", "unknown"))
             },
@@ -478,6 +482,15 @@ class IntegrationClient:
                 "source": "AUTOMATION",
                 "automation_run_id": run_id,
                 "search_keyword": data.get("search_keyword"),
+                "source_post": {
+                    "caption": data.get("caption", ""),
+                    "hashtags": hashtags,
+                    "url": page_url,
+                    "author_name": data.get("video_author_name", data.get("author", "unknown")),
+                    "search_keyword": data.get("search_keyword"),
+                    "geo_match_status": data.get("geo_match_status"),
+                    "geo_match_reasons": data.get("geo_match_reasons") or [],
+                },
                 "search_page": data.get("search_page"),
                 "search_rank": data.get("search_rank"),
                 "visible": True,
