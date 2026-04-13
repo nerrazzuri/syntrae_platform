@@ -1,7 +1,7 @@
 from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 from ai_core.pipeline.llm.llm_client import LLMClient
-from src.shared.database.models import LeadOpportunity, BuyerStage, RecommendedAction
+from shared.database.models import LeadOpportunity, BuyerStage, RecommendedAction
 import json
 import uuid
 import re

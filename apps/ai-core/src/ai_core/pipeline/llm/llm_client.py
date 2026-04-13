@@ -11,6 +11,19 @@ from shared.queue.retry_queue import retry_queue
 from shared.cache.generation_cache import generation_cache
 from shared.metrics.cost_metrics import cost_metrics
 from shared.metrics.cost_aggregator import rolling_cost
+from shared.security.pii import redact
+
+
+def _redact_prompt_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return redact(value)
+    if isinstance(value, dict):
+        return {k: _redact_prompt_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact_prompt_value(v) for v in value]
+    if isinstance(value, tuple):
+        return tuple(_redact_prompt_value(v) for v in value)
+    return value
 
 
 class LLMClient:
@@ -41,13 +54,23 @@ class LLMClient:
         # Choose client: prefer per-tenant BYO key when available
         client = self.client
         # ... (tenant logic omitted, assuming it's fine)
-        
+
         # [Existing logic for client selection omitted - will use replace to insert param and usage]
-        
+
         # Helper to get config
         config = generation_config or {}
         completion_temp = config.get("temperature", self.temperature)
         completion_max_tokens = config.get("max_tokens", None)
+        safe_query = redact(query)
+        safe_contexts = _redact_prompt_value(contexts)
+        safe_result_hint = redact(result_hint) if result_hint else None
+        prompt = self._orchestrator.build_prompt(
+            intent,
+            safe_query,
+            safe_contexts,
+            result_hint=safe_result_hint,
+            metadata={"tenant_id": tenant_id},
+        )
 
         @retry_with_backoff("openai.chat")
         def _do_chat() -> dict:
@@ -61,7 +84,7 @@ class LLMClient:
             }
             if completion_max_tokens:
                 kwargs["max_tokens"] = completion_max_tokens
-                
+
             completion = client.chat.completions.create(**kwargs)
             return {
                 "text": (completion.choices[0].message.content or "").strip(),
@@ -174,10 +197,17 @@ class LLMClient:
 
         @retry_with_backoff("openai.chat")
         def _do_chat() -> str:
+            safe_messages = [
+                {
+                    **message,
+                    "content": redact(message.get("content", "")),
+                }
+                for message in messages
+            ]
             completion = client.chat.completions.create(
                 model=self.model,
                 temperature=temperature or self.temperature,
-                messages=messages,
+                messages=safe_messages,
             )
             return (completion.choices[0].message.content or "").strip()
 
