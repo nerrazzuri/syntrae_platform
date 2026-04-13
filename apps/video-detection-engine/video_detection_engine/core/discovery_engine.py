@@ -1,6 +1,7 @@
 import logging
 import asyncio
 from typing import Dict, Any, List
+from datetime import datetime, timedelta, timezone
 
 from video_detection_engine.browser.controller import BrowserController
 from video_detection_engine.integration.client import IntegrationClient
@@ -54,6 +55,7 @@ class DiscoveryEngine:
         self.search_valid_decisions = 0
         self.url_accepted = False
         self.videos_processed_total = 0
+        self.hourly_quota_exhausted = False
         
         # P1-B: Emission accounting (per-run totals)
         self.total_captured = 0
@@ -63,6 +65,11 @@ class DiscoveryEngine:
         self.duplicate_suppressed = 0
         self.video_cooldown_suppressed = 0
         self.videos_skipped_cooldown = 0
+
+    def _next_hourly_quota_reset_at(self) -> str:
+        now = datetime.now(timezone.utc)
+        next_hour = (now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1))
+        return next_hour.isoformat()
 
     async def execute(self, market_profile: Dict[str, Any], finalize: bool = True):
         """
@@ -123,12 +130,14 @@ class DiscoveryEngine:
                     requested_posts = min(posts_per_keyword_cap, remaining_posts)
                     post_reservation = await self.enforcer.reserve_video_quota(requested_posts)
                     if not post_reservation:
+                        self.hourly_quota_exhausted = True
                         logger.info("Global source post quota reached. Stopping XHS discovery.")
                         break
 
                     requested_comments = post_reservation.amount * comments_per_post_cap
                     comment_reservation = await self.enforcer.reserve_comment_quota(requested_comments)
                     if not comment_reservation:
+                        self.hourly_quota_exhausted = True
                         await self.enforcer.release_video_quota(post_reservation, post_reservation.amount)
                         logger.info("Global comment quota reached. Stopping XHS discovery.")
                         break
@@ -623,6 +632,15 @@ class DiscoveryEngine:
                     f"P1-B: HIGH_EMISSION_FAILURE_RATE ({self.total_emitted_failed}/{self.total_captured}, errors: {error_summary})"
                 )
                 return
+        if self.search_valid_decisions == 0 and not self.url_accepted and self.hourly_quota_exhausted:
+            await self.client.update_run_internal(
+                self.run_id,
+                "HOURLY_QUOTA_EXHAUSTED",
+                "HOURLY_QUOTA_EXHAUSTED",
+                next_retry_at=self._next_hourly_quota_reset_at(),
+            )
+            return
+
         if self.search_valid_decisions == 0 and not self.url_accepted:
             await self.client.update_run_internal(self.run_id, "DEGRADED", "SEARCH_NO_VALID_CANDIDATES")
             return

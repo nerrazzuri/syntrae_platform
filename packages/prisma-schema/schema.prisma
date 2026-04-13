@@ -758,6 +758,7 @@ enum RunStatus {
   RUNNING
   COMPLETED
   DEGRADED  // WF-3.1: Completed but encountered ERROR decisions
+  HOURLY_QUOTA_EXHAUSTED
   ABORTED
   FAILED
 

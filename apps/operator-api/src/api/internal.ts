@@ -557,13 +557,13 @@ router.patch('/automation-run/:runId/status', async (req: Request, res: Response
     }
 
     // Validate status is a known value
-    const validStatuses = ['PENDING', 'RUNNING', 'COMPLETED', 'DEGRADED', 'ABORTED', 'FAILED'];
+    const validStatuses = ['PENDING', 'RUNNING', 'COMPLETED', 'DEGRADED', 'HOURLY_QUOTA_EXHAUSTED', 'ABORTED', 'FAILED'];
     if (!validStatuses.includes(status)) {
         return res.status(400).json({ error: `Invalid status: ${status}` });
     }
 
     try {
-        const terminal = ['COMPLETED', 'DEGRADED', 'FAILED', 'ABORTED'].includes(status);
+        const terminal = ['COMPLETED', 'DEGRADED', 'HOURLY_QUOTA_EXHAUSTED', 'FAILED', 'ABORTED'].includes(status);
         const updateWhere: any = { id: runId };
 
         if (claim_token) {
