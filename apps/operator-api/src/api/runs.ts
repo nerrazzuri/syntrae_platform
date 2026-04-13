@@ -275,7 +275,7 @@ router.put('/brands/:brandId/automation-runs/:runId', requireBrandActorAccess, a
             where: { id: runId },
             data: {
                 status: status,
-                ended_at: (status === 'COMPLETED' || status === 'FAILED' || status === 'ABORTED') ? new Date() : undefined,
+                ended_at: (status === 'COMPLETED' || status === 'HOURLY_QUOTA_EXHAUSTED' || status === 'FAILED' || status === 'ABORTED') ? new Date() : undefined,
                 stats: stats,
                 abort_reason: abort_reason
             }

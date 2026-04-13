@@ -29,7 +29,7 @@ export class AdminAuthService {
      */
     static async login(email: string, plain: string, ip: string): Promise<{ token: string, admin: AdminUser } | null> {
         // Shared IP Rate Limit with Users (strict)
-        RateLimitService.check(ip);
+        await RateLimitService.check(ip);
 
         const admin = await prisma.adminUser.findUnique({
             where: { email }
@@ -37,7 +37,7 @@ export class AdminAuthService {
 
         if (!admin) {
             console.log('[AdminAuth] Not found:', email);
-            RateLimitService.recordFail(ip);
+            await RateLimitService.recordFail(ip);
             await new Promise(r => setTimeout(r, 500)); // Delay
             return null;
         }
@@ -45,12 +45,12 @@ export class AdminAuthService {
         const valid = await bcrypt.compare(plain, admin.password_hash);
         if (!valid) {
             console.warn('[AdminAuth] Invalid password for', email);
-            RateLimitService.recordFail(ip);
+            await RateLimitService.recordFail(ip);
             await new Promise(r => setTimeout(r, 500)); // Delay
             return null;
         }
 
-        RateLimitService.reset(ip);
+        await RateLimitService.reset(ip);
 
         // Create Session
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h

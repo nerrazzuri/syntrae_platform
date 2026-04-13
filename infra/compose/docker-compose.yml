@@ -128,12 +128,14 @@ services:
       - PORT=3005
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}?schema=core
+      - REDIS_URL=redis://redis:6379/0
       - AI_CORE_BASE_URL=http://ai-core:8000
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
       - AI_ENGAGEMENT_INTERNAL_SECRET=${AI_ENGAGEMENT_INTERNAL_SECRET}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       - postgresql
+      - redis
       - ai-core
 
   operator-api:
@@ -154,6 +156,7 @@ services:
       - PORT=3001
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}?schema=core
+      - REDIS_URL=redis://redis:6379/0
       - JWT_SECRET=${JWT_SECRET}
       - AI_CORE_BASE_URL=http://ai-core:8000
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
@@ -197,6 +200,7 @@ services:
       - ADMIN_BOOTSTRAP_PASSWORD=${ADMIN_BOOTSTRAP_PASSWORD}
     depends_on:
       - postgresql
+      - redis
 
   operator-ui:
     build:
@@ -281,12 +285,15 @@ services:
       - DEBUG_ARTIFACTS_DIR=/data/screenshots
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
       - AI_CORE_BASE_URL=http://ai-core:8000
+      - REDIS_URL=redis://redis:6379/0
       - INGESTION_URL=http://ingestion-service:3005 # PILOT SECURITY: Internal network
       - PROXY_ENABLED=${PROXY_ENABLED:-false}
       - PROXY_SERVER=${PROXY_SERVER}
       - PROXY_USERNAME=${PROXY_USERNAME}
       - PROXY_PASSWORD=${PROXY_PASSWORD}
     restart: unless-stopped
+    depends_on:
+      - redis
     networks:
       - syntrae_net
     extra_hosts:
@@ -314,6 +321,7 @@ services:
       # Internal Service Links
       - AI_CORE_BASE_URL=http://ai-core:8000 # FIX: was AI_CORE_URL, code expects AI_CORE_BASE_URL
       - AI_CORE_INTERNAL_SECRET=${AI_CORE_INTERNAL_SECRET}
+      - REDIS_URL=redis://redis:6379/0
       - INGESTION_URL=http://ingestion-service:3005 # PILOT SECURITY: Internal network
       - AUTOMATION_STORAGE_ROOT=/data/storage
       - AUTOMATION_LEASE_SECONDS=${AUTOMATION_LEASE_SECONDS:-120}
@@ -333,6 +341,7 @@ services:
     restart: unless-stopped
     depends_on:
       - operator-api
+      - redis
     networks:
       - syntrae_net
     extra_hosts:

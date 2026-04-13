@@ -35,6 +35,7 @@ export function Runs() {
         const styles: Record<string, { bg: string; icon: any }> = {
             COMPLETED: { bg: 'bg-emerald-100 text-emerald-700', icon: <CheckCircle className="h-4 w-4" /> },
             DEGRADED: { bg: 'bg-amber-100 text-amber-700', icon: <AlertTriangle className="h-4 w-4" /> },
+            HOURLY_QUOTA_EXHAUSTED: { bg: 'bg-violet-100 text-violet-700', icon: <Clock className="h-4 w-4" /> },
             FAILED: { bg: 'bg-rose-100 text-rose-700', icon: <XCircle className="h-4 w-4" /> },
             RUNNING: { bg: 'bg-sky-100 text-sky-700', icon: <Play className="h-4 w-4" /> },
             PENDING: { bg: 'bg-slate-100 text-slate-700', icon: <Clock className="h-4 w-4" /> },
@@ -164,6 +165,11 @@ export function Runs() {
                                 <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4">
                                     <div className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">Abort Reason</div>
                                     <div className="mt-2 text-sm text-amber-900">{selectedRun.abort_reason}</div>
+                                    {selectedRun.next_retry_at && (
+                                        <div className="mt-3 rounded-2xl border border-amber-200/70 bg-white/70 px-3 py-2 text-sm text-amber-900">
+                                            <span className="font-semibold">Next Discovery Time:</span> {formatDate(selectedRun.next_retry_at)}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -171,6 +177,7 @@ export function Runs() {
                                 <DetailPanel label="Started At" value={formatDate(selectedRun.started_at)} />
                                 <DetailPanel label="Last Heartbeat" value={selectedRun.heartbeat_at ? formatDate(selectedRun.heartbeat_at) : '-'} />
                                 <DetailPanel label="Ended At" value={selectedRun.ended_at ? formatDate(selectedRun.ended_at) : '-'} />
+                                <DetailPanel label="Retry After" value={selectedRun.next_retry_at ? formatDate(selectedRun.next_retry_at) : '-'} />
                             </div>
                         </div>
                         <div className="border-t border-slate-200 p-6 text-right">
