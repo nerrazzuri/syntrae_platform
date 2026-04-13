@@ -21,11 +21,16 @@ export class RateLimitService {
     static async check(ip: string): Promise<void> {
         const redis = getRedisClient();
         const blockKey = this.blockKey(ip);
-        const blocked = await redis.exists(blockKey);
-        if (blocked) {
+        try {
             const ttl = await redis.ttl(blockKey);
+            if (ttl <= 0) return;
             const waitMin = Math.max(1, Math.ceil(ttl / 60));
             throw new Error(`Too many attempts. Please try again in ${waitMin} minutes.`);
+        } catch (error: any) {
+            if (String(error?.message || '').startsWith('Too many attempts.')) {
+                throw error;
+            }
+            console.warn(`[RateLimit] Redis check failed for IP ${ip}; allowing request.`, error?.message || error);
         }
     }
 
@@ -35,20 +40,18 @@ export class RateLimitService {
     static async recordFail(ip: string): Promise<void> {
         const redis = getRedisClient();
         const failKey = this.failKey(ip);
-        const result = await redis
-            .multi()
-            .incr(failKey)
-            .expire(failKey, this.WINDOW_SECONDS)
-            .exec();
-        const attempts = Number(result?.[0]?.[1] || 0);
+        try {
+            const attempts = await redis.incr(failKey);
+            if (attempts === 1) {
+                await redis.expire(failKey, this.WINDOW_SECONDS);
+            }
 
-        if (!attempts) {
-            throw new Error('Rate limit update failed.');
-        }
-
-        if (attempts >= this.MAX_ATTEMPTS) {
-            await redis.set(this.blockKey(ip), '1', 'EX', this.BLOCK_SECONDS);
-            console.warn(`[RateLimit] Blocked IP ${ip} for ${this.BLOCK_SECONDS}s`);
+            if (attempts >= this.MAX_ATTEMPTS) {
+                await redis.set(this.blockKey(ip), '1', 'EX', this.BLOCK_SECONDS);
+                console.warn(`[RateLimit] Blocked IP ${ip} for ${this.BLOCK_SECONDS}s`);
+            }
+        } catch (error: any) {
+            console.warn(`[RateLimit] Redis fail-record failed for IP ${ip}; continuing auth flow.`, error?.message || error);
         }
     }
 
