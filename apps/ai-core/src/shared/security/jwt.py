@@ -45,7 +45,7 @@ class JWTService:
             + timedelta(minutes=self.access_token_expire_minutes),
             "iat": datetime.utcnow(),
             "type": "access",
-            "iss": "omnichannel-chatbot",
+            "iss": self.issuer,
         }
 
         if additional_claims:
@@ -72,7 +72,7 @@ class JWTService:
             "exp": datetime.utcnow() + timedelta(days=self.refresh_token_expire_days),
             "iat": datetime.utcnow(),
             "type": "refresh",
-            "iss": "omnichannel-chatbot",
+            "iss": self.issuer,
         }
 
         try:

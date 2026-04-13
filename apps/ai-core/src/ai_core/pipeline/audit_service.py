@@ -6,10 +6,23 @@ from sqlalchemy.orm import Session
 from shared.database.models import AuditLog
 from shared.config.tuning import vault as vault_cfg
 from shared.metrics.vault_metrics import vault_metrics
+from shared.security.pii import redact
 
 
 def _h(text: str) -> str:
     return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
+
+
+def _redact_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return redact(value)
+    if isinstance(value, dict):
+        return {k: _redact_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact_value(v) for v in value]
+    if isinstance(value, tuple):
+        return tuple(_redact_value(v) for v in value)
+    return value
 
 
 def write_audit(
@@ -34,6 +47,9 @@ def write_audit(
     extra: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Enqueue audit entry; fall back to direct write if queue unavailable."""
+    safe_request_text = redact(request_text)
+    safe_response_text = redact(response_text)
+    safe_extra = _redact_value(extra) if extra else {}
     try:
         from shared.queue.retry_queue import retry_queue
 
@@ -42,8 +58,8 @@ def write_audit(
             "user_id": user_id,
             "action": action,
             "resource": resource,
-            "request_hash": _h(request_text),
-            "response_hash": _h(response_text),
+            "request_hash": _h(safe_request_text),
+            "response_hash": _h(safe_response_text),
             "success": success,
             "latency_ms": latency_ms,
             "model": model,
@@ -55,7 +71,7 @@ def write_audit(
             "correlation_id": correlation_id,
             "classification": classification,
             "origin": origin,
-            "extra": extra or {},
+            "extra": safe_extra,
         }
         retry_queue.enqueue("audit_log", tenant_id, payload)
         return
@@ -78,14 +94,14 @@ def write_audit(
             resource=resource,
             classification=classification,
             origin=origin,
-            request_hash=_h(request_text),
-            response_hash=_h(response_text),
+            request_hash=_h(safe_request_text),
+            response_hash=_h(safe_response_text),
             success=success,
             latency_ms=latency_ms,
             model=model,
             token_input=token_input,
             token_output=token_output,
-            extra=extra or {},
+            extra=safe_extra,
         )
         db.add(rec)
         db.commit()

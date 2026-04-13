@@ -6,16 +6,30 @@ import logging
 from typing import Dict, Any, List, Optional
 from .base import BaseAgent, Capability
 from openai import OpenAI
+from shared.security.pii import redact
 
 logger = logging.getLogger(__name__)
+
+
+def _redact_messages(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    return [
+        {
+            **message,
+            "content": redact(message.get("content", "")),
+        }
+        for message in messages
+    ]
+
 
 class LLMAgent(BaseAgent):
     name = "llm_agent"
 
     def __init__(self):
-        self.model = "gpt-3.5-turbo" # Default, can be env var
+        self.model = os.getenv("LLM_MODEL") or os.getenv(
+            "RAG_CHAT_MODEL", "gpt-4o-mini"
+        )
         self.max_steps = 5
-        
+
     def capabilities(self) -> List[Capability]:
         # Inherit capabilities from SampleAgent for now, or define new ones.
         # For this phase, we'll replicate SampleAgent's capabilities but use LLM to decide.
@@ -75,7 +89,7 @@ class LLMAgent(BaseAgent):
         client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         tenant_id = context.get("tenant_id", "default")
         available_tools = self.tools()
-        
+
         # System prompt for ReAct
         system_prompt = f"""
 You are a smart AI assistant. You have access to the following tools:
@@ -94,29 +108,29 @@ Final Answer: <your answer>
 
 Begin!
 """
-        
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": goal}
         ]
-        
+
         steps = []
-        
+
         for i in range(self.max_steps):
             try:
                 response = client.chat.completions.create(
                     model=self.model,
-                    messages=messages,
+                    messages=_redact_messages(messages),
                     temperature=0,
                     stop=["Observation:"]
                 )
-                
+
                 content = response.choices[0].message.content
                 messages.append({"role": "assistant", "content": content})
-                
+
                 # Parse response
                 lines = content.split('\n')
-                
+
                 # Check for Final Answer first
                 if "Final Answer:" in content:
                      final_ans = content.split("Final Answer:")[-1].strip()
@@ -124,10 +138,10 @@ Begin!
                      return [{"action": "final_answer", "params": {"response": reflected_ans, "steps": steps}}]
 
                 action_line = next((l for l in lines if l.startswith("Action:")), None)
-                
+
                 if action_line:
                     action_name = action_line.replace("Action:", "").strip()
-                    
+
                     if action_name == "final_answer":
                         final_ans = content
                         reflected_ans = self.reflect(goal, final_ans)
@@ -136,23 +150,23 @@ Begin!
                     # Parse Input
                     input_line = next((l for l in lines if l.startswith("Action Input:")), "{}")
                     input_str = input_line.replace("Action Input:", "").strip()
-                    
+
                     try:
                         params = json.loads(input_str)
                     except:
                         # Fallback for simple string input if LLM messes up JSON
-                        params = {"query": input_str} 
+                        params = {"query": input_str}
 
                     # Execute Tool
                     if action_name in available_tools:
                         logger.info(f"Executing tool {action_name} with params {params}")
                         tool_func = available_tools[action_name]
                         observation = tool_func(tenant_id, params)
-                        
+
                         # Add observation to history
                         obs_str = f"Observation: {json.dumps(observation)}"
                         messages.append({"role": "user", "content": obs_str})
-                        
+
                         # Store step for debugging/frontend
                         steps.append({
                             "action": action_name,
@@ -166,7 +180,7 @@ Begin!
                     # Assume final answer if no action and no explicit Final Answer tag
                     reflected_ans = self.reflect(goal, content)
                     return [{"action": "final_answer", "params": {"response": reflected_ans, "steps": steps}}]
-            
+
             except Exception as e:
                 logger.error(f"LLM Agent Error: {e}")
                 return [{"action": "error", "params": {"error": str(e)}}]
@@ -178,7 +192,7 @@ Begin!
         Self-correction step: Critique the answer and improve it if necessary.
         """
         client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        
+
         prompt = f"""
 You are a critical reviewer.
 User Goal: {goal}
@@ -192,7 +206,7 @@ Only output the final improved answer, nothing else.
         try:
             response = client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{"role": "user", "content": redact(prompt)}],
                 temperature=0
             )
             return response.choices[0].message.content.strip()
