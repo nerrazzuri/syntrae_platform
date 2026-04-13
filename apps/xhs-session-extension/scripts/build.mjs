@@ -12,14 +12,30 @@ function buildCommonManifest({ includeLocalhost, includeChromeMinVersion }) {
   const hostPermissions = [
     'https://www.xiaohongshu.com/*',
     'https://xiaohongshu.com/*',
+    'https://www.rednote.com/*',
+    'https://rednote.com/*',
     'https://app.syntraeai.com/*',
     'https://api.syntraeai.com/*',
   ];
   const contentScriptMatches = ['https://app.syntraeai.com/*'];
 
   if (includeLocalhost) {
-    hostPermissions.push('http://localhost:5173/*', 'http://localhost:3000/*');
-    contentScriptMatches.push('http://localhost:5173/*');
+    hostPermissions.push(
+      'http://localhost:5173/*',
+      'http://localhost:3000/*',
+      'http://app.localhost.com:8080/*',
+      'http://api.localhost.com:8080/*',
+      'https://localhost/*',
+      'https://localhost:8443/*',
+      'https://app.localhost.com:8443/*',
+      'https://api.localhost.com:8443/*'
+    );
+    contentScriptMatches.push(
+      'http://localhost:5173/*',
+      'https://localhost/*',
+      'https://localhost:8443/*',
+      'https://app.localhost.com:8443/*'
+    );
   }
 
   const manifest = {
@@ -50,6 +66,13 @@ function buildCommonManifest({ includeLocalhost, includeChromeMinVersion }) {
   if (includeChromeMinVersion) {
     manifest.minimum_chrome_version = '120';
   }
+
+  contentScriptMatches.push(
+    'https://www.xiaohongshu.com/*',
+    'https://xiaohongshu.com/*',
+    'https://www.rednote.com/*',
+    'https://rednote.com/*'
+  );
 
   return manifest;
 }

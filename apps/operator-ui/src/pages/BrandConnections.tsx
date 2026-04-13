@@ -37,6 +37,7 @@ declare global {
     interface WindowEventMap {
         SYNTRAE_XHS_CAPTURE_RESULT: CustomEvent<{ success: boolean; error?: string }>;
         SYNTRAE_XHS_EXTENSION_PONG: CustomEvent<{ installed: boolean; version?: string }>;
+        SYNTRAE_XHS_CLEAR_SESSION_RESULT: CustomEvent<{ success: boolean; error?: string; cleared?: number }>;
     }
 }
 
@@ -112,6 +113,21 @@ function getExtensionDownloads(browser: SupportedBrowser) {
     };
 }
 
+function buildExtensionIngestBase() {
+    if (API_BASE.startsWith('http')) return API_BASE;
+
+    const { hostname, port, protocol, origin } = window.location;
+    const isLocalHttps = protocol === 'https:' && hostname.endsWith('.localhost.com') && port === '8443';
+
+    // Browser extension background fetches do not reliably inherit local self-signed
+    // certificate exceptions. Use the local HTTP edge for the public ingest route only.
+    if (isLocalHttps) {
+        return `http://${hostname}:8080${API_BASE}`;
+    }
+
+    return `${origin}${API_BASE}`;
+}
+
 export function BrandConnectionsPage() {
     const { brandId } = useParams<{ brandId: string }>();
     const [connection, setConnection] = useState<PlatformConnection | null>(null);
@@ -185,6 +201,34 @@ export function BrandConnectionsPage() {
         });
     }
 
+    async function clearExtensionSession() {
+        const installed = await checkExtensionInstalled();
+        if (!installed) {
+            throw new Error('Syntrae XHS extension is not available in this tab, so browser Xiaohongshu cookies were not cleared');
+        }
+
+        return new Promise<{ success: boolean; error?: string; cleared?: number }>((resolve, reject) => {
+            const timeout = window.setTimeout(() => {
+                window.removeEventListener('SYNTRAE_XHS_CLEAR_SESSION_RESULT', handleResult as EventListener);
+                reject(new Error('Timed out while clearing Xiaohongshu browser cookies'));
+            }, 3000);
+
+            function handleResult(event: WindowEventMap['SYNTRAE_XHS_CLEAR_SESSION_RESULT']) {
+                window.clearTimeout(timeout);
+                window.removeEventListener('SYNTRAE_XHS_CLEAR_SESSION_RESULT', handleResult as EventListener);
+                const detail = event.detail || { success: false, error: 'No response from extension' };
+                if (detail.success) {
+                    resolve(detail);
+                    return;
+                }
+                reject(new Error(detail.error || 'Failed to clear Xiaohongshu browser cookies'));
+            }
+
+            window.addEventListener('SYNTRAE_XHS_CLEAR_SESSION_RESULT', handleResult as EventListener);
+            window.postMessage({ type: 'SYNTRAE_XHS_CLEAR_SESSION_REQUEST', payload: {} }, window.location.origin);
+        });
+    }
+
     async function requestConnection() {
         setBusy('request');
         setError(null);
@@ -211,7 +255,7 @@ export function BrandConnectionsPage() {
 
             const data = await api.post(`/brands/${brandId}/platform-connections/rednote/challenge`, {}) as ConnectionChallenge;
             setChallenge(data);
-            const ingestBase = API_BASE.startsWith('http') ? API_BASE : `${window.location.origin}${API_BASE}`;
+            const ingestBase = buildExtensionIngestBase();
 
             window.postMessage({
                 type: 'SYNTRAE_XHS_CAPTURE_REQUEST',
@@ -261,6 +305,11 @@ export function BrandConnectionsPage() {
         try {
             const data = await api.delete(`/brands/${brandId}/platform-connections/rednote`) as PlatformConnection;
             setConnection(data);
+            try {
+                await clearExtensionSession();
+            } catch (clearErr: any) {
+                setError(clearErr?.message || 'Brand session disconnected, but Xiaohongshu browser cookies were not cleared');
+            }
         } catch (err: any) {
             setError(err.message || 'Failed to disconnect session');
         } finally {
@@ -401,7 +450,11 @@ export function BrandConnectionsPage() {
                             disabled={busy !== null}
                             className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white"
                         >
-                            {busy === 'challenge' ? 'Waiting for extension...' : 'Connect with extension'}
+                            {busy === 'challenge'
+                                ? 'Waiting for extension...'
+                                : connection?.session_present
+                                    ? 'Replace session with extension'
+                                    : 'Connect with extension'}
                         </button>
                         <button
                             onClick={refreshConnection}
@@ -432,7 +485,8 @@ export function BrandConnectionsPage() {
                     <h2 className="mt-2 text-xl font-bold text-slate-900">Capture the XHS session locally</h2>
                     <p className="mt-2 text-sm text-slate-600">
                         The recommended commercial flow is the Syntrae browser extension. It opens Xiaohongshu login in your own browser,
-                        captures the required cookies locally after you sign in, and uploads the brand-scoped session to Syntrae.
+                        captures the required cookies locally after you sign in, and uploads the brand-scoped session to Syntrae. Disconnect also
+                        clears Xiaohongshu cookies in this browser profile so the next connect flow can prompt for a fresh login.
                     </p>
 
                     <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700">

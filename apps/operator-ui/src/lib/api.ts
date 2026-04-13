@@ -1,10 +1,18 @@
 
 /// <reference types="vite/client" />
 
-// In production, we talk to separate subdomain. In dev, we use Vite proxy.
 const IS_PROD = import.meta.env.PROD;
 const ENV_API_URL = import.meta.env.VITE_API_BASE_URL;
-export const API_BASE = ENV_API_URL || (IS_PROD ? 'https://api.syntraeai.com' : '/api');
+
+function resolveApiBase() {
+    if (ENV_API_URL) return ENV_API_URL;
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    const isLocalHost = hostname === 'localhost' || hostname.endsWith('.localhost.com');
+    if (isLocalHost) return '/api';
+    return IS_PROD ? 'https://api.syntraeai.com' : '/api';
+}
+
+export const API_BASE = resolveApiBase();
 
 export class Client {
 

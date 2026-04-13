@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import { randomBytes } from 'crypto';
+import path from 'path';
 import { prisma, Prisma } from '../db';
 import { PlatformSessionCryptoService } from './platform_session_crypto.service';
 import {
@@ -19,7 +20,8 @@ function normalizePlatform(platform: string): SupportedConnectionPlatform {
 }
 
 function legacySessionPath(brandId: string, platform: SupportedConnectionPlatform) {
-    return `/data/storage/sessions/${brandId}/${platform}/session.json`;
+    const storageRoot = process.env.AUTOMATION_STORAGE_ROOT || '/data/storage';
+    return path.join(storageRoot, 'sessions', brandId, platform, 'session.json');
 }
 
 async function fileStatOrNull(targetPath: string | null) {
@@ -29,6 +31,21 @@ async function fileStatOrNull(targetPath: string | null) {
     } catch {
         return null;
     }
+}
+
+async function removeFileIfPresent(targetPath: string) {
+    try {
+        await fs.unlink(targetPath);
+    } catch {
+        return;
+    }
+}
+
+async function removeSessionArtifacts(workspaceId: string, brandId: string, platform: SupportedConnectionPlatform) {
+    await Promise.all([
+        PlatformSessionStateService.removeStorageState(workspaceId, brandId, platform),
+        removeFileIfPresent(legacySessionPath(brandId, platform)),
+    ]);
 }
 
 function parsePayload(connection: { encrypted_session_payload?: string | null } | null) {
@@ -144,8 +161,9 @@ export class PlatformConnectionService {
             extension_required_cookie_names: ['web_session', 'id_token'],
             extension_instructions: [
                 'Prepare a connection challenge from this page.',
-                'Use the Syntrae XHS browser extension to capture your logged-in Xiaohongshu cookies.',
-                'The extension uploads a brand-scoped session to Syntrae.',
+                'Use the Syntrae XHS browser extension to capture your logged-in RedNote/Xiaohongshu cookies.',
+                'For overseas RedNote accounts, the extension may also open Xiaohongshu once to capture discovery-compatible cookies.',
+                'The extension uploads a brand-scoped session to Syntrae only after discovery-compatible cookies are available.',
                 'Refresh or verify the connection once capture completes.',
             ],
         };
@@ -156,6 +174,9 @@ export class PlatformConnectionService {
         const preferredPath = PlatformSessionStateService.getScopedSessionPath(workspaceId, brandId, platform);
 
         await this.assertBrandAccess(workspaceId, brandId);
+        await removeSessionArtifacts(workspaceId, brandId, platform);
+
+        const now = new Date();
 
         await prisma.brandPlatformConnection.upsert({
             where: { brand_id_platform: { brand_id: brandId, platform } },
@@ -164,9 +185,15 @@ export class PlatformConnectionService {
                 provider: 'COOKIE_CAPTURE',
                 auth_type: 'COOKIE_BLOB',
                 session_path: preferredPath,
-                last_checked_at: new Date(),
+                encrypted_session_payload: null,
+                session_updated_at: null,
+                connected_at: null,
+                last_checked_at: now,
+                last_verified_at: null,
+                expires_at: null,
                 verification_error: null,
                 last_error: null,
+                metadata: {},
             },
             create: {
                 workspace_id: workspaceId,
@@ -176,7 +203,9 @@ export class PlatformConnectionService {
                 auth_type: 'COOKIE_BLOB',
                 status: 'PENDING',
                 session_path: preferredPath,
-                last_checked_at: new Date(),
+                session_updated_at: null,
+                connected_at: null,
+                last_checked_at: now,
                 metadata: {},
             },
         });
@@ -352,7 +381,7 @@ export class PlatformConnectionService {
         const platform = normalizePlatform(platformInput);
         await this.assertBrandAccess(workspaceId, brandId);
 
-        await PlatformSessionStateService.removeStorageState(workspaceId, brandId, platform);
+        await removeSessionArtifacts(workspaceId, brandId, platform);
 
         const now = new Date();
         await prisma.brandPlatformConnection.upsert({
@@ -370,6 +399,7 @@ export class PlatformConnectionService {
                 verification_error: null,
                 expires_at: null,
                 last_error: null,
+                metadata: {},
             },
             create: {
                 workspace_id: workspaceId,

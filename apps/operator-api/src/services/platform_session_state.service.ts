@@ -1,7 +1,9 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 
-const STORAGE_ROOT = process.env.AUTOMATION_STORAGE_ROOT || '/data/storage';
+function storageRoot() {
+    return process.env.AUTOMATION_STORAGE_ROOT || '/data/storage';
+}
 
 export interface BrowserCookieInput {
     name: string;
@@ -15,16 +17,22 @@ export interface BrowserCookieInput {
 }
 
 const REQUIRED_COOKIE_NAMES = ['web_session'];
-const AUTH_COOKIE_NAMES = ['a1', 'id_token'];
+const AUTH_COOKIE_NAMES = ['a1', 'id_token', 'web_session'];
+const DISCOVERY_COOKIE_DOMAIN = 'xiaohongshu.com';
 const ALLOWED_COOKIE_NAMES = new Set([
     'a1',
+    'webId',
     'id_token',
     'web_session',
+    'web_session_sec',
     'web_session_sig',
+    'websectiga',
+    'sec_poison_id',
     'gid',
     'abRequestId',
     'xsecappid',
     'webBuild',
+    'loadts',
     'unread',
 ]);
 
@@ -45,7 +53,7 @@ export function normalizeSessionPlatform(platform: string) {
 
 export class PlatformSessionStateService {
     static getScopedSessionPath(workspaceId: string, brandId: string, platform: string) {
-        return path.join(STORAGE_ROOT, 'sessions', workspaceId, brandId, normalizeSessionPlatform(platform), 'session.json');
+        return path.join(storageRoot(), 'sessions', workspaceId, brandId, normalizeSessionPlatform(platform), 'session.json');
     }
 
     static sanitizeCookies(cookies: BrowserCookieInput[]) {
@@ -73,7 +81,21 @@ export class PlatformSessionStateService {
         const missing = REQUIRED_COOKIE_NAMES.filter((name) => !presentNames.has(name));
         const hasAuthCookie = AUTH_COOKIE_NAMES.some((name) => presentNames.has(name));
         if (!hasAuthCookie) {
-            missing.push('a1|id_token');
+            missing.push('a1|id_token|web_session');
+        }
+        const hasDiscoveryWebSession = sanitized.some((cookie) => {
+            const domain = String(cookie.domain || '').replace(/^\./, '').toLowerCase();
+            return cookie.name === 'web_session' && domain.endsWith(DISCOVERY_COOKIE_DOMAIN);
+        });
+        if (!hasDiscoveryWebSession) {
+            missing.push('web_session@xiaohongshu.com');
+        }
+        const hasDiscoveryA1 = sanitized.some((cookie) => {
+            const domain = String(cookie.domain || '').replace(/^\./, '').toLowerCase();
+            return cookie.name === 'a1' && domain.endsWith(DISCOVERY_COOKIE_DOMAIN);
+        });
+        if (!hasDiscoveryA1) {
+            missing.push('a1@xiaohongshu.com');
         }
 
         return {
