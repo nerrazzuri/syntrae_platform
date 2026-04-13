@@ -67,7 +67,7 @@ async def run_automation(
         logger.error("WF-1 FATAL: Could not fetch policy via internal endpoint. Aborting.")
         return False
 
-    enforcer = PolicyEnforcer(policy_data)
+    enforcer = PolicyEnforcer(policy_data, brand_id=brand_id, platform=platform)
     
     # 3. Policy Gate: Start Run
     if not enforcer.check_run_gate():

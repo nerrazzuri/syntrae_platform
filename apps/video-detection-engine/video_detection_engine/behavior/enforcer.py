@@ -4,6 +4,7 @@ import logging
 import random
 import time
 from typing import Dict, Any, Optional
+from .quota_store import QuotaReservation, RedisQuotaStore
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +16,13 @@ class PolicyEnforcer:
     Enforces Automation Policies (Rate Limits, Pacing, Gates).
     Maintains local state for the current run.
     """
-    def __init__(self, policy: Dict[str, Any]):
+    def __init__(self, policy: Dict[str, Any], brand_id: str | None = None, platform: str | None = None, quota_store: RedisQuotaStore | None = None):
         self.policy = policy
         self.enabled = policy.get("enabled", False)
         self.mode = policy.get("mode", "SAFE")
+        self.brand_id = brand_id or policy.get("brand_id") or "unknown-brand"
+        self.platform = platform or policy.get("platform") or "unknown-platform"
+        self.quota_store = quota_store or RedisQuotaStore()
         
         # Limits
         self.max_videos_ph = policy.get("max_videos_per_hour", 20)
@@ -33,6 +37,7 @@ class PolicyEnforcer:
         # State
         self.videos_processed = 0
         self.comments_processed = 0
+        self.rejections_processed = 0
         self.start_time = time.time()
         
     def check_quiet_hours(self) -> bool:
@@ -119,9 +124,35 @@ class PolicyEnforcer:
 
     def track_video(self):
         self.videos_processed += 1
-        
+
     def track_comment(self):
         self.comments_processed += 1
+
+    def track_reject(self):
+        self.rejections_processed += 1
+
+    async def reserve_video_quota(self, requested: int = 1) -> QuotaReservation | None:
+        key = self.quota_store.quota_key(self.brand_id, self.platform, "videos")
+        amount = await self.quota_store.reserve(key, requested, self.max_videos_ph)
+        if amount <= 0:
+            logger.warning(f"🛑 Max hourly video quota reached ({self.max_videos_ph}) for {self.brand_id}/{self.platform}.")
+            return None
+        return QuotaReservation(key=key, amount=amount)
+
+    async def reserve_comment_quota(self, requested: int) -> QuotaReservation | None:
+        safe_request = max(0, requested)
+        key = self.quota_store.quota_key(self.brand_id, self.platform, "comments")
+        amount = await self.quota_store.reserve(key, safe_request, self.max_comments_ph)
+        if amount <= 0:
+            logger.warning(f"🛑 Max hourly comment quota reached ({self.max_comments_ph}) for {self.brand_id}/{self.platform}.")
+            return None
+        return QuotaReservation(key=key, amount=amount)
+
+    async def release_video_quota(self, reservation: QuotaReservation | None, unused: int = 1) -> int:
+        return await self.quota_store.release(reservation, unused)
+
+    async def release_comment_quota(self, reservation: QuotaReservation | None, unused: int) -> int:
+        return await self.quota_store.release(reservation, unused)
 
     def get_relevance_threshold(self) -> int:
         return self.policy.get("relevance_min_score", 70)

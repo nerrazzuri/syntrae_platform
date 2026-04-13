@@ -1,70 +1,62 @@
 
-interface RateLimitEntry {
-    attempts: number;
-    windowStart: number;
-    blockedUntil?: number;
-}
+import { getRedisClient } from '../../lib/redis';
 
 export class RateLimitService {
-    private static store = new Map<string, RateLimitEntry>();
+    private static readonly WINDOW_SECONDS = 15 * 60;
+    private static readonly MAX_ATTEMPTS = 10;
+    private static readonly BLOCK_SECONDS = 30 * 60;
+    private static readonly KEY_PREFIX = 'rl:ingestion-service:auth';
 
-    // Config
-    private static readonly WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-    private static readonly MAX_ATTEMPTS = 10; // 10 attempts per IP per window (strict for IP)
-    private static readonly BLOCK_DURATION = 30 * 60 * 1000; // 30 minutes
+    private static failKey(ip: string): string {
+        return `${this.KEY_PREFIX}:fail:${ip}`;
+    }
 
-    // TODO: Replace with Redis-backed rate limiting when we run >1 replica.
-    // Current in-memory map resets on restart and doesn't share state between instances.
+    private static blockKey(ip: string): string {
+        return `${this.KEY_PREFIX}:block:${ip}`;
+    }
 
     /**
      * Check if IP is allowed. Throws error if blocked.
      */
-    static check(ip: string): void {
-        const entry = this.store.get(ip);
-        if (!entry) return;
-
-        const now = Date.now();
-
-        // Check Block
-        if (entry.blockedUntil && now < entry.blockedUntil) {
-            const waitMin = Math.ceil((entry.blockedUntil - now) / 60000);
+    static async check(ip: string): Promise<void> {
+        const redis = getRedisClient();
+        const blockKey = this.blockKey(ip);
+        const blocked = await redis.exists(blockKey);
+        if (blocked) {
+            const ttl = await redis.ttl(blockKey);
+            const waitMin = Math.max(1, Math.ceil(ttl / 60));
             throw new Error(`Too many attempts. Please try again in ${waitMin} minutes.`);
-        }
-
-        // Cleanup expired window
-        if (now - entry.windowStart > this.WINDOW_MS) {
-            this.store.delete(ip);
         }
     }
 
     /**
      * Record a failed attempt
      */
-    static recordFail(ip: string): void {
-        const now = Date.now();
-        let entry = this.store.get(ip);
+    static async recordFail(ip: string): Promise<void> {
+        const redis = getRedisClient();
+        const failKey = this.failKey(ip);
+        const result = await redis
+            .multi()
+            .incr(failKey)
+            .expire(failKey, this.WINDOW_SECONDS)
+            .exec();
+        const attempts = Number(result?.[0]?.[1] || 0);
 
-        // Init if new or expired
-        if (!entry || (now - entry.windowStart > this.WINDOW_MS)) {
-            entry = { attempts: 0, windowStart: now };
+        if (!attempts) {
+            throw new Error('Rate limit update failed.');
         }
 
-        entry.attempts++;
-
-        if (entry.attempts >= this.MAX_ATTEMPTS) {
-            entry.blockedUntil = now + this.BLOCK_DURATION;
-            console.warn(`[RateLimit] Blocked IP ${ip} for ${this.BLOCK_DURATION}ms`);
+        if (attempts >= this.MAX_ATTEMPTS) {
+            await redis.set(this.blockKey(ip), '1', 'EX', this.BLOCK_SECONDS);
+            console.warn(`[RateLimit] Blocked IP ${ip} for ${this.BLOCK_SECONDS}s`);
         }
-
-        this.store.set(ip, entry);
     }
 
     /**
      * Reset on success
      */
-    static reset(ip: string): void {
-        this.store.delete(ip);
+    static async reset(ip: string): Promise<void> {
+        const redis = getRedisClient();
+        await redis.del(this.failKey(ip), this.blockKey(ip));
     }
-
-    // Optional: Periodic cleanup could be added here
 }

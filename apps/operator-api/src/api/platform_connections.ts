@@ -3,6 +3,7 @@ import { requireSession, requireWorkspace } from '../middleware/session_auth';
 import { PlatformConnectionService } from '../services/platform_connection.service';
 
 const router = Router();
+const requirePlatformConnectionSession = [requireSession, requireWorkspace];
 
 router.post('/platform-connections/:platform/ingest', async (req: Request, res: Response) => {
     try {
@@ -21,10 +22,7 @@ router.post('/platform-connections/:platform/ingest', async (req: Request, res: 
     }
 });
 
-router.use(requireSession);
-router.use(requireWorkspace);
-
-router.get('/brands/:brandId/platform-connections/:platform', async (req: Request, res: Response) => {
+router.get('/brands/:brandId/platform-connections/:platform', requirePlatformConnectionSession, async (req: Request, res: Response) => {
     try {
         const connection = await PlatformConnectionService.getConnection(
             req.activeWorkspaceId!,
@@ -39,7 +37,7 @@ router.get('/brands/:brandId/platform-connections/:platform', async (req: Reques
     }
 });
 
-router.post('/brands/:brandId/platform-connections/:platform/request', async (req: Request, res: Response) => {
+router.post('/brands/:brandId/platform-connections/:platform/request', requirePlatformConnectionSession, async (req: Request, res: Response) => {
     try {
         const connection = await PlatformConnectionService.requestConnection(
             req.activeWorkspaceId!,
@@ -54,7 +52,7 @@ router.post('/brands/:brandId/platform-connections/:platform/request', async (re
     }
 });
 
-router.post('/brands/:brandId/platform-connections/:platform/challenge', async (req: Request, res: Response) => {
+router.post('/brands/:brandId/platform-connections/:platform/challenge', requirePlatformConnectionSession, async (req: Request, res: Response) => {
     try {
         const challenge = await PlatformConnectionService.createChallenge(
             req.activeWorkspaceId!,
@@ -70,7 +68,7 @@ router.post('/brands/:brandId/platform-connections/:platform/challenge', async (
     }
 });
 
-router.post('/brands/:brandId/platform-connections/:platform/refresh', async (req: Request, res: Response) => {
+router.post('/brands/:brandId/platform-connections/:platform/refresh', requirePlatformConnectionSession, async (req: Request, res: Response) => {
     try {
         const connection = await PlatformConnectionService.getConnection(
             req.activeWorkspaceId!,
@@ -85,7 +83,7 @@ router.post('/brands/:brandId/platform-connections/:platform/refresh', async (re
     }
 });
 
-router.post('/brands/:brandId/platform-connections/:platform/verify', async (req: Request, res: Response) => {
+router.post('/brands/:brandId/platform-connections/:platform/verify', requirePlatformConnectionSession, async (req: Request, res: Response) => {
     try {
         const connection = await PlatformConnectionService.verifyConnection(
             req.activeWorkspaceId!,
@@ -100,7 +98,7 @@ router.post('/brands/:brandId/platform-connections/:platform/verify', async (req
     }
 });
 
-router.delete('/brands/:brandId/platform-connections/:platform', async (req: Request, res: Response) => {
+router.delete('/brands/:brandId/platform-connections/:platform', requirePlatformConnectionSession, async (req: Request, res: Response) => {
     try {
         const connection = await PlatformConnectionService.disconnect(
             req.activeWorkspaceId!,

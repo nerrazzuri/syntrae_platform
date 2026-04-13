@@ -120,14 +120,52 @@ class DiscoveryEngine:
                         )
                         break
 
-                    payload = await platform_adapter.run_search(
-                        self.controller.page if self.controller else None,
-                        keyword,
-                        run_id=self.run_id,
-                        record_discovery=self.client.record_discovery,
-                        is_video_eligible=lambda note_id: self.client.check_video_eligibility(note_id, "rednote"),
-                        max_posts=min(posts_per_keyword_cap, remaining_posts),
-                        max_comments_per_post=comments_per_post_cap,
+                    requested_posts = min(posts_per_keyword_cap, remaining_posts)
+                    post_reservation = await self.enforcer.reserve_video_quota(requested_posts)
+                    if not post_reservation:
+                        logger.info("Global source post quota reached. Stopping XHS discovery.")
+                        break
+
+                    requested_comments = post_reservation.amount * comments_per_post_cap
+                    comment_reservation = await self.enforcer.reserve_comment_quota(requested_comments)
+                    if not comment_reservation:
+                        await self.enforcer.release_video_quota(post_reservation, post_reservation.amount)
+                        logger.info("Global comment quota reached. Stopping XHS discovery.")
+                        break
+
+                    allowed_posts = min(
+                        post_reservation.amount,
+                        max(1, comment_reservation.amount // comments_per_post_cap)
+                    )
+                    allowed_comments_per_post = max(1, min(
+                        comments_per_post_cap,
+                        comment_reservation.amount // allowed_posts
+                    ))
+
+                    try:
+                        payload = await platform_adapter.run_search(
+                            self.controller.page if self.controller else None,
+                            keyword,
+                            run_id=self.run_id,
+                            record_discovery=self.client.record_discovery,
+                            is_video_eligible=lambda note_id: self.client.check_video_eligibility(note_id, "rednote"),
+                            max_posts=allowed_posts,
+                            max_comments_per_post=allowed_comments_per_post,
+                        )
+                    except Exception:
+                        await self.enforcer.release_video_quota(post_reservation, post_reservation.amount)
+                        await self.enforcer.release_comment_quota(comment_reservation, comment_reservation.amount)
+                        raise
+
+                    actual_posts = int(payload.get("source_posts_processed", 0))
+                    actual_comments = len(payload.get("events", []) or [])
+                    await self.enforcer.release_video_quota(
+                        post_reservation,
+                        max(0, post_reservation.amount - actual_posts)
+                    )
+                    await self.enforcer.release_comment_quota(
+                        comment_reservation,
+                        max(0, comment_reservation.amount - actual_comments)
                     )
                     processed_source_posts += int(payload.get("source_posts_processed", 0))
                     source_posts = payload.get("source_posts", [])
@@ -228,11 +266,6 @@ class DiscoveryEngine:
             logger.info(f"Found {len(candidates)} candidates from {url}")
             
             for cand in candidates:
-                # Check Global Gates
-                if not self.enforcer.check_video_limit_gate():
-                    logger.info("Global video limit reached. Stopping discovery.")
-                    return
-
                 # 3. Score & Decide
                 decision_payload = await self._score_candidate(cand, market_profile)
 
@@ -317,12 +350,18 @@ class DiscoveryEngine:
                         })
                         continue
 
+                    video_reservation = await self.enforcer.reserve_video_quota()
+                    if not video_reservation:
+                        logger.info("Global video quota reached. Stopping discovery.")
+                        return
+
                     # WF-3.1: Persistence-required-for-ACCEPT
                     try:
                         await self.client.record_discovery(self.run_id, decision_payload)
                     except Exception as e:
                         logger.error(f"WF-3.1 FATAL: ACCEPT persistence failed: {e}")
-                        
+                        await self.enforcer.release_video_quota(video_reservation)
+
                         if finalize:
                             await self.client.update_run_internal(
                                 run_id=self.run_id,
@@ -331,7 +370,7 @@ class DiscoveryEngine:
                             )
 
                         raise
-                    
+
                     # Process (Nav -> Validate -> Extract -> Emit)
                     await self._process_accepted_video(cand)
                     # Track usage
@@ -421,6 +460,7 @@ class DiscoveryEngine:
         )
 
     async def _process_accepted_video(self, cand: VideoCandidate):
+        comment_reservation = None
         try:
             # 1. Navigate
             await self.controller.navigate(cand.video_url)
@@ -438,20 +478,17 @@ class DiscoveryEngine:
 
                 raise Exception("Accepted video failed validation")
 
-            # 3. P1-A: Policy Enforcement BEFORE Comment Extraction
-            # Check if policy allows comment capture
-            can_capture = self.enforcer.check_comment_limit_gate(current_video_comments=0)
-            if not can_capture:
+            # 3. P1-A: Reserve shared comment quota BEFORE extraction.
+            comment_reservation = await self.enforcer.reserve_comment_quota(self.enforcer.max_comments_pv)
+            if not comment_reservation:
                 policy_reason = f"Policy limit reached: {self.enforcer.comments_processed}/{self.enforcer.max_comments_ph} hourly"
                 logger.warning(f"🛑 P1-A: Comment capture STOPPED by policy for {cand.video_id}. {policy_reason}")
                 # NOT an error - graceful policy stop
                 # Policy stops are non-fatal, partial capture allowed
                 return
-            
-            # Calculate allowed comment count based on policy caps
-            remaining_hourly = self.enforcer.max_comments_ph - self.enforcer.comments_processed
-            max_allowed_this_video = min(self.enforcer.max_comments_pv, remaining_hourly)
-            
+
+            max_allowed_this_video = comment_reservation.amount
+
             if max_allowed_this_video <= 0:
                 logger.warning(f"🛑 P1-A: No comments allowed for {cand.video_id} (hourly quota exhausted)")
                 return
@@ -467,6 +504,11 @@ class DiscoveryEngine:
             
             # 5. P1-A: Track captured comments in policy state
             captured_count = len(comments) if comments else 0
+            await self.enforcer.release_comment_quota(
+                comment_reservation,
+                max(0, max_allowed_this_video - captured_count)
+            )
+            comment_reservation = None
             for _ in range(captured_count):
                 self.enforcer.track_comment()
             
@@ -527,6 +569,8 @@ class DiscoveryEngine:
                 await self.enforcer.pace_action("comment_capture")
             
         except Exception as e:
+            if comment_reservation:
+                await self.enforcer.release_comment_quota(comment_reservation, comment_reservation.amount)
             logger.error(f"Processing failed for {cand.video_id}: {e}")
             # Raise if we want to kill the whole run? 
             # Plan said: "Hard Fail extraction".

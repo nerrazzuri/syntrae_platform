@@ -27,7 +27,7 @@ export class AuthService {
      */
     static async login(email: string, plain: string, ip: string): Promise<{ token: string, user: User, activeWorkspaceId: string | null } | null> {
         // 1. IP Throttling
-        RateLimitService.check(ip);
+        await RateLimitService.check(ip);
 
         const user = await prisma.user.findUnique({
             where: { email }
@@ -35,7 +35,7 @@ export class AuthService {
 
         if (!user || user.status !== 'ACTIVE') {
             console.log('[Auth] User not found or inactive:', email);
-            RateLimitService.recordFail(ip); // Count as fail to prevent enumeration
+            await RateLimitService.recordFail(ip); // Count as fail to prevent enumeration
             return null;
         }
 
@@ -54,7 +54,7 @@ export class AuthService {
 
         if (!valid) {
             // Increment Failed Attempts
-            RateLimitService.recordFail(ip);
+            await RateLimitService.recordFail(ip);
 
             const attempts = user.login_attempts + 1;
             let lockedUntil: Date | null | undefined = undefined; // Undefined means "do not update" in UpdateInput? No, Prisma explicit.
@@ -76,7 +76,7 @@ export class AuthService {
         }
 
         // Success
-        RateLimitService.reset(ip);
+        await RateLimitService.reset(ip);
 
         // Reset counters
         await prisma.user.update({
