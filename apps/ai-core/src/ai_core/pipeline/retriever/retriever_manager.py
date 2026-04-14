@@ -42,7 +42,9 @@ class RetrieverManager:
                 text_to_docmeta,
             ) = self.bm25.build_corpus(db, tenant_id)
             if corpus_texts:
-                ranked = self.bm25.rank_texts(query, corpus_texts, top_k=30)
+                ranked = self.bm25.rank_texts(
+                    query, corpus_texts, top_k=30, tenant_id=tenant_id
+                )
                 ordered_texts = []
                 for i, _s in ranked:
                     if 0 <= i < len(corpus_texts):

@@ -12,6 +12,10 @@ class PromptOrchestrator:
             "true",
             "yes",
         )
+        self.max_prompt_tokens = int(os.getenv("RAG_PROMPT_MAX_TOKENS", "8000"))
+        self.prompt_output_headroom = int(
+            os.getenv("RAG_PROMPT_OUTPUT_HEADROOM_TOKENS", "1200")
+        )
         self._templates: Dict[str, str] = self._build_templates()
 
     def _build_templates(self) -> Dict[str, str]:
@@ -60,6 +64,64 @@ class PromptOrchestrator:
         # crude estimate: 1 token ~ 4 chars
         return int(len(text) / 4)
 
+    def _truncate_text(self, text: str, max_chars: int) -> str:
+        if max_chars <= 0:
+            return ""
+        if len(text) <= max_chars:
+            return text
+        clipped = text[:max_chars].rstrip()
+        cut_candidates = [
+            clipped.rfind("\n"),
+            clipped.rfind(" "),
+            clipped.rfind("。"),
+            clipped.rfind("."),
+            clipped.rfind("，"),
+            clipped.rfind(","),
+        ]
+        cut_at = max(cut_candidates)
+        if cut_at > max_chars // 2:
+            clipped = clipped[:cut_at].rstrip()
+        return clipped + " ..."
+
+    def _context_entries(
+        self, context_docs: List[Any]
+    ) -> tuple[List[Dict[str, str]], str]:
+        entries: List[Dict[str, str]] = []
+        sources_block = ""
+        if context_docs and isinstance(context_docs[0], dict):
+            sources: List[str] = []
+            for item in context_docs:  # type: ignore
+                sid = str(item.get("id", "")).strip() or f"S{len(entries)+1}"
+                txt = str(item.get("text", "")).strip()
+                src = str(item.get("source_label", sid))
+                if not txt:
+                    continue
+                entries.append({"id": sid, "text": txt})
+                sources.append(f"{sid} → {src}")
+            if sources:
+                sources_block = "\nSources:\n" + "\n".join(sources) + "\n"
+        else:
+            for c in context_docs:
+                if isinstance(c, str) and c.strip():
+                    entries.append({"id": "", "text": c.strip()})
+        return entries, sources_block
+
+    def _render_context(
+        self, entries: List[Dict[str, str]], sources_block: str = ""
+    ) -> str:
+        ctx_lines = [
+            f"{entry['id']}: {entry['text']}" if entry.get("id") else entry["text"]
+            for entry in entries
+            if entry.get("text")
+        ]
+        ctx = "\n\n".join(ctx_lines)
+        if sources_block:
+            return ctx + ("\n\n" if ctx else "") + sources_block
+        return ctx
+
+    def _context_budget_tokens(self) -> int:
+        return max(512, self.max_prompt_tokens - self.prompt_output_headroom)
+
     def build_prompt(
         self,
         intent: str,
@@ -84,29 +146,8 @@ class PromptOrchestrator:
         if result_hint:
             structured_block = f"Structured Result Summary:\n{result_hint}\n\n"
 
-        # Context handling with snippet IDs: if provided as dicts, format with IDs and build Sources legend
-        ctx_lines: List[str] = []
-        sources: List[str] = []
-        if context_docs and isinstance(context_docs[0], dict):
-            for item in context_docs:  # type: ignore
-                sid = str(item.get("id", "")).strip() or f"S{len(ctx_lines)+1}"
-                txt = str(item.get("text", "")).strip()
-                src = str(item.get("source_label", sid))
-                if not txt:
-                    continue
-                ctx_lines.append(f"{sid}: {txt}")
-                sources.append(f"{sid} → {src}")
-            if sources:
-                sources_block = "\nSources:\n" + "\n".join(sources) + "\n"
-            else:
-                sources_block = ""
-        else:
-            # Fallback: plain texts
-            ctx_lines = [
-                c.strip() for c in context_docs if isinstance(c, str) and c.strip()
-            ]
-            sources_block = ""
-        ctx = "\n\n".join(ctx_lines) + ("\n\n" + sources_block if sources_block else "")
+        ctx_entries, sources_block = self._context_entries(context_docs)
+        ctx = self._render_context(ctx_entries, sources_block)
         if not ctx and not result_hint:
             # Controlled fallback meta-prompt
             meta = (
@@ -120,26 +161,82 @@ class PromptOrchestrator:
             return meta
 
         # Add citation instruction to all prompts
-        tpl += "\nWhen you state a fact from a snippet, append its ID in square brackets (e.g., [S1]). You may attach multiple IDs for synthesized statements (e.g., [S2][S3]). Do not invent IDs."
-        prompt = tpl.format(
+        prompt_tpl = (
+            tpl
+            + "\nWhen you state a fact from a snippet, append its ID in square brackets (e.g., [S1]). "
+            "You may attach multiple IDs for synthesized statements (e.g., [S2][S3]). Do not invent IDs."
+        )
+        prompt = prompt_tpl.format(
             structured_block=structured_block, context=ctx, question=query
         )
         # Ensure guard phrase exists
         if "Answer based only on provided context" not in prompt:
             prompt = "Answer based only on provided context.\n\n" + prompt
 
-        # Token capping
+        # Token capping: trim low-priority context entries instead of corrupting prompt structure.
         tokens = self._estimate_tokens(prompt)
-        if tokens > 8000:
-            # Reduce context size by truncation
-            max_chars = 8000 * 4
-            prompt = prompt[:max_chars]
+        prompt_budget = self._context_budget_tokens()
+        if tokens > prompt_budget and ctx_entries:
+            kept_entries: List[Dict[str, str]] = []
+            kept_sources: List[str] = []
+            source_lines = (
+                [line for line in sources_block.strip().splitlines()[1:] if line.strip()]
+                if sources_block
+                else []
+            )
+
+            for idx, entry in enumerate(ctx_entries):
+                candidate_entries = kept_entries + [entry]
+                candidate_sources = kept_sources + (
+                    [source_lines[idx]] if idx < len(source_lines) else []
+                )
+                candidate_sources_block = (
+                    "\nSources:\n" + "\n".join(candidate_sources) + "\n"
+                    if candidate_sources
+                    else ""
+                )
+                candidate_ctx = self._render_context(
+                    candidate_entries, candidate_sources_block
+                )
+                candidate_prompt = prompt_tpl.format(
+                    structured_block=structured_block,
+                    context=candidate_ctx,
+                    question=query,
+                )
+                if self._estimate_tokens(candidate_prompt) <= prompt_budget:
+                    kept_entries = candidate_entries
+                    kept_sources = candidate_sources
+                    continue
+
+                if not kept_entries:
+                    base_prompt = prompt_tpl.format(
+                        structured_block=structured_block, context="", question=query
+                    )
+                    available_chars = max(
+                        200,
+                        (prompt_budget - self._estimate_tokens(base_prompt)) * 4,
+                    )
+                    truncated_entry = dict(entry)
+                    truncated_entry["text"] = self._truncate_text(
+                        entry["text"], available_chars
+                    )
+                    kept_entries = [truncated_entry]
+                    kept_sources = candidate_sources
+                break
+
+            trimmed_sources_block = (
+                "\nSources:\n" + "\n".join(kept_sources) + "\n" if kept_sources else ""
+            )
+            ctx = self._render_context(kept_entries, trimmed_sources_block)
+            prompt = prompt_tpl.format(
+                structured_block=structured_block, context=ctx, question=query
+            )
             tokens = self._estimate_tokens(prompt)
 
         self._log_metrics(
             intent,
             self._template_key(intent),
-            len(context_docs),
+            len(ctx_entries),
             tokens,
             bool(result_hint),
         )

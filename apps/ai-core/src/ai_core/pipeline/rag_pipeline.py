@@ -1,5 +1,6 @@
 from typing import Dict, Any, List, Optional
 import time
+from shared.security.pii import redact
 
 
 class RAGPipeline:
@@ -75,7 +76,7 @@ class RAGPipeline:
             plog = None
         t_start = time.time()
         if plog:
-            plog.emit({"query": query})
+            plog.emit({"query": redact(query)})
         # 1) Memory context: summary + recent turns (if session_id derivable from user/channel)
         conversation_context: List[Dict[str, Any]] = []
         memory_summary: Optional[str] = None
