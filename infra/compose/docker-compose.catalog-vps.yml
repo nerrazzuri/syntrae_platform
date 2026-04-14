@@ -1,4 +1,0 @@
-services: {}
-# VPS override file intentionally empty.
-# Use this instead of docker-compose.catalog-local.yml to avoid
-# local-only settings like name: syntrae_local and local env_file.
