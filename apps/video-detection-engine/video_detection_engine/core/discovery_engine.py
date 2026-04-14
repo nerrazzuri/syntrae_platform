@@ -96,6 +96,7 @@ class DiscoveryEngine:
                 keywords = qb.build_queries(limit=XHS_KEYWORD_LIMIT)
                 all_results = []
                 seen_pairs = set()
+                seen_source_post_ids = set()
                 processed_source_posts = 0
                 unique_video_ids = set()
                 geo_filtered_posts = 0
@@ -158,6 +159,7 @@ class DiscoveryEngine:
                             run_id=self.run_id,
                             record_discovery=self.client.record_discovery,
                             is_video_eligible=lambda note_id: self.client.check_video_eligibility(note_id, "rednote"),
+                            exclude_note_ids=seen_source_post_ids,
                             max_posts=allowed_posts,
                             max_comments_per_post=allowed_comments_per_post,
                         )
@@ -180,6 +182,10 @@ class DiscoveryEngine:
                     source_posts = payload.get("source_posts", [])
                     results = payload.get("events", [])
                     source_post_geo_by_id = {}
+                    for post in source_posts or []:
+                        note_id = post.get("video_id")
+                        if note_id:
+                            seen_source_post_ids.add(note_id)
 
                     for post in source_posts or []:
                         note_id = post.get("video_id")

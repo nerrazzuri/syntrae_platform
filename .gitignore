@@ -21,6 +21,7 @@ infra/compose/certbot/www/
 # Local environment overrides
 .env.local
 infra/compose/docker-compose.local.yml
+local-data/
 
 # Local TLS certificates
 infra/nginx/local/
