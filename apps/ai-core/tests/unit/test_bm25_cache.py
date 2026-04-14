@@ -62,3 +62,23 @@ def test_bm25_corpus_and_index_are_reused_per_tenant():
     assert retriever._cache["tenant-a"]["bm25"] is bm25_a
     assert ranked
     assert ranked[0][0] == 0
+
+
+def test_bm25_corpus_rebuilds_after_ttl_expiry():
+    tracker = {"query_calls": 0, "all_calls": 0}
+    rows = [
+        (
+            SimpleNamespace(id="kc-1", content="alpha beta", meta={}),
+            SimpleNamespace(id="doc-1", title="Doc 1", source_url="https://one"),
+            SimpleNamespace(id="kb-1"),
+        ),
+    ]
+    db = _FakeDB(rows, tracker)
+    retriever = BM25Retriever()
+
+    retriever.build_corpus(db, "tenant-a")
+    retriever._cache["tenant-a"]["ts"] -= retriever._cache_ttl_s() + 1
+    retriever.build_corpus(db, "tenant-a")
+
+    assert tracker["query_calls"] == 2
+    assert tracker["all_calls"] == 2
