@@ -38,6 +38,7 @@ class XiaohongshuPlatform:
         run_id: str | None = None,
         record_discovery=None,
         is_video_eligible=None,
+        exclude_note_ids: set[str] | None = None,
         max_posts: int | None = None,
         max_comments_per_post: int | None = None,
         max_comment_pages: int | None = None,
@@ -71,8 +72,17 @@ class XiaohongshuPlatform:
         final_events = []
         source_posts = []
         processed_note_ids = set()
+        excluded_note_ids = exclude_note_ids or set()
         for post in posts[:posts_limit]:
             note_id = post["note_id"]
+            if note_id in excluded_note_ids:
+                logger.info(
+                    "Skipping XHS note %s for keyword '%s' because it was already processed earlier in run %s",
+                    note_id,
+                    keyword,
+                    run_id or "unknown",
+                )
+                continue
             post_url = self._build_note_url(
                 post.get("note_ref") or note_id,
                 note_id,
