@@ -193,6 +193,91 @@ def _normalize_extracted_text(text: str | None) -> str:
     return normalized
 
 
+def _normalize_domain_tags(tags: Any) -> List[str]:
+    if not isinstance(tags, list):
+        return []
+    normalized: List[str] = []
+    for tag in tags:
+        tag = str(tag or "").strip().lower()
+        if not tag:
+            continue
+        if tag not in normalized:
+            normalized.append(tag)
+    return normalized[:6]
+
+
+def _summarize_catalog_domain(filename: str, title: str, text: str) -> Dict[str, Any]:
+    llm_client = LLMClient()
+    if not llm_client.client:
+        return {"tags": [], "summary": ""}
+
+    sample = _normalize_extracted_text(text)
+    if len(sample) > 1800:
+        sample = sample[:1800]
+    prompt = f"""
+You classify the product domain for an imported catalog.
+Return strict JSON only:
+{{
+  "tags": ["broad industry/domain tags in lowercase"],
+  "summary": "short phrase (max 12 words) describing the catalog domain"
+}}
+
+Rules:
+- Tags must be broad, industry-level (e.g., skincare, herbal tea, phone accessories, house cleaning).
+- Avoid brand names and product names.
+- If uncertain, return empty tags and empty summary.
+
+Filename: {filename}
+Title: {title}
+Sample:
+{sample}
+"""
+    try:
+        completion = llm_client.client.chat.completions.create(
+            model=llm_client.model,
+            temperature=0.1,
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw_content = (completion.choices[0].message.content or "").strip()
+        parsed = json.loads(raw_content)
+        tags = _normalize_domain_tags(parsed.get("tags"))
+        summary = str(parsed.get("summary") or "").strip()
+        return {"tags": tags, "summary": summary}
+    except Exception:
+        return {"tags": [], "summary": ""}
+
+
+def _summarize_query_domain(query: str) -> List[str]:
+    llm_client = LLMClient()
+    if not llm_client.client:
+        return []
+    prompt = f"""
+You classify the user query into broad industry/domain tags.
+Return strict JSON only:
+{{ "tags": ["broad industry/domain tags in lowercase"] }}
+
+Rules:
+- Tags must be broad (e.g., skincare, herbal tea, phone accessories, house cleaning).
+- Avoid brand names and product names.
+- If uncertain, return an empty list.
+
+Query: {query}
+"""
+    try:
+        completion = llm_client.client.chat.completions.create(
+            model=llm_client.model,
+            temperature=0.1,
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw_content = (completion.choices[0].message.content or "").strip()
+        parsed = json.loads(raw_content)
+        return _normalize_domain_tags(parsed.get("tags"))
+    except Exception:
+        return []
+
+
 def infer_catalog_candidates(filename: str, data: bytes, svc: DocumentService) -> List[Dict[str, Any]]:
     name = (filename or "").lower()
     if not (name.endswith(".csv") or name.endswith(".xlsx")):
@@ -853,6 +938,12 @@ async def import_catalog_document(
 
     try:
         if filename.lower().endswith(".csv") or filename.lower().endswith(".xlsx"):
+            preview_text = svc.extract_text_from_file(filename, data)[:500]
+            domain_info = _summarize_catalog_domain(filename, title, preview_text)
+            if domain_info.get("tags"):
+                doc_meta["domain_tags"] = domain_info["tags"]
+            if domain_info.get("summary"):
+                doc_meta["domain_summary"] = domain_info["summary"]
             document_id, chunk_count = svc.process_pandas_and_store(
                 account_id,
                 title,
@@ -861,12 +952,16 @@ async def import_catalog_document(
                 "00000000-0000-0000-0000-000000000000",
                 doc_meta=doc_meta,
             )
-            preview_text = svc.extract_text_from_file(filename, data)[:500]
             candidates = infer_catalog_candidates(filename, data, svc)
         else:
             extracted = svc.extract_text_from_file(filename, data)
             if not extracted or not extracted.strip():
                 raise HTTPException(status_code=400, detail="No text content could be extracted from the file")
+            domain_info = _summarize_catalog_domain(filename, title, extracted)
+            if domain_info.get("tags"):
+                doc_meta["domain_tags"] = domain_info["tags"]
+            if domain_info.get("summary"):
+                doc_meta["domain_summary"] = domain_info["summary"]
             document_id, chunk_count = svc.process_and_store(
                 account_id,
                 title,
@@ -954,6 +1049,8 @@ def search_catalog_knowledge(
         allowed_document_ids=document_ids,
     )
 
+    query_tags = _summarize_query_domain(query)
+
     items = [
         {
             "content": item.get("content"),
@@ -965,6 +1062,22 @@ def search_catalog_knowledge(
         for item in results
         if item.get("content")
     ]
+    if query_tags:
+        gated: List[Dict[str, Any]] = []
+        for item in items:
+            meta = item.get("meta") or {}
+            item_tags = _normalize_domain_tags(meta.get("domain_tags"))
+            if not item_tags:
+                inferred = _summarize_catalog_domain(
+                    str(item.get("document_title") or ""),
+                    str(item.get("document_title") or ""),
+                    str(item.get("content") or ""),
+                )
+                item_tags = _normalize_domain_tags(inferred.get("tags"))
+            if item_tags and not (set(query_tags) & set(item_tags)):
+                continue
+            gated.append(item)
+        items = gated
     return {"items": items}
 
 

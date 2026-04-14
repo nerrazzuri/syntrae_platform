@@ -727,6 +727,8 @@ class DocumentService:
                             "source_type",
                             "original_filename",
                             "mime_type",
+                            "domain_tags",
+                            "domain_summary",
                         ):
                             meta_val = dmeta.get(meta_key)
                             if meta_val and meta_key not in merged_meta:
