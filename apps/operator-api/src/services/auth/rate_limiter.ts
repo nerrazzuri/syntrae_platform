@@ -60,6 +60,10 @@ export class RateLimitService {
      */
     static async reset(ip: string): Promise<void> {
         const redis = getRedisClient();
-        await redis.del(this.failKey(ip), this.blockKey(ip));
+        try {
+            await redis.del(this.failKey(ip), this.blockKey(ip));
+        } catch (error: any) {
+            console.warn(`[RateLimit] Redis reset failed for IP ${ip}; continuing.`, error?.message || error);
+        }
     }
 }
