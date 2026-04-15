@@ -12,7 +12,9 @@ router.get('/', async (req: Request, res: Response) => {
     try {
         const workspaceId = req.activeWorkspaceId!;
         const status = req.query.status as string | undefined;
-        const suggestions = await SuggestionService.listSuggestions(workspaceId, status);
+        const limit = parseInt(req.query.limit as string) || 25;
+        const offset = parseInt(req.query.offset as string) || 0;
+        const suggestions = await SuggestionService.listSuggestions(workspaceId, status, limit, offset);
         res.json(suggestions);
     } catch (err) {
         console.error('[API] List Suggestions Error:', err);

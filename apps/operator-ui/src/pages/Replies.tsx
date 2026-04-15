@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
+import { PaginationControls } from '../components/PaginationControls';
 
 export function RepliesPage() {
     const [drafts, setDrafts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [total, setTotal] = useState(0);
     const [selectedDraft, setSelectedDraft] = useState<any | null>(null);
     const [editText, setEditText] = useState('');
     const [error, setError] = useState<string | null>(null);
@@ -11,17 +14,43 @@ export function RepliesPage() {
     const [sendSuccess, setSendSuccess] = useState<string | null>(null);
     const [sending, setSending] = useState(false);
     const [filter, setFilter] = useState('PENDING');
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(25);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const requestedDraftId = useMemo(() => searchParams.get('draft') || '', [searchParams]);
+    const requestedStatus = useMemo(() => (searchParams.get('status') || '').toUpperCase(), [searchParams]);
+
+    function syncSelectedDraft(draft: any | null) {
+        setSelectedDraft(draft);
+        setEditText(draft?.edited_text || draft?.draft_text || '');
+        setSendError(null);
+        setSendSuccess(null);
+    }
 
     async function loadDrafts() {
         setLoading(true);
         setError(null);
         try {
-            const data = await api.get(`/drafts?status=${filter}`);
-            setDrafts(Array.isArray(data) ? data : []);
+            const offset = (page - 1) * pageSize;
+            const data = await api.get(`/drafts?status=${filter}&limit=${pageSize}&offset=${offset}`) as {
+                items?: any[];
+                total?: number;
+            };
+            const items = Array.isArray(data?.items) ? data.items : [];
+            setDrafts(items);
+            setTotal(data?.total || 0);
+
+            if (requestedDraftId) {
+                const requested = items.find((item) => item.id === requestedDraftId) || null;
+                if (requested) {
+                    syncSelectedDraft(requested);
+                    return;
+                }
+            }
+
             if (selectedDraft) {
-                const updated = (Array.isArray(data) ? data : []).find((item) => item.id === selectedDraft.id) || null;
-                setSelectedDraft(updated);
-                setEditText(updated?.edited_text || updated?.draft_text || '');
+                const updated = items.find((item) => item.id === selectedDraft.id) || null;
+                syncSelectedDraft(updated);
             }
         } catch (err: any) {
             setError(err.message || 'Failed to load pending replies');
@@ -31,14 +60,26 @@ export function RepliesPage() {
     }
 
     useEffect(() => {
-        loadDrafts();
+        setPage(1);
     }, [filter]);
 
+    useEffect(() => {
+        if (requestedStatus && requestedStatus !== filter) {
+            setFilter(requestedStatus);
+            return;
+        }
+        loadDrafts();
+    }, [filter, page, pageSize, requestedStatus, requestedDraftId]);
+
     function openDraft(draft: any) {
-        setSelectedDraft(draft);
-        setEditText(draft.edited_text || draft.draft_text || '');
-        setSendError(null);
-        setSendSuccess(null);
+        syncSelectedDraft(draft);
+        setSearchParams((current) => {
+            const next = new URLSearchParams(current);
+            next.set('draft', draft.id);
+            next.set('status', filter);
+            next.set('page', String(page));
+            return next;
+        });
     }
 
     async function saveEdit() {
@@ -56,7 +97,7 @@ export function RepliesPage() {
     async function rejectDraft() {
         if (!selectedDraft) return;
         await api.post(`/drafts/${selectedDraft.id}/reject`, { reason: 'Rejected by operator' });
-        setSelectedDraft(null);
+        syncSelectedDraft(null);
         await loadDrafts();
     }
 
@@ -111,24 +152,27 @@ export function RepliesPage() {
                     ) : drafts.length === 0 ? (
                         <div className="p-10 text-center text-slate-400">No replies in this queue yet.</div>
                     ) : (
-                        <table className="min-w-full">
-                            <thead className="table-head border-b border-slate-200">
-                                <tr>
-                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Brand</th>
-                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Thread</th>
-                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Original Comment</th>
-                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Suggested Reply</th>
-                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {drafts.map(draft => (
-                                    <tr
-                                        key={draft.id}
-                                        className="table-row cursor-pointer border-b border-slate-100"
-                                        onClick={() => openDraft(draft)}
-                                    >
-                                        <td className="px-4 py-4 text-sm font-semibold text-slate-800">{draft.brand?.name || 'Unknown Brand'}</td>
+                        <>
+                            <table className="min-w-full">
+                                <thead className="table-head border-b border-slate-200">
+                                    <tr>
+                                        <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Brand</th>
+                                        <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Thread</th>
+                                        <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Original Comment</th>
+                                        <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Suggested Reply</th>
+                                        <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {drafts.map(draft => {
+                                        const isSelected = selectedDraft?.id === draft.id || requestedDraftId === draft.id;
+                                        return (
+                                            <tr
+                                                key={draft.id}
+                                                className={`table-row cursor-pointer border-b border-slate-100 transition ${isSelected ? 'bg-teal-100 ring-1 ring-inset ring-teal-300' : ''}`}
+                                                onClick={() => openDraft(draft)}
+                                            >
+                                        <td className={`px-4 py-4 text-sm font-semibold ${isSelected ? 'border-l-4 border-teal-600 bg-teal-100 text-teal-950' : 'text-slate-800'}`}>{draft.brand?.name || 'Unknown Brand'}</td>
                                         <td className="px-4 py-4 text-xs text-slate-600">
                                             <div className="font-semibold uppercase">{draft.thread_reference?.platform || draft.platform}</div>
                                             <div className="mt-1 font-mono">video: {draft.thread_reference?.video_id || 'unknown'}</div>
@@ -150,11 +194,28 @@ export function RepliesPage() {
                                         <td className="px-4 py-4 max-w-md text-sm font-semibold text-slate-900">
                                             <div className="line-clamp-2">{draft.edited_text || draft.draft_text}</div>
                                         </td>
-                                        <td className="px-4 py-4 text-sm text-slate-600">{draft.status}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                        <td className="px-4 py-4 text-sm text-slate-600">
+                                            <span className={`rounded-full px-2 py-1 font-semibold ${isSelected ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                                                {draft.status}
+                                            </span>
+                                        </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                            <PaginationControls
+                                total={total}
+                                page={page}
+                                pageSize={pageSize}
+                                onPageChange={setPage}
+                                onPageSizeChange={(size) => {
+                                    setPageSize(size);
+                                    setPage(1);
+                                }}
+                                label="replies"
+                            />
+                        </>
                     )}
                 </section>
 

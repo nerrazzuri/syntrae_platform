@@ -2,18 +2,27 @@ import { useEffect, useState } from 'react';
 import { Client } from '../lib/api';
 import { SuggestionDetail } from '../components/SuggestionDetail';
 import { ExternalLink, MessageSquareText, Wand2 } from 'lucide-react';
+import { PaginationControls } from '../components/PaginationControls';
 
 export function Suggestions() {
     const [suggestions, setSuggestions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('PENDING');
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [total, setTotal] = useState(0);
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(25);
 
     const loadData = async () => {
         try {
             setLoading(true);
-            const data = await Client.get(`/suggestions?status=${filter}`);
-            setSuggestions(data);
+            const offset = (page - 1) * pageSize;
+            const data = await Client.get(`/suggestions?status=${filter}&limit=${pageSize}&offset=${offset}`) as {
+                items?: any[];
+                total?: number;
+            };
+            setSuggestions(data.items || []);
+            setTotal(data.total || 0);
         } catch (e) {
             console.error(e);
         } finally {
@@ -23,6 +32,10 @@ export function Suggestions() {
 
     useEffect(() => {
         loadData();
+    }, [filter, page, pageSize]);
+
+    useEffect(() => {
+        setPage(1);
     }, [filter]);
 
     const [detailData, setDetailData] = useState<any>(null);
@@ -68,7 +81,7 @@ export function Suggestions() {
                     <div className="flex items-center justify-between">
                         <div>
                             <div className="text-sm font-semibold text-slate-500">Visible Suggestions</div>
-                            <div className="mt-2 text-3xl font-bold">{suggestions.length}</div>
+                            <div className="mt-2 text-3xl font-bold">{total}</div>
                         </div>
                         <MessageSquareText className="h-5 w-5 text-teal-700" />
                     </div>
@@ -91,71 +104,84 @@ export function Suggestions() {
                 {loading ? (
                     <div className="p-8 text-slate-500">Loading suggestions...</div>
                 ) : (
-                    <table className="min-w-full">
-                        <thead className="table-head border-b border-slate-200">
-                            <tr>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Time</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Platform</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Original Comment</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Suggestion</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Confidence</th>
-                                <th className="px-4 py-4"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {suggestions.map(s => (
-                                <tr
-                                    key={s.id}
-                                    className="table-row cursor-pointer border-b border-slate-100"
-                                    onClick={() => setSelectedId(s.id)}
-                                >
-                                    <td className="px-4 py-4 text-sm text-slate-500 whitespace-nowrap">
-                                        {new Date(s.created_at).toLocaleTimeString()}
-                                    </td>
-                                    <td className="px-4 py-4 text-sm font-semibold uppercase text-slate-600">{s.platform}</td>
-                                    <td className="px-4 py-4 text-sm text-slate-800 max-w-md">
-                                        <div className="line-clamp-2" title={commentPreview(s)}>
-                                            {commentPreview(s)}
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-4 text-sm font-semibold text-slate-900 max-w-md">
-                                        <div className="line-clamp-2">{s.suggested_text}</div>
-                                    </td>
-                                    <td className="px-4 py-4 text-sm">
-                                        <span className={`status-pill ${s.confidence > 0.8 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                                            {(s.confidence * 100).toFixed(0)}%
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-4 text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                            {s.thread_reference?.thread_url && (
-                                                <a
-                                                    href={s.thread_reference.thread_url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                                                >
-                                                    <ExternalLink className="h-3.5 w-3.5" />
-                                                    Open thread
-                                                </a>
-                                            )}
-                                            <button className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-teal-700 transition hover:bg-teal-50">
-                                                Review
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {suggestions.length === 0 && (
+                    <>
+                        <table className="min-w-full">
+                            <thead className="table-head border-b border-slate-200">
                                 <tr>
-                                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
-                                        No suggestions found for this filter.
-                                    </td>
+                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Time</th>
+                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Platform</th>
+                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Original Comment</th>
+                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Suggestion</th>
+                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Confidence</th>
+                                    <th className="px-4 py-4"></th>
                                 </tr>
-                            )}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {suggestions.map(s => (
+                                    <tr
+                                        key={s.id}
+                                        className="table-row cursor-pointer border-b border-slate-100"
+                                        onClick={() => setSelectedId(s.id)}
+                                    >
+                                        <td className="px-4 py-4 text-sm text-slate-500 whitespace-nowrap">
+                                            {new Date(s.created_at).toLocaleTimeString()}
+                                        </td>
+                                        <td className="px-4 py-4 text-sm font-semibold uppercase text-slate-600">{s.platform}</td>
+                                        <td className="px-4 py-4 text-sm text-slate-800 max-w-md">
+                                            <div className="line-clamp-2" title={commentPreview(s)}>
+                                                {commentPreview(s)}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4 text-sm font-semibold text-slate-900 max-w-md">
+                                            <div className="line-clamp-2">{s.suggested_text}</div>
+                                        </td>
+                                        <td className="px-4 py-4 text-sm">
+                                            <span className={`status-pill ${s.confidence > 0.8 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                {(s.confidence * 100).toFixed(0)}%
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-4 text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                {s.thread_reference?.thread_url && (
+                                                    <a
+                                                        href={s.thread_reference.thread_url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                                    >
+                                                        <ExternalLink className="h-3.5 w-3.5" />
+                                                        Open thread
+                                                    </a>
+                                                )}
+                                                <button className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-teal-700 transition hover:bg-teal-50">
+                                                    Review
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {suggestions.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                                            No suggestions found for this filter.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                        <PaginationControls
+                            total={total}
+                            page={page}
+                            pageSize={pageSize}
+                            onPageChange={setPage}
+                            onPageSizeChange={(size) => {
+                                setPageSize(size);
+                                setPage(1);
+                            }}
+                            label="suggestions"
+                        />
+                    </>
                 )}
             </section>
 

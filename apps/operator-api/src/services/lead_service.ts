@@ -111,6 +111,16 @@ export class LeadService {
                     },
                     source_event_id: true,
                     created_at: true,
+                    drafts: {
+                        orderBy: { created_at: 'desc' },
+                        take: 1,
+                        select: {
+                            id: true,
+                            status: true,
+                            created_at: true,
+                            sent_at: true,
+                        }
+                    },
                     event: {
                         select: {
                             content_text: true,
@@ -122,8 +132,10 @@ export class LeadService {
             })
         ]);
 
-        const items = rawItems.map(({ event, ...lead }) => ({
+        const items = rawItems.map(({ event, drafts, ...lead }) => ({
             ...lead,
+            has_draft: Array.isArray(drafts) && drafts.length > 0,
+            latest_draft: Array.isArray(drafts) && drafts.length > 0 ? drafts[0] : null,
             original_comment: event?.content_text || null,
             thread_reference: buildThreadReference({
                 platform: lead.platform,

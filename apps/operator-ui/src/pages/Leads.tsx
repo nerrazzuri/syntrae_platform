@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Client } from '../lib/api';
 import { Target, Sparkles, ShieldCheck, ExternalLink, ArrowUpRight } from 'lucide-react';
+import { PaginationControls } from '../components/PaginationControls';
 
 type LeadStatus = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'LOST';
 type OutcomeSource = 'MANUAL' | 'INTEGRATED' | 'ESTIMATED';
@@ -43,6 +44,13 @@ interface LeadRecord {
         cta_url?: string | null;
         cta_label?: string | null;
     } | null;
+    has_draft?: boolean;
+    latest_draft?: {
+        id: string;
+        status: string;
+        created_at: string;
+        sent_at?: string | null;
+    } | null;
 }
 
 interface UsageData {
@@ -77,6 +85,8 @@ function currency(value?: number | null) {
 }
 
 export function Leads() {
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(25);
     const [leads, setLeads] = useState<LeadRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [total, setTotal] = useState(0);
@@ -91,8 +101,9 @@ export function Leads() {
     const loadData = async () => {
         try {
             setLoading(true);
+            const offset = (page - 1) * pageSize;
             const [leadData, usageData] = await Promise.all([
-                Client.get('/leads') as Promise<LeadListResponse>,
+                Client.get(`/leads?limit=${pageSize}&offset=${offset}`) as Promise<LeadListResponse>,
                 Client.get('/analytics/usage'),
             ]);
             setLeads(leadData.items || []);
@@ -108,7 +119,7 @@ export function Leads() {
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [page, pageSize]);
 
     const commentPreview = (lead: LeadRecord) => {
         if (lead.original_comment) return lead.original_comment;
@@ -136,11 +147,40 @@ export function Leads() {
         return colors[status];
     };
 
+    const draftBadge = (status?: string | null) => {
+        const colors: Record<string, string> = {
+            DRAFT: 'bg-violet-100 text-violet-700',
+            APPROVED: 'bg-sky-100 text-sky-700',
+            EDITED: 'bg-amber-100 text-amber-700',
+            SENT: 'bg-emerald-100 text-emerald-700',
+            REJECTED: 'bg-rose-100 text-rose-700',
+        };
+        return colors[status || ''] || 'bg-slate-100 text-slate-700';
+    };
+
     const generateReply = async (leadId: string) => {
         setDraftGenerationLoadingId(leadId);
         setLeadError(null);
         try {
-            await Client.post(`/leads/${leadId}/draft`, {});
+            const existingLead = leads.find((lead) => lead.id === leadId) || null;
+            if (existingLead?.latest_draft?.id) {
+                const statusFilter = existingLead.latest_draft.status === 'SENT'
+                    ? 'SENT'
+                    : existingLead.latest_draft.status === 'REJECTED'
+                        ? 'REJECTED'
+                        : existingLead.latest_draft.status === 'APPROVED'
+                            ? 'APPROVED'
+                            : 'PENDING';
+                window.location.href = `/replies?status=${encodeURIComponent(statusFilter)}&draft=${encodeURIComponent(existingLead.latest_draft.id)}`;
+                return;
+            }
+
+            const draft = await Client.post(`/leads/${leadId}/draft`, {}) as { id?: string; status?: string };
+            const statusFilter = draft?.status === 'APPROVED' ? 'APPROVED' : 'PENDING';
+            if (draft?.id) {
+                window.location.href = `/replies?status=${encodeURIComponent(statusFilter)}&draft=${encodeURIComponent(draft.id)}`;
+                return;
+            }
             window.location.href = '/replies';
         } catch (e: any) {
             setLeadError(e.message || 'Failed to generate reply');
@@ -239,26 +279,27 @@ export function Leads() {
                 ) : leads.length === 0 ? (
                     <div className="p-10 text-center text-slate-400">Leads will appear here once discovery captures buyer intent signals.</div>
                 ) : (
-                    <table className="min-w-full">
-                        <thead className="table-head border-b border-slate-200">
-                            <tr>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Platform</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Original Comment</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Stage</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Lifecycle</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Confidence</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Deal Value</th>
-                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Created</th>
-                                <th className="px-4 py-4"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {leads.map(lead => (
-                                <tr
-                                    key={lead.id}
-                                    className="table-row cursor-pointer border-b border-slate-100"
-                                    onClick={() => setSelectedLead(lead)}
-                                >
+                    <>
+                        <table className="min-w-full">
+                            <thead className="table-head border-b border-slate-200">
+                                <tr>
+                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Platform</th>
+                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Original Comment</th>
+                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Stage</th>
+                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Lifecycle</th>
+                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Confidence</th>
+                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Deal Value</th>
+                                    <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Created</th>
+                                    <th className="px-4 py-4"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {leads.map(lead => (
+                                    <tr
+                                        key={lead.id}
+                                        className="table-row cursor-pointer border-b border-slate-100"
+                                        onClick={() => setSelectedLead(lead)}
+                                    >
                                     <td className="px-4 py-4 text-sm font-semibold uppercase text-slate-600">{lead.platform}</td>
                                     <td className="px-4 py-4 max-w-md text-sm text-slate-800">
                                         <div className="line-clamp-2" title={commentPreview(lead)}>
@@ -267,6 +308,11 @@ export function Leads() {
                                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                                             {lead.user_handle && <span>@{lead.user_handle}</span>}
                                             <span>{lead.intent || 'N/A'}</span>
+                                            {lead.latest_draft && (
+                                                <span className={`rounded-full px-2 py-0.5 font-semibold ${draftBadge(lead.latest_draft.status)}`}>
+                                                    Reply {lead.latest_draft.status}
+                                                </span>
+                                            )}
                                             {(lead.matched_catalog_item?.name || lead.matched_catalog_item_name) && (
                                                 <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
                                                     {lead.matched_catalog_item?.name || lead.matched_catalog_item_name}
@@ -310,10 +356,22 @@ export function Leads() {
                                             </button>
                                         </div>
                                     </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        <PaginationControls
+                            total={total}
+                            page={page}
+                            pageSize={pageSize}
+                            onPageChange={setPage}
+                            onPageSizeChange={(size) => {
+                                setPageSize(size);
+                                setPage(1);
+                            }}
+                            label="leads"
+                        />
+                    </>
                 )}
             </section>
 
@@ -333,6 +391,23 @@ export function Leads() {
                                 <DetailField label="Lifecycle Status" value={<span className={`status-pill ${lifecycleBadge(selectedLead.lead_status)}`}>{selectedLead.lead_status}</span>} />
                                 <DetailField label="Confidence" value={`${(selectedLead.confidence * 100).toFixed(1)}%`} />
                             </div>
+
+                            {selectedLead.latest_draft && (
+                                <DetailField
+                                    label="Reply Draft"
+                                    value={
+                                        <div className="flex flex-wrap items-center gap-3 text-sm">
+                                            <span className={`status-pill ${draftBadge(selectedLead.latest_draft.status)}`}>
+                                                {selectedLead.latest_draft.status}
+                                            </span>
+                                            <span className="text-slate-500">Created {formatDate(selectedLead.latest_draft.created_at)}</span>
+                                            <Link to="/replies" className="font-semibold text-teal-700">
+                                                Open Pending Replies
+                                            </Link>
+                                        </div>
+                                    }
+                                />
+                            )}
 
                             <DetailField label="Original Comment" value={<div className="whitespace-pre-wrap text-sm leading-7">{commentPreview(selectedLead)}</div>} />
                             {selectedLead.thread_reference?.thread_url && (
@@ -458,7 +533,11 @@ export function Leads() {
                                     disabled={draftGenerationLoadingId === selectedLead.id}
                                     className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-teal-700 transition hover:bg-teal-50"
                                 >
-                                    {draftGenerationLoadingId === selectedLead.id ? 'Generating...' : 'Generate Reply'}
+                                    {draftGenerationLoadingId === selectedLead.id
+                                        ? 'Generating...'
+                                        : selectedLead.latest_draft
+                                            ? 'Open Reply'
+                                            : 'Generate Reply'}
                                 </button>
                             </div>
                         </div>

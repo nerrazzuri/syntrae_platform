@@ -17,7 +17,7 @@ export class SuggestionService {
     /**
      * List suggestions for a workspace.
      */
-    static async listSuggestions(workspaceId: string, status?: string): Promise<Suggestion[]> {
+    static async listSuggestions(workspaceId: string, status?: string, limit: number = 25, offset: number = 0) {
         const where: Prisma.SuggestionWhereInput = {
             workspace_id: workspaceId
         };
@@ -25,14 +25,21 @@ export class SuggestionService {
             where.status = status;
         }
 
-        const suggestions = await prisma.suggestion.findMany({
-            where,
-            orderBy: { created_at: 'desc' },
-            take: 100, // Cap for now
-            include: { event: true }
-        });
+        const safeLimit = Math.min(Math.max(limit, 1), 100);
+        const safeOffset = Math.max(offset, 0);
 
-        return suggestions.map((suggestion: any) => ({
+        const [total, suggestions] = await Promise.all([
+            prisma.suggestion.count({ where }),
+            prisma.suggestion.findMany({
+                where,
+                orderBy: { created_at: 'desc' },
+                take: safeLimit,
+                skip: safeOffset,
+                include: { event: true }
+            })
+        ]);
+
+        const items = suggestions.map((suggestion: any) => ({
             ...suggestion,
             original_comment: suggestion.event?.content_text || null,
             thread_reference: buildThreadReference({
@@ -42,6 +49,13 @@ export class SuggestionService {
                 metadata: suggestion.event?.metadata,
             })
         })) as any;
+
+        return {
+            items,
+            total,
+            limit: safeLimit,
+            offset: safeOffset,
+        };
     }
 
     /**

@@ -28,48 +28,58 @@ router.use(requireWorkspace);
 router.get('/', async (req, res) => {
     const accountId = req.activeWorkspaceId!;
     const statusFilter = String(req.query.status || 'PENDING').toUpperCase();
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '25'), 10) || 25, 1), 100);
+    const offset = Math.max(parseInt(String(req.query.offset || '0'), 10) || 0, 0);
     const statuses = statusFilter === 'PENDING'
         ? ['DRAFT', 'EDITED', 'APPROVED']
         : statusFilter.split(',').map((value) => value.trim()).filter(Boolean);
 
     try {
-        const drafts = await prisma.outreachDraft.findMany({
-            where: {
-                account_id: accountId,
-                status: { in: statuses },
-                draft_kind: 'PUBLIC_REPLY',
-            },
-            orderBy: { created_at: 'desc' },
-            include: {
-                lead: {
-                    select: {
-                        id: true,
-                        intent: true,
-                        buyer_stage: true,
-                        confidence: true,
-                        video_id: true,
-                        comment_id: true,
-                        user_handle: true,
-                        user_profile_url: true,
-                        platform: true,
-                        event: {
-                            select: {
-                                content_text: true,
-                                metadata: true,
+        const where = {
+            account_id: accountId,
+            status: { in: statuses },
+            draft_kind: 'PUBLIC_REPLY',
+        } as const;
+
+        const [total, drafts] = await Promise.all([
+            prisma.outreachDraft.count({ where }),
+            prisma.outreachDraft.findMany({
+                where,
+                orderBy: { created_at: 'desc' },
+                take: limit,
+                skip: offset,
+                include: {
+                    lead: {
+                        select: {
+                            id: true,
+                            intent: true,
+                            buyer_stage: true,
+                            confidence: true,
+                            video_id: true,
+                            comment_id: true,
+                            user_handle: true,
+                            user_profile_url: true,
+                            platform: true,
+                            event: {
+                                select: {
+                                    content_text: true,
+                                    metadata: true,
+                                }
                             }
                         }
-                    }
-                },
-                brand: {
-                    select: {
-                        id: true,
-                        name: true,
+                    },
+                    brand: {
+                        select: {
+                            id: true,
+                            name: true,
+                        }
                     }
                 }
-            }
-        });
+            })
+        ]);
 
-        res.json(drafts.map((draft) => ({
+        res.json({
+            items: drafts.map((draft) => ({
             ...draft,
             original_comment: draft.lead?.event?.content_text || null,
             thread_reference: draft.lead ? buildThreadReference({
@@ -80,7 +90,11 @@ router.get('/', async (req, res) => {
                 userProfileUrl: draft.lead.user_profile_url,
                 metadata: draft.lead.event?.metadata,
             }) : null,
-        })));
+            })),
+            total,
+            limit,
+            offset,
+        });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }
