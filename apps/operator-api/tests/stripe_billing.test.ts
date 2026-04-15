@@ -4,6 +4,7 @@ import request from 'supertest';
 
 import { createApp } from '../src/index';
 import { SessionStore } from '../src/services/auth/session_store';
+import { LeadQuotaService } from '../src/services/billing/lead_quota.service';
 import { StripeBillingError, StripeBillingService } from '../src/services/billing/stripe_billing.service';
 
 type RestoreFn = () => void;
@@ -99,6 +100,33 @@ test('portal session route returns typed Stripe errors', async (t) => {
 
     assert.equal(res.status, 409);
     assert.equal(res.body.code, 'STRIPE_CUSTOMER_NOT_LINKED');
+});
+
+test('lead auto extension route returns a typed unavailable error', async (t) => {
+    const restores: RestoreFn[] = [];
+    t.after(() => restores.reverse().forEach((restore) => restore()));
+
+    restores.push(stubMethod(SessionStore, 'getSession', (async () => activeSession('ws-1')) as any));
+    restores.push(
+        stubMethod(
+            LeadQuotaService,
+            'setAutoExtension',
+            (async () => {
+                const error = new Error('Lead auto extension is not available. Upgrade before lead capture resumes after the monthly quota is reached.');
+                (error as Error & { code?: string }).code = 'LEAD_AUTO_EXTENSION_UNAVAILABLE';
+                throw error;
+            }) as any
+        )
+    );
+
+    const app = createApp();
+    const res = await request(app)
+        .post('/billing/lead-auto-extension')
+        .set('Cookie', ['syntrae_session=session-1'])
+        .send({ enabled: true });
+
+    assert.equal(res.status, 409);
+    assert.equal(res.body.code, 'LEAD_AUTO_EXTENSION_UNAVAILABLE');
 });
 
 test('stripe webhook route is mounted before session auth and accepts raw payloads', async (t) => {

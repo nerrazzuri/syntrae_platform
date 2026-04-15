@@ -8,7 +8,6 @@ import {
     type PlanCode,
 } from '@syntrae/commercial-plans';
 import { prisma } from '../../db';
-import { StripeBillingError, StripeBillingService } from './stripe_billing.service';
 import { SubscriptionPolicyService } from './subscription_policy.service';
 import { UsageAccountingService } from './usage_accounting.service';
 
@@ -18,6 +17,7 @@ const LEAD_OVERAGE_BLOCK_SIZE = 100;
 const LEAD_OVERAGE_BLOCK_PRICE_MINOR = 6900;
 const LEAD_OVERAGE_CURRENCY = 'MYR';
 const LEAD_WARNING_THRESHOLD = 0.8;
+const LEAD_AUTO_EXTENSION_AVAILABLE = false;
 
 type LeadOverageConfig = {
     auto_extend_enabled: boolean;
@@ -32,16 +32,6 @@ type LeadOverageConfig = {
     last_invoice_id: string | null;
     last_invoice_status: string | null;
     last_auto_charge_at: string | null;
-};
-
-type LeadOverageCharge = {
-    block_number: number;
-    block_size: number;
-    amount_minor: number;
-    currency: string;
-    invoice_id: string;
-    invoice_status: string;
-    charged_at: string;
 };
 
 export interface LeadQuotaSnapshot {
@@ -74,10 +64,16 @@ export class LeadQuotaService {
     }
 
     static async setAutoExtension(workspaceId: string, enabled: boolean) {
+        if (enabled && !LEAD_AUTO_EXTENSION_AVAILABLE) {
+            const error = new Error('Lead auto extension is not available. Upgrade before lead capture resumes after the monthly quota is reached.');
+            (error as Error & { code?: string }).code = 'LEAD_AUTO_EXTENSION_UNAVAILABLE';
+            throw error;
+        }
+
         const { plan, subscription } = await SubscriptionPolicyService.getEffectivePlan(workspaceId);
         const periodStart = UsageAccountingService.getPeriodStart(LIMIT_PERIODS.MONTHLY);
         const config = await this.loadOverageConfig(workspaceId, plan.code, subscription.addon_config, periodStart);
-        config.auto_extend_enabled = enabled;
+        config.auto_extend_enabled = LEAD_AUTO_EXTENSION_AVAILABLE && enabled;
 
         await prisma.workspaceSubscription.update({
             where: { workspace_id: workspaceId },
@@ -95,7 +91,7 @@ export class LeadQuotaService {
         allowed: boolean;
         quota: LeadQuotaSnapshot;
         auto_charged: boolean;
-        charge?: LeadOverageCharge | null;
+        charge?: null;
         reason_code?: string | null;
         message?: string | null;
     }> {
@@ -130,119 +126,13 @@ export class LeadQuotaService {
                 quota: this.buildSnapshot(plan.code, initialAttempt.result.currentValue, initialConfig, nextResetAt),
             };
         }
-
-        if (!initialConfig.auto_extend_enabled) {
-            return {
-                allowed: false,
-                auto_charged: false,
-                charge: null,
-                reason_code: initialAttempt.result.reasonCode,
-                message: initialAttempt.result.message,
-                quota: this.buildSnapshot(plan.code, initialAttempt.result.currentValue, initialConfig, nextResetAt),
-            };
-        }
-
-        if (subscription.billing_provider !== 'STRIPE' || !subscription.stripe_customer_id || !subscription.stripe_subscription_id) {
-            return {
-                allowed: false,
-                auto_charged: false,
-                charge: null,
-                reason_code: 'LEAD_OVERAGE_STRIPE_REQUIRED',
-                message: 'Automatic lead extension requires an active Stripe subscription with a saved payment method.',
-                quota: this.buildSnapshot(plan.code, initialAttempt.result.currentValue, initialConfig, nextResetAt),
-            };
-        }
-
-        const workspace = await prisma.account.findUnique({
-            where: { id: workspaceId },
-            select: { name: true },
-        });
-        if (!workspace) {
-            return {
-                allowed: false,
-                auto_charged: false,
-                charge: null,
-                reason_code: 'WORKSPACE_NOT_FOUND',
-                message: 'Workspace not found.',
-                quota: this.buildSnapshot(plan.code, initialAttempt.result.currentValue, initialConfig, nextResetAt),
-            };
-        }
-
-        let charge: LeadOverageCharge;
-        try {
-            charge = await StripeBillingService.chargeLeadOverageBlock({
-                workspaceId,
-                workspaceName: workspace.name,
-                stripeCustomerId: subscription.stripe_customer_id,
-                stripeSubscriptionId: subscription.stripe_subscription_id,
-                blockNumber: initialConfig.blocks_purchased + 1,
-                periodStart: periodStart.toISOString(),
-            });
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Automatic lead extension charge failed.';
-            return {
-                allowed: false,
-                auto_charged: false,
-                charge: null,
-                reason_code: error instanceof StripeBillingError ? error.code : 'LEAD_OVERAGE_CHARGE_FAILED',
-                message,
-                quota: this.buildSnapshot(plan.code, initialAttempt.result.currentValue, initialConfig, nextResetAt),
-            };
-        }
-
-        const updatedConfig = await prisma.$transaction(async (tx) => {
-            const latestSubscription = await tx.workspaceSubscription.findUnique({
-                where: { workspace_id: workspaceId },
-                select: { addon_config: true },
-            });
-            const latestConfig = await this.loadOverageConfig(workspaceId, plan.code, latestSubscription?.addon_config, periodStart, tx);
-            const appliedBlocks = Math.max(latestConfig.blocks_purchased, charge.block_number);
-            latestConfig.blocks_purchased = appliedBlocks;
-            latestConfig.added_leads = appliedBlocks * latestConfig.block_size;
-            latestConfig.last_invoice_id = charge.invoice_id;
-            latestConfig.last_invoice_status = charge.invoice_status;
-            latestConfig.last_auto_charge_at = charge.charged_at;
-
-            const existingSubscription = await tx.workspaceSubscription.findUnique({
-                where: { workspace_id: workspaceId },
-                select: { metadata: true },
-            });
-            const metadata = this.jsonObject(existingSubscription?.metadata);
-            const history = Array.isArray(metadata.lead_overage_history)
-                ? metadata.lead_overage_history as Array<Record<string, unknown>>
-                : [];
-            history.unshift({
-                invoice_id: charge.invoice_id,
-                invoice_status: charge.invoice_status,
-                amount_minor: charge.amount_minor,
-                currency: charge.currency,
-                block_size: charge.block_size,
-                block_number: charge.block_number,
-                charged_at: charge.charged_at,
-            });
-
-            await tx.workspaceSubscription.update({
-                where: { workspace_id: workspaceId },
-                data: {
-                    addon_config: { lead_overage: latestConfig } as Prisma.InputJsonValue,
-                    metadata: {
-                        ...metadata,
-                        lead_overage_history: history.slice(0, 25),
-                    } as Prisma.InputJsonValue,
-                },
-            });
-
-            return latestConfig;
-        });
-
-        const secondAttempt = await consumeExistingCapacity(updatedConfig.added_leads + updatedConfig.rollover_leads);
         return {
-            allowed: secondAttempt.result.allowed,
-            auto_charged: true,
-            charge,
-            reason_code: secondAttempt.result.reasonCode,
-            message: secondAttempt.result.message,
-            quota: this.buildSnapshot(plan.code, secondAttempt.result.currentValue, updatedConfig, nextResetAt),
+            allowed: false,
+            auto_charged: false,
+            charge: null,
+            reason_code: initialAttempt.result.reasonCode,
+            message: initialAttempt.result.message,
+            quota: this.buildSnapshot(plan.code, initialAttempt.result.currentValue, initialConfig, nextResetAt),
         };
     }
 
@@ -290,7 +180,7 @@ export class LeadQuotaService {
         const rolloverSource = samePeriod ? this.toNullableString(config.rollover_source_period) : this.getPreviousPeriodStart(periodStart).toISOString();
 
         const normalized: LeadOverageConfig = {
-            auto_extend_enabled: typeof config.auto_extend_enabled === 'boolean' ? config.auto_extend_enabled : true,
+            auto_extend_enabled: LEAD_AUTO_EXTENSION_AVAILABLE && typeof config.auto_extend_enabled === 'boolean' ? config.auto_extend_enabled : false,
             current_period_start: currentPeriodStart,
             blocks_purchased: samePeriod ? this.toInt(config.blocks_purchased) : 0,
             added_leads: samePeriod ? this.toInt(config.added_leads) : 0,

@@ -75,16 +75,9 @@ function buildUsagePrompts(data: UsageData) {
     }
 
     if (data.leads_captured_limit > 0 && data.leads_captured_month >= Math.max(1, Math.floor(data.leads_captured_limit * data.lead_warning_threshold))) {
-        const blockPrice = new Intl.NumberFormat('en-MY', {
-            style: 'currency',
-            currency: data.lead_overage_currency || 'MYR',
-            maximumFractionDigits: 0,
-        }).format((data.lead_overage_block_price_minor || 0) / 100);
         prompts.push({
             title: 'Lead quota almost full',
-            message: data.lead_auto_extension_enabled
-                ? `You are at ${data.leads_captured_month}/${data.leads_captured_limit} monthly leads. Syntrae will auto-charge ${blockPrice} for each extra ${data.lead_overage_block_size} leads unless you turn automatic extension off.`
-                : `You are at ${data.leads_captured_month}/${data.leads_captured_limit} monthly leads. Turn automatic extension back on or upgrade before new lead capture stops.`,
+            message: `You are at ${data.leads_captured_month}/${data.leads_captured_limit} monthly leads. New lead capture stops at the monthly limit, so upgrade before the allowance is exhausted.`,
         });
     }
 
