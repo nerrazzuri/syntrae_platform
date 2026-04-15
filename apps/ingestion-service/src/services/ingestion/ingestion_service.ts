@@ -238,9 +238,14 @@ export class IngestionService {
 
         } catch (err) {
             console.error(`[Ingest][${correlationId}] Pipeline Error:`, err);
+            await prisma.engagementEvent.update({
+                where: { id: engagementEvent.id },
+                data: { status: IngestStatus.ERROR }
+            }).catch((updateErr) => {
+                console.error(`[Ingest][${correlationId}] Failed to persist ERROR status:`, updateErr);
+            });
+            return { status: IngestStatus.ERROR, id: engagementEvent.id };
         }
-
-        return { status: IngestStatus.RECEIVED, id: engagementEvent.id };
     }
 
     private static normalizePlatform(platform: IngestionEvent['platform']): string {

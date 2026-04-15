@@ -1,9 +1,9 @@
 import bcrypt from 'bcrypt';
 import { prisma } from '../db';
 import { Session, User } from '@syntrae/prisma-schema';
+import { SessionStore } from './auth/session_store';
 
 const SALT_ROUNDS = 10;
-const SESSION_DURATION_DAYS = 7;
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MINUTES = 15;
 
@@ -20,54 +20,15 @@ export class AuthService {
 
     // Session Management
     static async createSession(userId: string, workspaceId: string): Promise<Session> {
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + SESSION_DURATION_DAYS);
-
-        return prisma.session.create({
-            data: {
-                user_id: userId,
-                active_workspace_id: workspaceId,
-                expires_at: expiresAt,
-                last_seen_at: new Date()
-            },
-            include: {
-                user: true,
-                active_workspace: true
-            }
-        });
+        return SessionStore.createSession(userId, workspaceId);
     }
 
     static async getSession(sessionId: string): Promise<Session | null> {
-        const session = await prisma.session.findUnique({
-            where: { id: sessionId },
-            include: {
-                user: true,
-                active_workspace: true
-            }
-        });
-
-        if (!session) return null;
-
-        // Check expiry
-        if (new Date() > session.expires_at) {
-            await this.deleteSession(sessionId);
-            return null;
-        }
-
-        // Extend session if nearing expiry (sliding window)
-        // Simple implementation: Update last_seen_at on every verified access
-        await prisma.session.update({
-            where: { id: sessionId },
-            data: { last_seen_at: new Date() }
-        });
-
-        return session;
+        return SessionStore.getSession(sessionId);
     }
 
     static async deleteSession(sessionId: string): Promise<void> {
-        await prisma.session.deleteMany({
-            where: { id: sessionId }
-        });
+        await SessionStore.deleteSession(sessionId);
     }
 
     // Login Security

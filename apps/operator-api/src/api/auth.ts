@@ -5,6 +5,7 @@ import { BootstrapService } from '../services/bootstrap.service';
 import { requireAuth } from '../middleware/auth';
 import { AuthTokenService, AUTH_TOKEN_TYPES } from '../services/auth_token.service';
 import { EmailService } from '../services/email.service';
+import { getSessionTtlMs } from '../services/auth/session_store';
 import { getPlanDefinition, normalizePlanCode } from '@syntrae/commercial-plans';
 
 export const authRouter = Router();
@@ -16,30 +17,39 @@ const COOKIE_SECURE = (process.env.COOKIE_SECURE || '').toLowerCase() === 'true'
     : (process.env.COOKIE_SECURE || '').toLowerCase() === 'false'
         ? false
         : IS_PROD;
-const BETA_SIGNUP_ENABLED = (process.env.BETA_SIGNUP_ENABLED || 'false').toLowerCase() === 'true';
-const BETA_SIGNUP_ALLOWLIST = new Set(
-    (process.env.BETA_SIGNUP_ALLOWLIST || '')
-        .split(',')
-        .map(email => email.trim().toLowerCase())
-        .filter(Boolean)
-);
 const EMAIL_VERIFICATION_EXPIRY_MINUTES = Number(process.env.EMAIL_VERIFICATION_EXPIRY_MINUTES || 24 * 60);
 const PASSWORD_RESET_EXPIRY_MINUTES = Number(process.env.PASSWORD_RESET_EXPIRY_MINUTES || 60);
 
-const COOKIE_OPTIONS: any = {
-    httpOnly: true,
-    secure: COOKIE_SECURE,
-    sameSite: IS_PROD ? 'lax' : 'lax',
-    domain: process.env.COOKIE_DOMAIN,
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-};
+function isBetaSignupEnabled() {
+    return (process.env.BETA_SIGNUP_ENABLED || 'false').toLowerCase() === 'true';
+}
+
+function getBetaSignupAllowlist() {
+    return new Set(
+        (process.env.BETA_SIGNUP_ALLOWLIST || '')
+            .split(',')
+            .map(email => email.trim().toLowerCase())
+            .filter(Boolean)
+    );
+}
+
+function getCookieOptions() {
+    return {
+        httpOnly: true,
+        secure: COOKIE_SECURE,
+        sameSite: IS_PROD ? 'lax' : 'lax',
+        domain: process.env.COOKIE_DOMAIN,
+        path: '/',
+        maxAge: getSessionTtlMs(),
+    } as const;
+}
 
 function isSignupAllowed(email: string, hasVoucher = false) {
     if (hasVoucher) return true;
-    if (!BETA_SIGNUP_ENABLED) return false;
-    if (BETA_SIGNUP_ALLOWLIST.size === 0) return true;
-    return BETA_SIGNUP_ALLOWLIST.has(email.trim().toLowerCase());
+    if (!isBetaSignupEnabled()) return false;
+    const allowlist = getBetaSignupAllowlist();
+    if (allowlist.size === 0) return false;
+    return allowlist.has(email.trim().toLowerCase());
 }
 
 function normalizeVoucherCode(value: unknown) {
@@ -488,7 +498,7 @@ authRouter.post('/login', async (req, res) => {
         const account = await prisma.account.findUnique({ where: { id: workspaceId } });
         const defaultBrand = await prisma.brand.findFirst({ where: { workspace_id: workspaceId } });
 
-        res.cookie(COOKIE_NAME, session.id, COOKIE_OPTIONS);
+        res.cookie(COOKIE_NAME, session.id, getCookieOptions());
 
         return res.json({
             user: { id: user.id, email: user.email, email_verified: true },
@@ -507,7 +517,7 @@ authRouter.post('/logout', async (req, res) => {
     if (sessionId) {
         await AuthService.deleteSession(sessionId);
     }
-    res.clearCookie(COOKIE_NAME, { ...COOKIE_OPTIONS, maxAge: 0 });
+    res.clearCookie(COOKIE_NAME, { ...getCookieOptions(), maxAge: 0 });
     res.json({ success: true });
 });
 

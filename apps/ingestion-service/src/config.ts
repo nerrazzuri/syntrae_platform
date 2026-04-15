@@ -35,5 +35,7 @@ export const config = {
     logLevel: process.env.LOG_LEVEL || 'info',
     // Phase 27: Security Config
     bcryptRounds: parseInt(process.env.BCRYPT_ROUNDS || '10', 10),
-    openaiApiKey: process.env.OPENAI_API_KEY
+    openaiApiKey: process.env.OPENAI_API_KEY,
+    brainResultCacheMaxEntries: parseInt(process.env.BRAIN_RESULT_CACHE_MAX_ENTRIES || '500', 10),
+    brainResultCacheTtlMs: parseInt(process.env.BRAIN_RESULT_CACHE_TTL_MS || `${10 * 60 * 1000}`, 10)
 };
