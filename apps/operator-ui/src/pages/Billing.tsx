@@ -99,13 +99,6 @@ export function BillingPage() {
     const [loadingAction, setLoadingAction] = useState<string | null>(null);
     const [selectedIntervals, setSelectedIntervals] = useState<Partial<Record<PlanCode, BillingInterval>>>({});
 
-    const formatMinorCurrency = (amountMinor: number, currencyCode: string) =>
-        new Intl.NumberFormat('en-MY', {
-            style: 'currency',
-            currency: currencyCode || 'MYR',
-            maximumFractionDigits: 0,
-        }).format((amountMinor || 0) / 100);
-
     const loadSummary = async () => {
         try {
             const [data, usageData] = await Promise.all([
@@ -212,31 +205,6 @@ export function BillingPage() {
         }
     };
 
-    const handleLeadAutoExtension = async (enabled: boolean) => {
-        try {
-            setLoadingAction('lead-auto-extension');
-            setError(null);
-            setNotice(null);
-            const res = await api.post('/billing/lead-auto-extension', { enabled });
-            setSummary((current) => current ? { ...current, lead_quota: res.lead_quota } : current);
-            setUsage((current) => current ? {
-                ...current,
-                lead_auto_extension_enabled: res.lead_quota.auto_extension_enabled,
-                leads_captured_limit: res.lead_quota.limit,
-                leads_captured_remaining: res.lead_quota.remaining,
-                lead_warning_reached: res.lead_quota.warning_reached,
-                lead_next_reset_at: res.lead_quota.next_reset_at,
-            } : current);
-            setNotice(enabled
-                ? 'Automatic lead extension is enabled. Syntrae will auto-charge every additional 100-lead block once your monthly allowance is exceeded.'
-                : 'Automatic lead extension is off. New lead capture will stop when this month’s allowance is fully used.');
-        } catch (e: any) {
-            setError(e.message || 'Unable to update automatic lead extension');
-        } finally {
-            setLoadingAction(null);
-        }
-    };
-
     if (!summary) return <div className="p-8">Loading subscription...</div>;
 
     const upgradePrompts = usage ? [
@@ -250,7 +218,7 @@ export function BillingPage() {
             ? 'Your workspace is hitting daily automation limits. Upgrade to Pro to scale multi-brand workflows.'
             : null,
         usage.leads_captured_limit > 0 && usage.leads_captured_month >= Math.max(1, Math.floor(usage.leads_captured_limit * usage.lead_warning_threshold))
-            ? `You are at ${usage.leads_captured_month}/${usage.leads_captured_limit} monthly leads${usage.leads_rollover_month ? ` (includes ${usage.leads_rollover_month} rollover leads)` : ''}. ${usage.lead_auto_extension_enabled ? `Automatic extension will charge ${formatMinorCurrency(usage.lead_overage_block_price_minor, usage.lead_overage_currency)} for each extra ${usage.lead_overage_block_size} leads unless you turn it off.` : 'Turn automatic extension back on or upgrade before lead capture stops.'}`
+            ? `You are at ${usage.leads_captured_month}/${usage.leads_captured_limit} monthly leads${usage.leads_rollover_month ? ` (includes ${usage.leads_rollover_month} rollover leads)` : ''}. New lead capture will stop when the included monthly quota is used. Upgrade before capture stalls.`
             : null,
         usage.converted_leads_month > 0 && summary.plan_code !== 'AGENCY'
             ? `This workspace already reports ${usage.converted_leads_month} converted leads${usage.estimated_revenue_month ? ` and ${new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(usage.estimated_revenue_month)} in value` : ''}. Consider a higher plan before manual work becomes the bottleneck.`
@@ -367,11 +335,9 @@ export function BillingPage() {
                 <div className="mt-4 rounded border border-gray-200 bg-gray-50 p-4">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <div className="text-sm font-semibold text-gray-900">Automatic lead extension</div>
+                            <div className="text-sm font-semibold text-gray-900">Lead capture billing model</div>
                             <p className="mt-1 text-sm text-gray-600">
-                                At {Math.round(summary.lead_quota.warning_threshold * 100)}% usage, Syntrae warns you before it starts auto-charging{' '}
-                                {formatMinorCurrency(summary.lead_quota.overage_block_price_minor, summary.lead_quota.overage_currency)} for each additional{' '}
-                                {summary.lead_quota.overage_block_size} leads.
+                                Syntrae now enforces monthly lead limits. When this workspace reaches its included quota, new lead capture stops until the plan is upgraded or the next monthly reset arrives.
                             </p>
                             <p className="mt-2 text-xs text-gray-500">
                                 Rollover leads (max 100) apply for one month only and are used before new monthly leads.
@@ -380,21 +346,13 @@ export function BillingPage() {
                                 Next reset: {new Date(summary.lead_quota.next_reset_at).toLocaleString('en-MY', { dateStyle: 'medium', timeStyle: 'short' })}
                             </p>
                         </div>
-                        <button
-                            onClick={() => handleLeadAutoExtension(!summary.lead_quota.auto_extension_enabled)}
-                            disabled={loadingAction === 'lead-auto-extension'}
-                            className={`rounded-full px-4 py-2 text-sm font-semibold ${summary.lead_quota.auto_extension_enabled ? 'bg-emerald-600 text-white' : 'bg-white text-slate-700 border border-gray-300'} disabled:opacity-50`}
-                        >
-                            {loadingAction === 'lead-auto-extension'
-                                ? 'Updating...'
-                                : summary.lead_quota.auto_extension_enabled
-                                    ? 'Automatic extension on'
-                                    : 'Automatic extension off'}
-                        </button>
+                        <span className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
+                            Monthly quota enforced
+                        </span>
                     </div>
                     {summary.lead_quota.warning_reached && (
                         <div className="mt-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                            This workspace is above the 80% lead usage threshold. Turn off automatic extension now if you do not want Syntrae to auto-charge the next 100-lead block.
+                            This workspace is above the 80% lead usage threshold. New lead capture will stop once the monthly allowance is fully used.
                         </div>
                     )}
                 </div>

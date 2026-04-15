@@ -84,16 +84,9 @@ function buildPrompts(metrics: OverviewMetrics | undefined, usage: UsageData | n
     }
 
     if (usage.leads_captured_limit > 0 && usage.leads_captured_month >= Math.max(1, Math.floor(usage.leads_captured_limit * usage.lead_warning_threshold))) {
-        const blockPrice = new Intl.NumberFormat('en-MY', {
-            style: 'currency',
-            currency: usage.lead_overage_currency || 'MYR',
-            maximumFractionDigits: 0,
-        }).format((usage.lead_overage_block_price_minor || 0) / 100);
         prompts.push({
             title: 'Lead quota is nearly full',
-            message: usage.lead_auto_extension_enabled
-                ? `This workspace is at ${usage.leads_captured_month}/${usage.leads_captured_limit} monthly leads. Additional usage will auto-charge ${blockPrice} per ${usage.lead_overage_block_size} leads unless you turn automatic extension off.`
-                : `This workspace is at ${usage.leads_captured_month}/${usage.leads_captured_limit} monthly leads. Turn automatic extension back on or upgrade before lead capture stops.`,
+            message: `This workspace is at ${usage.leads_captured_month}/${usage.leads_captured_limit} monthly leads. New lead capture stops at the monthly limit, so upgrade before this month’s allowance is exhausted.`,
             cta: 'Review billing controls',
         });
     }

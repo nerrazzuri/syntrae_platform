@@ -113,7 +113,11 @@ router.post('/lead-auto-extension', async (req: Request, res: Response) => {
         const enabled = Boolean(req.body?.enabled);
         const quota = await LeadQuotaService.setAutoExtension(workspaceId, enabled);
         res.json({ status: 'success', lead_quota: quota });
-    } catch (err) {
+    } catch (err: any) {
+        if (err?.code === 'LEAD_AUTO_EXTENSION_UNAVAILABLE') {
+            res.status(409).json({ error: err.message, code: err.code });
+            return;
+        }
         console.error('[Billing] Lead Auto Extension Error:', err);
         res.status(500).json({ error: 'Unable to update automatic lead extension setting' });
     }
