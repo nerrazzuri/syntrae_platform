@@ -2,7 +2,20 @@
 import { prisma } from '../../db';
 import { Session, User, Account } from '@syntrae/prisma-schema';
 
-const SESSION_TTL_HOURS = 24;
+const DEFAULT_SESSION_TTL_HOURS = 7 * 24;
+
+function parsePositiveInt(value: string | undefined, fallback: number) {
+    const parsed = Number.parseInt(String(value || ''), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export function getSessionTtlHours() {
+    return parsePositiveInt(process.env.SESSION_TTL_HOURS, DEFAULT_SESSION_TTL_HOURS);
+}
+
+export function getSessionTtlMs() {
+    return getSessionTtlHours() * 60 * 60 * 1000;
+}
 
 export class SessionStore {
     /**
@@ -10,7 +23,7 @@ export class SessionStore {
      */
     static async createSession(userId: string, activeWorkspaceId?: string): Promise<Session> {
         const expiresAt = new Date();
-        expiresAt.setHours(expiresAt.getHours() + SESSION_TTL_HOURS);
+        expiresAt.setHours(expiresAt.getHours() + getSessionTtlHours());
 
         return await prisma.session.create({
             data: {

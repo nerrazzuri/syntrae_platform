@@ -1,5 +1,6 @@
 import { prisma, Prisma } from '../db';
 import { AuthService } from './auth.service';
+import { getSessionTtlHours } from './auth/session_store';
 import { User, Account, Session, Brand } from '@syntrae/prisma-schema';
 import { PLAN_CODES } from '@syntrae/commercial-plans';
 import { BrandDefaultsService } from './brand_defaults.service';
@@ -103,7 +104,7 @@ export class BootstrapService {
             // Note: We cannot rely on AuthService.createSession here because we need to be INSIDE the transaction tx.
             // So we replicate the simple create logic using `tx`.
             const expiresAt = new Date();
-            expiresAt.setDate(expiresAt.getDate() + 7); // 7 Days
+            expiresAt.setHours(expiresAt.getHours() + getSessionTtlHours());
 
             const session = options?.createSession === false
                 ? null
