@@ -82,6 +82,35 @@ router.post('/checkout-session', async (req: Request, res: Response) => {
     }
 });
 
+router.post('/lead-block-checkout-session', async (req: Request, res: Response) => {
+    try {
+        const workspaceId = req.session?.active_workspace_id;
+        const user = req.user;
+        const quantity = Number.parseInt(String(req.body?.quantity || '1'), 10) || 1;
+
+        if (!workspaceId || !user) {
+            res.status(400).json({ error: 'Missing billing session context' });
+            return;
+        }
+
+        const session = await StripeBillingService.createLeadBlockCheckoutSession({
+            workspaceId,
+            userEmail: user.email,
+            userId: user.id,
+            quantity,
+        });
+
+        res.json(session);
+    } catch (err) {
+        if (err instanceof StripeBillingError) {
+            res.status(err.statusCode).json({ error: err.message, code: err.code });
+            return;
+        }
+        console.error('[Billing] Lead Block Checkout Session Error:', err);
+        res.status(500).json({ error: 'Unable to create lead block checkout session' });
+    }
+});
+
 router.post('/portal-session', async (req: Request, res: Response) => {
     try {
         const workspaceId = req.session?.active_workspace_id;

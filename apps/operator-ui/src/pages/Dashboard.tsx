@@ -86,7 +86,7 @@ function buildPrompts(metrics: OverviewMetrics | undefined, usage: UsageData | n
     if (usage.leads_captured_limit > 0 && usage.leads_captured_month >= Math.max(1, Math.floor(usage.leads_captured_limit * usage.lead_warning_threshold))) {
         prompts.push({
             title: 'Lead quota is nearly full',
-            message: `This workspace is at ${usage.leads_captured_month}/${usage.leads_captured_limit} monthly leads. New lead capture stops at the monthly limit, so upgrade before this month’s allowance is exhausted.`,
+            message: `This workspace is at ${usage.leads_captured_month}/${usage.leads_captured_limit} monthly leads. New lead capture stops at the monthly limit, so buy another lead block or upgrade before this month’s allowance is exhausted.`,
             cta: 'Review billing controls',
         });
     }

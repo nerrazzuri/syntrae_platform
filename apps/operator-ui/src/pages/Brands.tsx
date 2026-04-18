@@ -9,6 +9,8 @@ interface RunFeedback {
     tone: RunFeedbackTone;
     message: string;
     autoDismiss?: boolean;
+    actionHref?: string;
+    actionLabel?: string;
 }
 
 function renderConnectionBadge(connection: any) {
@@ -125,14 +127,20 @@ export function BrandsPage() {
             }));
         } catch (e: any) {
             const rawMessage = e?.message || 'Failed to queue Xiaohongshu discovery.';
-            const message = rawMessage.includes('daily automation_runs_created limit')
+            const isDailyRunLimit = rawMessage.includes('daily automation_runs_created limit');
+            const isLeadQuota = rawMessage.includes('Monthly lead quota reached');
+            const message = isDailyRunLimit
                 ? `${rawMessage} Upgrade the workspace plan or wait until the quota resets before starting another run.`
-                : rawMessage;
+                : isLeadQuota
+                    ? rawMessage
+                    : rawMessage;
             setRunFeedback((prev) => ({
                 ...prev,
                 [brandId]: {
                     tone: 'error',
-                    message
+                    message,
+                    actionHref: isLeadQuota ? '/billing' : undefined,
+                    actionLabel: isLeadQuota ? 'Open Billing' : undefined,
                 }
             }));
         } finally {
@@ -242,7 +250,15 @@ export function BrandsPage() {
                                 </div>
                                 {runFeedback[brand.id] && (
                                     <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-medium ${feedbackClasses[runFeedback[brand.id].tone]}`}>
-                                        {runFeedback[brand.id].message}
+                                        <div>{runFeedback[brand.id].message}</div>
+                                        {runFeedback[brand.id].actionHref && runFeedback[brand.id].actionLabel && (
+                                            <Link
+                                                to={runFeedback[brand.id].actionHref!}
+                                                className="mt-3 inline-flex items-center justify-center rounded-full border border-current/20 bg-white px-3 py-1.5 text-sm font-semibold transition hover:bg-white/80"
+                                            >
+                                                {runFeedback[brand.id].actionLabel}
+                                            </Link>
+                                        )}
                                     </div>
                                 )}
                                 {runFeedback[brand.id]?.tone === 'success' && (

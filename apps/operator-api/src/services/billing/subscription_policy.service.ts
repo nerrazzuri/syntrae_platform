@@ -259,6 +259,23 @@ export class SubscriptionPolicyService {
             });
         }
 
+        const leadQuota = await LeadQuotaService.getQuotaSnapshot(workspaceId);
+        if (leadQuota.remaining <= 0) {
+            throw new SubscriptionPolicyError(
+                'LEAD_QUOTA_REACHED',
+                `Monthly lead quota reached (${leadQuota.used}/${leadQuota.limit}). Extend a 100-lead block or upgrade to a higher plan in Billing before starting another discovery run.`,
+                {
+                    plan_code: plan.code,
+                    platform,
+                    current: leadQuota.used,
+                    limit: leadQuota.limit,
+                    next_reset_at: leadQuota.next_reset_at,
+                    overage_block_size: leadQuota.overage_block_size,
+                    suggested_actions: ['extend_100_leads_block', 'upgrade_plan'],
+                }
+            );
+        }
+
         const usageDecision = await UsageAccountingService.consume(prisma, {
             workspaceId,
             planCode: plan.code,
@@ -298,12 +315,12 @@ export class SubscriptionPolicyService {
             evaluateUsage(plan.code, USAGE_METRICS.EVENTS_INGESTED, LIMIT_PERIODS.MONTHLY, eventsMonthly, 1),
             evaluateUsage(plan.code, USAGE_METRICS.SUGGESTIONS_CREATED, LIMIT_PERIODS.DAILY, suggestionsDaily, 1),
             evaluateUsage(plan.code, USAGE_METRICS.AUTOMATION_RUNS_CREATED, LIMIT_PERIODS.DAILY, automationRunsDaily, 1),
-            leadQuota.used + 1 <= leadQuota.limit || (leadQuota.auto_extension_enabled && subscription.billing_provider === 'STRIPE' && Boolean(subscription.stripe_customer_id) && Boolean(subscription.stripe_subscription_id))
+            leadQuota.used + 1 <= leadQuota.limit
                 ? { allowed: true, reasonCode: null, message: null, current: leadQuota.used, limit: leadQuota.limit }
                 : {
                     allowed: false,
                     reasonCode: PLAN_REASON_CODES.PLAN_LIMIT_REACHED,
-                    message: `${plan.displayName} reached the monthly leads captured limit of ${leadQuota.limit}.`,
+                    message: `${plan.displayName} reached the monthly leads captured limit of ${leadQuota.limit}. Buy a 100-lead block or upgrade to continue.`,
                     current: leadQuota.used,
                     limit: leadQuota.limit,
                 },

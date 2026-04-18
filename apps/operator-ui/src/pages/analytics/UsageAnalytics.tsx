@@ -77,7 +77,7 @@ function buildUsagePrompts(data: UsageData) {
     if (data.leads_captured_limit > 0 && data.leads_captured_month >= Math.max(1, Math.floor(data.leads_captured_limit * data.lead_warning_threshold))) {
         prompts.push({
             title: 'Lead quota almost full',
-            message: `You are at ${data.leads_captured_month}/${data.leads_captured_limit} monthly leads. New lead capture stops at the monthly limit, so upgrade before the allowance is exhausted.`,
+            message: `You are at ${data.leads_captured_month}/${data.leads_captured_limit} monthly leads. New lead capture stops at the monthly limit, so buy another lead block or upgrade before the allowance is exhausted.`,
         });
     }
 

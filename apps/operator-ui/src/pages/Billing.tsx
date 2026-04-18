@@ -205,6 +205,22 @@ export function BillingPage() {
         }
     };
 
+    const handleLeadBlockCheckout = async () => {
+        try {
+            setLoadingAction('lead-block');
+            setError(null);
+            setNotice(null);
+            const res = await api.post('/billing/lead-block-checkout-session', { quantity: 1 });
+            if (res.url) {
+                window.location.href = res.url;
+            }
+        } catch (e: any) {
+            setError(e.message || 'Unable to start lead block checkout');
+        } finally {
+            setLoadingAction(null);
+        }
+    };
+
     if (!summary) return <div className="p-8">Loading subscription...</div>;
 
     const upgradePrompts = usage ? [
@@ -218,7 +234,7 @@ export function BillingPage() {
             ? 'Your workspace is hitting daily automation limits. Upgrade to Pro to scale multi-brand workflows.'
             : null,
         usage.leads_captured_limit > 0 && usage.leads_captured_month >= Math.max(1, Math.floor(usage.leads_captured_limit * usage.lead_warning_threshold))
-            ? `You are at ${usage.leads_captured_month}/${usage.leads_captured_limit} monthly leads${usage.leads_rollover_month ? ` (includes ${usage.leads_rollover_month} rollover leads)` : ''}. New lead capture will stop when the included monthly quota is used. Upgrade before capture stalls.`
+            ? `You are at ${usage.leads_captured_month}/${usage.leads_captured_limit} monthly leads${usage.leads_rollover_month ? ` (includes ${usage.leads_rollover_month} rollover leads)` : ''}. New lead capture will stop when the included monthly quota is used. Buy a 100-lead block or upgrade before capture stalls.`
             : null,
         usage.converted_leads_month > 0 && summary.plan_code !== 'AGENCY'
             ? `This workspace already reports ${usage.converted_leads_month} converted leads${usage.estimated_revenue_month ? ` and ${new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(usage.estimated_revenue_month)} in value` : ''}. Consider a higher plan before manual work becomes the bottleneck.`
@@ -337,7 +353,7 @@ export function BillingPage() {
                         <div>
                             <div className="text-sm font-semibold text-gray-900">Lead capture billing model</div>
                             <p className="mt-1 text-sm text-gray-600">
-                                Syntrae now enforces monthly lead limits. When this workspace reaches its included quota, new lead capture stops until the plan is upgraded or the next monthly reset arrives.
+                                Syntrae now enforces monthly lead limits. When this workspace reaches its included quota, new lead capture stops until you buy another lead block, upgrade the plan, or wait for the next monthly reset.
                             </p>
                             <p className="mt-2 text-xs text-gray-500">
                                 Rollover leads (max 100) apply for one month only and are used before new monthly leads.
@@ -350,9 +366,51 @@ export function BillingPage() {
                             Monthly quota enforced
                         </span>
                     </div>
+                    <div className="mt-4 rounded border border-indigo-200 bg-white p-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div>
+                                <div className="text-sm font-semibold text-gray-900">
+                                    Buy {summary.lead_quota.overage_block_size} additional leads
+                                </div>
+                                <p className="mt-1 text-sm text-gray-600">
+                                    Add another block to this workspace when monthly lead capture is close to the limit.
+                                </p>
+                                <p className="mt-2 text-xs text-gray-500">
+                                    Purchased blocks apply immediately and expire at the next monthly reset.
+                                </p>
+                                {summary.lead_quota.overage_blocks_purchased > 0 && (
+                                    <p className="mt-2 text-xs text-gray-500">
+                                        Purchased this month: {summary.lead_quota.overage_blocks_purchased} block{summary.lead_quota.overage_blocks_purchased === 1 ? '' : 's'}.
+                                    </p>
+                                )}
+                            </div>
+                            <div className="flex flex-col items-start gap-2 md:items-end">
+                                <div className="text-sm font-semibold text-slate-900">
+                                    {new Intl.NumberFormat('en-MY', {
+                                        style: 'currency',
+                                        currency: summary.lead_quota.overage_currency,
+                                        minimumFractionDigits: 0,
+                                        maximumFractionDigits: 0,
+                                    }).format(summary.lead_quota.overage_block_price_minor / 100)}
+                                </div>
+                                <button
+                                    onClick={handleLeadBlockCheckout}
+                                    disabled={loadingAction === 'lead-block' || !summary.billing.stripe_configured}
+                                    className="px-3 py-2 rounded bg-indigo-600 text-white text-sm font-medium disabled:opacity-50"
+                                >
+                                    {loadingAction === 'lead-block' ? 'Redirecting...' : `Buy ${summary.lead_quota.overage_block_size} Leads`}
+                                </button>
+                                {!summary.billing.stripe_configured && (
+                                    <p className="text-xs text-amber-700">
+                                        Stripe is not configured yet for this environment.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                     {summary.lead_quota.warning_reached && (
                         <div className="mt-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                            This workspace is above the 80% lead usage threshold. New lead capture will stop once the monthly allowance is fully used.
+                            This workspace is above the 80% lead usage threshold. New lead capture will stop once the monthly allowance is fully used unless you buy another lead block or upgrade first.
                         </div>
                     )}
                 </div>
