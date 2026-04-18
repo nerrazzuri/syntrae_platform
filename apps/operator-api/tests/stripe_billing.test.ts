@@ -77,6 +77,37 @@ test('checkout session route returns a Stripe URL for the active workspace', asy
     assert.equal(received.billingInterval, 'YEARLY');
 });
 
+test('lead block checkout route returns a Stripe URL for the active workspace', async (t) => {
+    const restores: RestoreFn[] = [];
+    t.after(() => restores.reverse().forEach((restore) => restore()));
+
+    restores.push(stubMethod(SessionStore, 'getSession', (async () => activeSession('ws-1')) as any));
+
+    let received: any = null;
+    restores.push(
+        stubMethod(
+            StripeBillingService,
+            'createLeadBlockCheckoutSession',
+            (async (input: any) => {
+                received = input;
+                return { url: 'https://checkout.stripe.test/lead_block_123', session_id: 'cs_test_lead_block_123' };
+            }) as any
+        )
+    );
+
+    const app = createApp();
+    const res = await request(app)
+        .post('/billing/lead-block-checkout-session')
+        .set('Cookie', ['syntrae_session=session-1'])
+        .send({ quantity: 1 });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.url, 'https://checkout.stripe.test/lead_block_123');
+    assert.equal(received.workspaceId, 'ws-1');
+    assert.equal(received.userEmail, 'billing@test.local');
+    assert.equal(received.quantity, 1);
+});
+
 test('portal session route returns typed Stripe errors', async (t) => {
     const restores: RestoreFn[] = [];
     t.after(() => restores.reverse().forEach((restore) => restore()));
@@ -152,7 +183,7 @@ test('stripe webhook route is mounted before session auth and accepts raw payloa
         .post('/billing/webhooks/stripe')
         .set('stripe-signature', 'sig_test_123')
         .set('Content-Type', 'application/json')
-        .send(Buffer.from('{"type":"checkout.session.completed"}'));
+        .send('{"type":"checkout.session.completed"}');
 
     assert.equal(res.status, 200);
     assert.equal(res.body.received, true);

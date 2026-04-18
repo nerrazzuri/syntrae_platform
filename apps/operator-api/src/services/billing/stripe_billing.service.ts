@@ -11,6 +11,7 @@ import {
     type PlanCode,
 } from '@syntrae/commercial-plans';
 import { prisma } from '../../db';
+import { LEAD_BLOCK_SIZE, LeadCreditLedgerService } from './lead_credit_ledger.service';
 
 type StripeSubscriptionLike = Stripe.Subscription | Stripe.Invoice | Stripe.Checkout.Session;
 
@@ -25,6 +26,13 @@ interface CheckoutSessionInput {
 
 interface PortalSessionInput {
     workspaceId: string;
+}
+
+interface LeadBlockCheckoutSessionInput {
+    workspaceId: string;
+    userEmail: string;
+    userId: string;
+    quantity?: number;
 }
 
 interface LeadOverageChargeInput {
@@ -49,7 +57,6 @@ export class StripeBillingError extends Error {
 
 const CHECKOUT_PLAN_CODES: PlanCode[] = [PLAN_CODES.STARTER, PLAN_CODES.GROWTH, PLAN_CODES.PRO, PLAN_CODES.AGENCY];
 type PriceEntry = { planCode: PlanCode; billingInterval: BillingInterval; priceId: string };
-const LEAD_OVERAGE_BLOCK_SIZE = 100;
 const LEAD_OVERAGE_BLOCK_PRICE_MINOR = 6900;
 const LEAD_OVERAGE_CURRENCY = 'myr';
 
@@ -216,6 +223,90 @@ export class StripeBillingService {
         return { url: session.url };
     }
 
+    static async createLeadBlockCheckoutSession(input: LeadBlockCheckoutSessionInput) {
+        const stripe = this.getStripe();
+        const workspace = await prisma.account.findUnique({
+            where: { id: input.workspaceId },
+            include: { subscription: true },
+        });
+        if (!workspace) {
+            throw new StripeBillingError('WORKSPACE_NOT_FOUND', 'Workspace not found', 404);
+        }
+
+        const normalizedWorkspacePlan = normalizePlanCode(workspace.subscription?.plan_code || workspace.plan_id);
+        const workspacePlan = getPlanDefinition(normalizedWorkspacePlan);
+
+        await prisma.workspaceSubscription.upsert({
+            where: { workspace_id: input.workspaceId },
+            update: {
+                plan_code: workspacePlan.code,
+                display_name: workspacePlan.displayName,
+                billing_provider: 'STRIPE',
+            },
+            create: {
+                workspace_id: input.workspaceId,
+                plan_code: workspacePlan.code,
+                display_name: workspacePlan.displayName,
+                billing_provider: 'STRIPE',
+                status: SUBSCRIPTION_STATUSES.ACTIVE,
+                billing_interval: BILLING_INTERVALS.MONTHLY,
+            },
+        });
+
+        const customerId = await this.ensureCustomer({
+            workspaceId: input.workspaceId,
+            workspaceName: workspace.name,
+            userEmail: input.userEmail,
+            existingCustomerId: workspace.subscription?.stripe_customer_id || null,
+        });
+
+        const priceId = this.getRequiredLeadBlockPriceId();
+        const quantity = Math.max(1, Number.isFinite(input.quantity) ? Number(input.quantity) : 1);
+        const successUrl = process.env.STRIPE_CHECKOUT_SUCCESS_URL || `${this.getAppBaseUrl()}/billing?checkout=success&product=lead-block`;
+        const cancelUrl = process.env.STRIPE_CHECKOUT_CANCEL_URL || `${this.getAppBaseUrl()}/billing?checkout=canceled&product=lead-block`;
+
+        const session = await stripe.checkout.sessions.create({
+            mode: 'payment',
+            customer: customerId,
+            client_reference_id: input.workspaceId,
+            success_url: successUrl,
+            cancel_url: cancelUrl,
+            line_items: [
+                {
+                    price: priceId,
+                    quantity,
+                },
+            ],
+            metadata: {
+                workspace_id: input.workspaceId,
+                user_id: input.userId,
+                purchase_type: 'LEAD_BLOCK',
+                lead_block_size: String(LEAD_BLOCK_SIZE),
+                quantity: String(quantity),
+            },
+        });
+
+        if (!session.url) {
+            throw new StripeBillingError('CHECKOUT_URL_MISSING', 'Stripe Checkout session did not return a URL', 502);
+        }
+
+        await prisma.workspaceSubscription.updateMany({
+            where: { workspace_id: input.workspaceId },
+            data: {
+                billing_provider: 'STRIPE',
+                stripe_customer_id: customerId,
+                metadata: {
+                    lead_block_checkout_session_id: session.id,
+                },
+            },
+        });
+
+        return {
+            url: session.url,
+            session_id: session.id,
+        };
+    }
+
     static async chargeLeadOverageBlock(input: LeadOverageChargeInput) {
         const stripe = this.getStripe();
         const subscription = await stripe.subscriptions.retrieve(input.stripeSubscriptionId);
@@ -234,13 +325,13 @@ export class StripeBillingService {
             customer: input.stripeCustomerId,
             amount: LEAD_OVERAGE_BLOCK_PRICE_MINOR,
             currency: LEAD_OVERAGE_CURRENCY,
-            description: `Syntrae additional ${LEAD_OVERAGE_BLOCK_SIZE} leads`,
+            description: `Syntrae additional ${LEAD_BLOCK_SIZE} leads`,
             metadata: {
                 workspace_id: input.workspaceId,
                 workspace_name: input.workspaceName,
                 type: 'LEAD_OVERAGE_BLOCK',
                 block_number: String(input.blockNumber),
-                block_size: String(LEAD_OVERAGE_BLOCK_SIZE),
+                block_size: String(LEAD_BLOCK_SIZE),
                 period_start: input.periodStart,
             },
         }, {
@@ -251,12 +342,12 @@ export class StripeBillingService {
             customer: input.stripeCustomerId,
             collection_method: 'charge_automatically',
             auto_advance: false,
-            description: `Syntrae additional ${LEAD_OVERAGE_BLOCK_SIZE} leads`,
+            description: `Syntrae additional ${LEAD_BLOCK_SIZE} leads`,
             metadata: {
                 workspace_id: input.workspaceId,
                 type: 'LEAD_OVERAGE_BLOCK',
                 block_number: String(input.blockNumber),
-                block_size: String(LEAD_OVERAGE_BLOCK_SIZE),
+                block_size: String(LEAD_BLOCK_SIZE),
                 period_start: input.periodStart,
             },
             ...(defaultPaymentMethod ? { default_payment_method: String(defaultPaymentMethod) } : {}),
@@ -286,7 +377,7 @@ export class StripeBillingService {
 
         return {
             block_number: input.blockNumber,
-            block_size: LEAD_OVERAGE_BLOCK_SIZE,
+            block_size: LEAD_BLOCK_SIZE,
             amount_minor: LEAD_OVERAGE_BLOCK_PRICE_MINOR,
             currency: LEAD_OVERAGE_CURRENCY.toUpperCase(),
             invoice_id: paidInvoice.id!,
@@ -334,6 +425,24 @@ export class StripeBillingService {
     private static async handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         const workspaceId = session.metadata?.workspace_id || session.client_reference_id;
         if (!workspaceId) return;
+
+        if (session.metadata?.purchase_type === 'LEAD_BLOCK') {
+            await prisma.workspaceSubscription.updateMany({
+                where: { workspace_id: workspaceId },
+                data: {
+                    billing_provider: 'STRIPE',
+                    stripe_customer_id: typeof session.customer === 'string' ? session.customer : session.customer?.id || null,
+                },
+            });
+
+            await LeadCreditLedgerService.creditPurchasedBlock({
+                workspaceId,
+                sourceId: session.id,
+                checkoutSessionId: session.id,
+                quantity: Math.max(1, Number.parseInt(String(session.metadata?.quantity || '1'), 10) || 1),
+            });
+            return;
+        }
 
         await prisma.workspaceSubscription.updateMany({
             where: { workspace_id: workspaceId },
@@ -648,6 +757,14 @@ export class StripeBillingService {
                 `Stripe price is not configured for ${planCode} ${billingInterval.toLowerCase()}`,
                 503
             );
+        }
+        return priceId;
+    }
+
+    private static getRequiredLeadBlockPriceId() {
+        const priceId = process.env.STRIPE_PRICE_LEAD_BLOCK_100;
+        if (!priceId) {
+            throw new StripeBillingError('STRIPE_PRICE_LEAD_BLOCK_100_MISSING', 'Stripe price is not configured for the 100-lead block', 503);
         }
         return priceId;
     }

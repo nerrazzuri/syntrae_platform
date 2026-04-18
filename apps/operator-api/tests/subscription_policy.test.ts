@@ -16,6 +16,7 @@ import {
     USAGE_METRICS,
 } from '@syntrae/commercial-plans';
 import { createApp } from '../src/index';
+import { LeadQuotaService } from '../src/services/billing/lead_quota.service';
 import { SubscriptionPolicyError, SubscriptionPolicyService } from '../src/services/billing/subscription_policy.service';
 import { prisma } from '../src/db';
 import { SessionStore } from '../src/services/auth/session_store';
@@ -92,6 +93,57 @@ test('usage evaluation blocks when the package quota is exceeded', () => {
 
     const agencyExports = evaluateUsage(PLAN_CODES.AGENCY, USAGE_METRICS.LEADS_EXPORTED, LIMIT_PERIODS.MONTHLY, 25000, 1);
     assert.equal(agencyExports.allowed, false);
+});
+
+test('automation run creation is blocked when monthly lead quota is exhausted', async (t) => {
+    const restores: RestoreFn[] = [];
+    t.after(() => restores.reverse().forEach((restore) => restore()));
+
+    restores.push(
+        stubMethod(
+            SubscriptionPolicyService,
+            'getEffectivePlan',
+            (async () => ({
+                plan: { code: PLAN_CODES.STARTER, displayName: 'Starter' },
+                subscription: {},
+                source: 'subscription',
+            })) as any
+        )
+    );
+    restores.push(
+        stubMethod(
+            LeadQuotaService,
+            'getQuotaSnapshot',
+            (async () => ({
+                used: 50,
+                included: 50,
+                rollover: 0,
+                extra: 0,
+                limit: 50,
+                remaining: 0,
+                auto_extension_enabled: false,
+                warning_threshold: 0.8,
+                warning_reached: true,
+                next_reset_at: new Date('2026-05-01T00:00:00.000Z').toISOString(),
+                overage_block_size: 100,
+                overage_block_price_minor: 6900,
+                overage_currency: 'MYR',
+                overage_blocks_purchased: 0,
+                last_auto_charge_at: null,
+                last_invoice_id: null,
+            })) as any
+        )
+    );
+
+    await assert.rejects(
+        () => SubscriptionPolicyService.assertCanCreateAutomationRun('ws-1', 'rednote'),
+        (error: any) => {
+            assert.equal(error instanceof SubscriptionPolicyError, true);
+            assert.equal(error.code, 'LEAD_QUOTA_REACHED');
+            assert.match(error.message, /Extend a 100-lead block or upgrade to a higher plan/i);
+            return true;
+        }
+    );
 });
 
 test('run queue returns a typed 403 when the plan blocks automation', async (t) => {

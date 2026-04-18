@@ -30,6 +30,7 @@ model Account {
   owner_settings     OwnerSettings?
   subscription       WorkspaceSubscription?
   usage_counters     WorkspaceUsageCounter[]
+  credit_ledger_entries WorkspaceCreditLedger[]
   platform_connections BrandPlatformConnection[]
   platform_connection_challenges PlatformConnectionChallenge[]
   product_catalog_items ProductCatalogItem[]
@@ -215,6 +216,28 @@ model WorkspaceUsageCounter {
   @@unique([workspace_id, scope_key, metric_code, period_type, period_start])
   @@index([workspace_id, metric_code, period_type, period_start])
   @@index([brand_id, metric_code, period_type, period_start])
+  @@schema("core")
+}
+
+model WorkspaceCreditLedger {
+  id          String   @id @default(uuid())
+  workspace_id String
+  credit_type String
+  delta       Int
+  source_type String
+  source_id   String
+  description String?
+  period_start DateTime?
+  expires_at  DateTime?
+  metadata    Json     @default("{}")
+  created_at  DateTime @default(now())
+
+  account Account @relation(fields: [workspace_id], references: [id])
+
+  @@unique([workspace_id, credit_type, source_type, source_id])
+  @@index([workspace_id, credit_type, created_at])
+  @@index([workspace_id, credit_type, period_start])
+  @@index([workspace_id, credit_type, expires_at])
   @@schema("core")
 }
 
