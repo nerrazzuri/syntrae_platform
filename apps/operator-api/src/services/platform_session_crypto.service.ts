@@ -3,8 +3,11 @@ import crypto from 'crypto';
 const DEFAULT_KEY_SOURCE = 'syntrae-dev-xhs-session-encryption-key-32bytes-minimum';
 
 function getKey() {
-    const source = process.env.XHS_SESSION_ENCRYPTION_KEY || DEFAULT_KEY_SOURCE;
-    return crypto.createHash('sha256').update(source).digest();
+    const source = process.env.XHS_SESSION_ENCRYPTION_KEY;
+    if (!source && process.env.NODE_ENV === 'production') {
+        throw new Error('XHS_SESSION_ENCRYPTION_KEY is required in production');
+    }
+    return crypto.createHash('sha256').update(source || DEFAULT_KEY_SOURCE).digest();
 }
 
 export class PlatformSessionCryptoService {
