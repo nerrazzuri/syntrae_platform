@@ -1,6 +1,19 @@
-import { prisma } from '../db';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { Prisma, prisma } from '../db';
 import { SubscriptionPolicyService } from './billing/subscription_policy.service';
 import { BrandDefaultsService } from './brand_defaults.service';
+
+function storageRoot() {
+    return process.env.AUTOMATION_STORAGE_ROOT || '/data/storage';
+}
+
+async function removeBrandStorageArtifacts(workspaceId: string, brandId: string) {
+    await Promise.all([
+        fs.rm(path.join(storageRoot(), 'sessions', workspaceId, brandId), { recursive: true, force: true }),
+        fs.rm(path.join(storageRoot(), 'sessions', brandId), { recursive: true, force: true }),
+    ]);
+}
 
 export class BrandService {
     static async createBrand(accountId: string, name: string, domain: string) {
@@ -126,34 +139,102 @@ export class BrandService {
 
         if (!brand) throw new Error('Brand not found or access denied');
 
-        const [activeRuns, runCount, eventCount, leadCount, draftCount] = await Promise.all([
-            prisma.automationRun.count({
-                where: {
-                    brand_id: brandId,
-                    status: { in: ['PENDING', 'RUNNING'] as any }
-                }
-            }),
-            prisma.automationRun.count({ where: { brand_id: brandId } }),
-            prisma.engagementEvent.count({ where: { brand_id: brandId } }),
-            prisma.leadOpportunity.count({ where: { brand_id: brandId } }),
-            prisma.outreachDraft.count({ where: { brand_id: brandId } }),
-        ]);
+        const deletedBrand = await prisma.$transaction(async (tx) => {
+            const deletedCounts: Record<string, number> = {};
 
-        if (activeRuns > 0) {
-            throw new Error('Cannot delete brand while automation runs are active. Stop the runs first.');
-        }
+            deletedCounts.feedback_signals = await tx.$executeRaw(Prisma.sql`
+                DELETE FROM "core"."FeedbackSignal"
+                WHERE "session_id" IN (
+                    SELECT "SuggestionSession"."id"
+                    FROM "core"."SuggestionSession"
+                    INNER JOIN "core"."EngagementEvent"
+                        ON "EngagementEvent"."id" = "SuggestionSession"."event_id"
+                    WHERE "EngagementEvent"."brand_id" = ${brandId}
+                )
+            `);
 
-        if (runCount > 0 || eventCount > 0 || leadCount > 0 || draftCount > 0) {
-            throw new Error('Cannot delete brand with existing automation history, captured events, leads, or drafts. Pause the brand instead to preserve tenant records.');
-        }
+            deletedCounts.suggestion_decisions = await tx.$executeRaw(Prisma.sql`
+                DELETE FROM "core"."SuggestionDecision"
+                WHERE "suggestion_id" IN (
+                    SELECT "Suggestion"."id"
+                    FROM "core"."Suggestion"
+                    INNER JOIN "core"."EngagementEvent"
+                        ON "EngagementEvent"."id" = "Suggestion"."event_id"
+                    WHERE "EngagementEvent"."brand_id" = ${brandId}
+                )
+            `);
 
-        return prisma.$transaction(async (tx) => {
-            await tx.platformConnectionChallenge.deleteMany({ where: { brand_id: brandId } });
-            await tx.brandPlatformConnection.deleteMany({ where: { brand_id: brandId } });
-            await tx.automationPolicy.deleteMany({ where: { brand_id: brandId } });
-            await tx.marketProfile.deleteMany({ where: { brand_id: brandId } });
-            await tx.discoveredVideo.deleteMany({ where: { brand_id: brandId } });
-            return tx.brand.delete({ where: { id: brandId } });
+            deletedCounts.suggestions = await tx.$executeRaw(Prisma.sql`
+                DELETE FROM "core"."Suggestion"
+                WHERE "event_id" IN (
+                    SELECT "id"
+                    FROM "core"."EngagementEvent"
+                    WHERE "brand_id" = ${brandId}
+                )
+            `);
+
+            deletedCounts.suggestion_sessions = await tx.$executeRaw(Prisma.sql`
+                DELETE FROM "core"."SuggestionSession"
+                WHERE "event_id" IN (
+                    SELECT "id"
+                    FROM "core"."EngagementEvent"
+                    WHERE "brand_id" = ${brandId}
+                )
+            `);
+
+            const manualSendEvents = await tx.manualSendEvent.deleteMany({ where: { brand_id: brandId } });
+            deletedCounts.manual_send_events = manualSendEvents.count;
+
+            const outreachDrafts = await tx.outreachDraft.deleteMany({ where: { brand_id: brandId } });
+            deletedCounts.outreach_drafts = outreachDrafts.count;
+
+            const leads = await tx.leadOpportunity.deleteMany({ where: { brand_id: brandId } });
+            deletedCounts.leads = leads.count;
+
+            const engagementEvents = await tx.engagementEvent.deleteMany({ where: { brand_id: brandId } });
+            deletedCounts.engagement_events = engagementEvents.count;
+
+            const discoveredVideos = await tx.discoveredVideo.deleteMany({ where: { brand_id: brandId } });
+            deletedCounts.discovered_videos = discoveredVideos.count;
+
+            const automationRuns = await tx.automationRun.deleteMany({ where: { brand_id: brandId } });
+            deletedCounts.automation_runs = automationRuns.count;
+
+            const automationPolicies = await tx.automationPolicy.deleteMany({ where: { brand_id: brandId } });
+            deletedCounts.automation_policies = automationPolicies.count;
+
+            const marketProfiles = await tx.marketProfile.deleteMany({ where: { brand_id: brandId } });
+            deletedCounts.market_profiles = marketProfiles.count;
+
+            const catalogDocuments = await tx.productCatalogDocument.deleteMany({ where: { brand_id: brandId } });
+            deletedCounts.product_catalog_documents = catalogDocuments.count;
+
+            const catalogItems = await tx.productCatalogItem.deleteMany({ where: { brand_id: brandId } });
+            deletedCounts.product_catalog_items = catalogItems.count;
+
+            const usageCounters = await tx.workspaceUsageCounter.deleteMany({ where: { brand_id: brandId } });
+            deletedCounts.workspace_usage_counters = usageCounters.count;
+
+            const platformConnectionChallenges = await tx.platformConnectionChallenge.deleteMany({ where: { brand_id: brandId } });
+            deletedCounts.platform_connection_challenges = platformConnectionChallenges.count;
+
+            const platformConnections = await tx.brandPlatformConnection.deleteMany({ where: { brand_id: brandId } });
+            deletedCounts.platform_connections = platformConnections.count;
+
+            const deletedBrandRecord = await tx.brand.delete({ where: { id: brandId } });
+
+            return {
+                ...deletedBrandRecord,
+                deleted_counts: deletedCounts,
+            };
         });
+
+        try {
+            await removeBrandStorageArtifacts(accountId, brandId);
+        } catch (err: any) {
+            console.warn('[Brands] Failed to remove brand storage artifacts:', err?.message || err);
+        }
+
+        return deletedBrand;
     }
 }

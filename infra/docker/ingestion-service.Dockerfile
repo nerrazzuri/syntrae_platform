@@ -3,7 +3,7 @@ FROM node:20-bullseye
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm
+RUN npm install -g pnpm@10.33.4
 
 # Copy workspace config
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./

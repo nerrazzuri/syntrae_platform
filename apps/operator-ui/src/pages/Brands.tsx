@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 
 type RunFeedbackTone = 'success' | 'error' | 'info';
@@ -11,6 +11,11 @@ interface RunFeedback {
     autoDismiss?: boolean;
     actionHref?: string;
     actionLabel?: string;
+}
+
+interface DeleteFeedback {
+    tone: 'error';
+    message: string;
 }
 
 function renderConnectionBadge(connection: any) {
@@ -47,6 +52,8 @@ export function BrandsPage() {
     const [showCreate, setShowCreate] = useState(false);
     const [runLoadingBrandId, setRunLoadingBrandId] = useState<string | null>(null);
     const [runFeedback, setRunFeedback] = useState<Record<string, RunFeedback>>({});
+    const [deleteLoadingBrandId, setDeleteLoadingBrandId] = useState<string | null>(null);
+    const [deleteFeedback, setDeleteFeedback] = useState<Record<string, DeleteFeedback>>({});
 
     // Create Form
     const [newName, setNewName] = useState('');
@@ -101,9 +108,43 @@ export function BrandsPage() {
         const newStatus = currentStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
         try {
             await api.patch(`/brands/${brandId}/status`, { status: newStatus });
+            setDeleteFeedback((prev) => {
+                const next = { ...prev };
+                delete next[brandId];
+                return next;
+            });
             loadBrands();
         } catch (e: any) {
             alert(e.error || 'Failed to update status');
+        }
+    };
+
+    const removeBrand = async (brand: any) => {
+        const acknowledgement = window.prompt(
+            `Permanently delete ${brand.name}?\n\nThis removes the brand and all associated leads, automation runs, pending replies/drafts, discovery history, market strategy, catalog data, usage counters, and platform connection records.\n\nType DELETE to acknowledge permanent data deletion.`
+        );
+        if (acknowledgement !== 'DELETE') return;
+
+        setDeleteLoadingBrandId(brand.id);
+        setDeleteFeedback((prev) => {
+            const next = { ...prev };
+            delete next[brand.id];
+            return next;
+        });
+
+        try {
+            await api.delete(`/brands/${brand.id}`);
+            setBrands((prev) => prev.filter((item) => item.id !== brand.id));
+        } catch (e: any) {
+            setDeleteFeedback((prev) => ({
+                ...prev,
+                [brand.id]: {
+                    tone: 'error',
+                    message: e?.message || 'Failed to remove brand.',
+                }
+            }));
+        } finally {
+            setDeleteLoadingBrandId(null);
         }
     };
 
@@ -223,12 +264,23 @@ export function BrandsPage() {
                                     </div>
                                     <p className="mt-2 text-sm text-slate-500">{brand.domain}</p>
                                 </div>
-                                <button
-                                    onClick={() => toggleStatus(brand.id, brand.status)}
-                                    className="inline-flex items-center justify-center rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-                                >
-                                    {brand.status === 'ACTIVE' ? 'Pause Brand' : 'Resume Brand'}
-                                </button>
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        onClick={() => toggleStatus(brand.id, brand.status)}
+                                        className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                                    >
+                                        {brand.status === 'ACTIVE' ? 'Pause Brand' : 'Resume Brand'}
+                                    </button>
+                                    <button
+                                        onClick={() => removeBrand(brand)}
+                                        disabled={deleteLoadingBrandId === brand.id}
+                                        aria-label={`Remove ${brand.name}`}
+                                        className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                        {deleteLoadingBrandId === brand.id ? 'Removing...' : 'Remove Brand'}
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="rounded-2xl border border-rose-100 bg-gradient-to-r from-rose-50 via-white to-orange-50 p-4">
@@ -303,6 +355,14 @@ export function BrandsPage() {
                                     Market Strategy
                                 </Link>
                             </div>
+                            {deleteFeedback[brand.id] && (
+                                <div
+                                    role="alert"
+                                    className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
+                                >
+                                    <div>{deleteFeedback[brand.id].message}</div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))}

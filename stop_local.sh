@@ -1,6 +1,20 @@
 #!/bin/bash
+set -euo pipefail
 
-echo "Stopping local Docker environment..."
-docker compose -f docker-compose.local.yml --env-file .env.local down
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMPOSE_DIR="$ROOT_DIR/infra/compose"
+ENV_FILE="$ROOT_DIR/.env.local"
 
-echo "Local environment stopped."
+COMPOSE=(
+  docker compose
+  --env-file "$ENV_FILE"
+  -f docker-compose.yml
+  -f docker-compose.catalog-local.yml
+)
+
+cd "$COMPOSE_DIR"
+
+echo "Stopping Syntrae local Docker stack..."
+"${COMPOSE[@]}" down "$@"
+
+echo "Local stack stopped."

@@ -5,7 +5,7 @@ FROM node:20-alpine AS build
 WORKDIR /repo
 
 # Enable pnpm
-RUN npm install -g pnpm
+RUN npm install -g pnpm@10.33.4
 
 # 1. Manifests (Monorepo Root context)
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
