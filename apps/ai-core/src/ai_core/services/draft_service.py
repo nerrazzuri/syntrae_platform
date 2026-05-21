@@ -1,29 +1,52 @@
-from typing import Dict, Any, Optional
-from sqlalchemy.orm import Session
-from ai_core.pipeline.llm.llm_client import LLMClient
-from shared.database.models import LeadOpportunity, BuyerStage, RecommendedAction
-import json
-import uuid
-import re
+from __future__ import annotations
 
-PROMPT_VERSION = "v1"
+import json
+import re
+from typing import Any, Optional
+
+from sqlalchemy.orm import Session
+
+from ai_core.pipeline.draft.few_shot_bank import get_few_shots
+from ai_core.pipeline.llm.llm_client import LLMClient
+from ai_core.services.reply_strategy_adapter import adapt_reply_strategy
+from ai_core.services.reply_style_profiles import get_platform_style
+from shared.database.models import BuyerStage, LeadOpportunity, RecommendedAction
+
+PROMPT_VERSION = "v2_strategy_platform_profile"
+
 
 class DraftGenerationService:
     def __init__(self, db: Session, llm_client: LLMClient):
         self.db = db
         self.llm_client = llm_client
 
+    def _value_name(self, value: Any) -> str:
+        if value is None:
+            return ""
+        return str(getattr(value, "name", value))
+
     def _check_eligibility(self, lead: LeadOpportunity) -> bool:
-        if lead.buyer_stage == BuyerStage.AWARENESS:
+        if self._value_name(lead.buyer_stage) == BuyerStage.AWARENESS.name:
             return False
-        if lead.recommended_action == RecommendedAction.SILENT_CAPTURE:
+        if (
+            self._value_name(lead.recommended_action)
+            == RecommendedAction.SILENT_CAPTURE.name
+        ):
             return False
         return True
 
-    def _detect_language(self, comment_text: str, preferred_language: Optional[str]) -> str:
+    def _detect_language(
+        self, comment_text: str, preferred_language: Optional[str]
+    ) -> str:
         if preferred_language:
             normalized = preferred_language.lower()
-            if normalized in {"zh", "zh-cn", "chinese", "mandarin", "simplified chinese"}:
+            if normalized in {
+                "zh",
+                "zh-cn",
+                "chinese",
+                "mandarin",
+                "simplified chinese",
+            }:
                 return "Mandarin Chinese (Simplified)"
             if normalized in {"en", "english"}:
                 return "English"
@@ -32,13 +55,247 @@ class DraftGenerationService:
             return "Mandarin Chinese (Simplified)"
         return "English"
 
+    def _dedupe(self, values: list[Any]) -> list[str]:
+        seen: set[str] = set()
+        result: list[str] = []
+        for value in values:
+            if not isinstance(value, str):
+                continue
+            stripped = value.strip()
+            if not stripped:
+                continue
+            key = stripped.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append(stripped)
+        return result
 
+    def _json_preview(self, value: Any, fallback: str = "N/A") -> str:
+        if value in (None, {}, []):
+            return fallback
+        try:
+            return json.dumps(value, ensure_ascii=False, indent=2, default=str)
+        except TypeError:
+            return str(value)
 
-    def generate_draft(self, lead_id: str, account_id: str, force: bool = False, owner_settings: Dict = None) -> Dict[str, Any]:
-        lead = self.db.query(LeadOpportunity).filter(
-            LeadOpportunity.id == lead_id,
-            LeadOpportunity.account_id == account_id
-        ).first()
+    def _extract_brand_reply_profile(
+        self, owner_settings: dict[str, Any]
+    ) -> dict[str, Any]:
+        for key in ("brand_reply_profile", "brand_domain_profile", "domain_context"):
+            value = owner_settings.get(key)
+            if isinstance(value, dict):
+                return value
+        return {}
+
+    def _format_product_context(self, product_context: Any) -> tuple[str, bool]:
+        if not isinstance(product_context, dict) or not product_context.get("name"):
+            return "N/A", False
+
+        benefits = product_context.get("key_benefits") or []
+        objections = product_context.get("common_objections") or []
+        product_context_text = (
+            f"Name: {product_context.get('name')}; "
+            f"Category: {product_context.get('category') or 'N/A'}; "
+            f"Description: {product_context.get('description') or 'N/A'}; "
+            f"Price: {product_context.get('price_label') or 'N/A'}; "
+            f"Target Buyer: {product_context.get('target_buyer') or 'N/A'}; "
+            f"Benefits: {', '.join(benefits) if isinstance(benefits, list) else 'N/A'}; "
+            f"Objections: {', '.join(objections) if isinstance(objections, list) else 'N/A'}; "
+            f"CTA URL: {product_context.get('cta_url') or 'N/A'}"
+        )
+        return product_context_text, True
+
+    def _format_knowledge_context(
+        self, knowledge_context: Any
+    ) -> tuple[str, bool, int]:
+        if not isinstance(knowledge_context, list) or not knowledge_context:
+            return "N/A", False, 0
+
+        lines = []
+        for item in knowledge_context[:3]:
+            if not isinstance(item, dict):
+                continue
+            title = item.get("document_title") or "Imported knowledge"
+            content = str(item.get("content") or "").strip()
+            if content:
+                lines.append(f"{title}: {content[:240]}")
+
+        if not lines:
+            return "N/A", False, 0
+        return "\n".join(lines), True, min(len(lines), 3)
+
+    def _format_few_shots(self, few_shots: dict | None) -> str:
+        if not few_shots:
+            return "N/A"
+
+        lines: list[str] = []
+        for label in ("bad", "good"):
+            examples = few_shots.get(label) or []
+            if not examples:
+                continue
+            lines.append(f"{label.upper()} examples:")
+            for example in examples:
+                lines.append(f"- Comment: {example.get('comment', '')}")
+                lines.append(f"  Reply: {example.get('reply', '')}")
+                why = example.get("why")
+                if why:
+                    lines.append(f"  Why: {why}")
+        return "\n".join(lines) if lines else "N/A"
+
+    def _brand_principles(self, brand_reply_profile: dict[str, Any]) -> str:
+        principles = brand_reply_profile.get("reply_principles")
+        if isinstance(principles, list):
+            return "\n".join(f"- {item}" for item in principles if item)
+        if isinstance(principles, str) and principles.strip():
+            return f"- {principles.strip()}"
+        return "- Keep the reply concrete, natural, and directly useful."
+
+    def _build_system_prompt(
+        self,
+        brand_name: str,
+        platform_style: dict[str, Any],
+        strategy: dict[str, Any],
+        brand_reply_profile: dict[str, Any] | None = None,
+    ) -> str:
+        brand_reply_profile = brand_reply_profile or {}
+        forbidden_phrases = self._dedupe(
+            list(strategy.get("forbidden_phrases") or [])
+            + list(platform_style.get("banned_phrases") or [])
+        )
+        forbidden_text = "\n".join(f"- {phrase}" for phrase in forbidden_phrases)
+
+        return f"""你是「{brand_name}」的社交媒体运营。
+
+你的回复会被真人审核后公开发布。
+你要像真实用户/真实运营一样自然回复，不要像客服机器人。
+
+平台风格：
+- {platform_style.get("tone")}
+- {platform_style.get("cultural_notes")}
+- Emoji: {platform_style.get("emoji_guidance")}
+- Addressing: {platform_style.get("address_style")}
+
+品牌原则：
+{self._brand_principles(brand_reply_profile)}
+
+绝对不要使用：
+{forbidden_text}
+
+重要：
+- 如果回复策略 should_redirect=false，不要导购，不要叫用户进店，不要引导购买。
+- 先回答用户真实问题，再考虑是否需要轻微引导。
+- 直接输出回复文本，不要解释。"""
+
+    def _build_user_prompt(
+        self,
+        *,
+        comment_text: str,
+        original_intent: str,
+        buyer_stage: str,
+        strategy: dict[str, Any],
+        brand_name: str,
+        brand_domain: str,
+        brand_reply_profile: dict[str, Any],
+        product_context_text: str,
+        knowledge_context_text: str,
+        few_shots: dict | None,
+        language: str,
+        platform_style: dict[str, Any],
+        tone: str,
+        cta_target_human: str,
+    ) -> str:
+        compact_strategy = {
+            "reply_intent": strategy.get("reply_intent"),
+            "reply_mode": strategy.get("reply_mode"),
+            "should_redirect": strategy.get("should_redirect"),
+            "cta_strength": strategy.get("cta_strength"),
+            "require_diagnostic": strategy.get("require_diagnostic"),
+            "require_specific_answer": strategy.get("require_specific_answer"),
+            "suggested_focus": strategy.get("suggested_focus"),
+        }
+
+        extra_instructions = []
+        suggested_focus = strategy.get("suggested_focus")
+        if suggested_focus:
+            extra_instructions.append(f"回复重点：{suggested_focus}")
+        if not strategy.get("should_redirect"):
+            extra_instructions.append("这条回复不需要导购或 CTA，专注回答用户问题。")
+        if strategy.get("reply_intent") == "suitability_advice":
+            extra_instructions.append("这类评论要像顾问一样先给判断/诊断，再给建议。不要硬卖。最多问一个简短追问。")
+        if strategy.get("reply_intent") == "purchase_request":
+            extra_instructions.append("用户已经表达购买/链接/价格意图，可以直接回答，并允许自然软 CTA。")
+
+        return f"""Generate one public social-media reply.
+
+Original comment:
+{comment_text or "N/A"}
+
+Original intent: {original_intent or "N/A"}
+Buyer stage: {buyer_stage or "N/A"}
+Tone setting: {tone}
+
+Reply strategy:
+{self._json_preview(compact_strategy)}
+
+Brand:
+- Name: {brand_name}
+- Domain: {brand_domain or "N/A"}
+
+Brand reply profile summary:
+{self._json_preview(brand_reply_profile)}
+
+Product context:
+{product_context_text}
+
+Knowledge context:
+{knowledge_context_text}
+
+Few-shot guidance:
+{self._format_few_shots(few_shots)}
+
+Language requirement:
+- Reply in {language}.
+- Match the original comment's language when possible.
+
+Length and platform:
+- Maximum length: {platform_style.get("max_reply_length")} characters/words depending on language.
+- Platform style: {platform_style.get("style_name")}
+
+CTA context:
+- Allowed target if strategy permits redirect: {cta_target_human}
+
+Product/knowledge context rule:
+- If product_context or knowledge_context exists, use it only as supporting context.
+- Do not force product recommendation when strategy.should_redirect is false.
+
+Additional instructions:
+{chr(10).join(f"- {item}" for item in extra_instructions) if extra_instructions else "- Be specific, natural, and concise."}
+
+Output only the reply text."""
+
+    def _clean_reply_text(self, response_text: str) -> str:
+        text = response_text.strip()
+        if len(text) >= 2 and text.startswith('"') and text.endswith('"'):
+            return text[1:-1].strip()
+        return text
+
+    def generate_draft(
+        self,
+        lead_id: str,
+        account_id: str,
+        force: bool = False,
+        owner_settings: dict | None = None,
+    ) -> dict[str, Any]:
+        # TODO: force is preserved for API compatibility. Idempotency remains owned by operator-api / future draft persistence flow.
+        _ = force
+        lead = (
+            self.db.query(LeadOpportunity)
+            .filter(
+                LeadOpportunity.id == lead_id, LeadOpportunity.account_id == account_id
+            )
+            .first()
+        )
 
         if not lead:
             raise ValueError("Lead not found or access denied")
@@ -46,65 +303,51 @@ class DraftGenerationService:
         if not self._check_eligibility(lead):
             raise ValueError("Lead not eligible for draft generation")
 
-
-
-        # Tone/Language Resolution
-        # Precedence: OwnerSettings -> Inferred (TODO) -> Default
         owner_settings = owner_settings or {}
         tone = owner_settings.get("tone", "professional")
         comment_text = owner_settings.get("comment_text") or ""
-        language = self._detect_language(comment_text, owner_settings.get("preferred_language"))
+        language = self._detect_language(
+            comment_text, owner_settings.get("preferred_language")
+        )
         reply_redirect_target = owner_settings.get("reply_redirect_target", "STORE")
-        reply_cta_style = owner_settings.get("reply_cta_style", "SOFT")
         brand_name = owner_settings.get("brand_name") or "the brand"
         brand_domain = owner_settings.get("brand_domain") or ""
         product_context = owner_settings.get("product_context") or {}
         knowledge_context = owner_settings.get("knowledge_context") or []
-        product_context_text = "N/A"
-        has_product_context = False
-        if isinstance(product_context, dict) and product_context.get("name"):
-            has_product_context = True
-            benefits = product_context.get("key_benefits") or []
-            objections = product_context.get("common_objections") or []
-            product_context_text = (
-                f"Name: {product_context.get('name')}; "
-                f"Category: {product_context.get('category') or 'N/A'}; "
-                f"Description: {product_context.get('description') or 'N/A'}; "
-                f"Price: {product_context.get('price_label') or 'N/A'}; "
-                f"Target Buyer: {product_context.get('target_buyer') or 'N/A'}; "
-                f"Benefits: {', '.join(benefits) if isinstance(benefits, list) else 'N/A'}; "
-                f"Objections: {', '.join(objections) if isinstance(objections, list) else 'N/A'}; "
-                f"CTA URL: {product_context.get('cta_url') or 'N/A'}"
-            )
-        knowledge_context_text = "N/A"
-        has_knowledge_context = False
-        catalog_suggestion_count = 0
-        if isinstance(knowledge_context, list) and knowledge_context:
-            lines = []
-            for item in knowledge_context[:3]:
-                if not isinstance(item, dict):
-                    continue
-                title = item.get("document_title") or "Imported knowledge"
-                content = str(item.get("content") or "").strip()
-                if content:
-                    lines.append(f"{title}: {content[:240]}")
-            if lines:
-                knowledge_context_text = "\n".join(lines)
-                has_knowledge_context = True
-                catalog_suggestion_count = min(len(lines), 3)
+        brand_reply_profile = self._extract_brand_reply_profile(owner_settings)
 
-        catalog_guidance = (
-            "No catalog item or imported knowledge matched this comment. Answer generally, acknowledge the user's broad interest, "
-            "and ask one concise clarifying question about their main goal or symptom. Do not name or imply any specific product."
-            if not has_product_context and not has_knowledge_context
-            else (
-                f"Use exactly {catalog_suggestion_count} imported catalog suggestion(s) if they match the user's need. "
-                f"If there is 1 suggestion, mention 1; if there are 2, mention 2; if there are 3, mention all 3; if there are more than 3, mention only the top 3. "
-                "Extract product names from the imported content and do not mention filenames or document titles. "
-                "Present them as possible options, not medical guarantees, then ask one concise clarifying question about other symptoms or goals."
-                if has_knowledge_context
-                else "Use the matched product as supporting context. If the user's need is still broad, ask one concise clarifying question instead of forcing a product recommendation."
-            )
+        product_context_text, _has_product_context = self._format_product_context(
+            product_context
+        )
+        (
+            knowledge_context_text,
+            _has_knowledge_context,
+            _catalog_suggestion_count,
+        ) = self._format_knowledge_context(knowledge_context)
+
+        platform = getattr(lead, "platform", None) or owner_settings.get("platform")
+        buyer_stage = self._value_name(
+            getattr(lead, "buyer_stage", None)
+        ) or owner_settings.get("buyer_stage")
+        original_intent = owner_settings.get("intent") or getattr(lead, "intent", None)
+
+        strategy = adapt_reply_strategy(
+            intent=original_intent,
+            buyer_stage=buyer_stage,
+            confidence=getattr(lead, "confidence", None),
+            risk_level=getattr(lead, "risk_level", None),
+            platform=platform,
+            comment_text=comment_text,
+            product_context=product_context,
+            brand_reply_profile=brand_reply_profile,
+            owner_settings=owner_settings,
+        )
+        platform_style = get_platform_style(platform, language)
+        few_shots = get_few_shots(
+            language=language,
+            reply_intent=strategy.get("reply_intent"),
+            platform=platform,
+            limit=2,
         )
 
         cta_map = {
@@ -115,77 +358,45 @@ class DraftGenerationService:
         }
         cta_target_human = cta_map.get(reply_redirect_target, "the brand's store")
 
-        # Prompt Construction
-        prompt = f"""
-        Generate a short, human-sounding PUBLIC comment reply for a potential customer.
-        
-        CONTEXT:
-        Platform: {lead.platform}
-        Intent: {lead.intent}
-        Buyer Stage: {lead.buyer_stage.name}
-        User Context: {lead.preferences or "N/A"}
-        Original Comment: {comment_text or "N/A"}
-        Brand Name: {brand_name}
-        Brand Domain: {brand_domain or "N/A"}
-        Catalog Suggestion Count: {catalog_suggestion_count}
-        Matched Product / Offer: {product_context_text}
-        Imported Product Knowledge:
-        {knowledge_context_text}
-        
-        TONE: {tone}
-        LANGUAGE: {language}
-        REDIRECT TARGET: {reply_redirect_target}
-        CTA STYLE: {reply_cta_style}
-        
-        STRICT RULES:
-        1. Reply in the SAME LANGUAGE as the original comment. English comment -> English reply. Mandarin comment -> Mandarin reply.
-        2. This is the FIRST and ideally ONLY public reply. Keep it concise and conversion-oriented.
-        3. The reply must feel like a real human typed it, not a template or chatbot.
-        4. Reference the user's actual comment naturally before redirecting.
-        5. Redirect as close as possible to {cta_target_human}, but do it naturally and not aggressively.
-        6. NO cold DM invitation. NO "please DM us". NO robotic customer-service phrasing.
-        7. NO pricing numbers unless explicitly present in the comment/context.
-        8. NO absolute guarantees ("best", "cheapest", "guaranteed").
-        9. If a matched product or imported knowledge is provided, use it as context but do not overclaim or force a hard sell.
-        10. Never repeat medical, guaranteed, or unsafe claims just because they appear in imported material.
-        11. Keep it under 45 words unless multiple catalog suggestions are needed; then keep it under 75 words.
-        12. Output must be only the reply text, with no quotation marks or explanation.
-        13. Catalog fallback: {catalog_guidance}
-        
-        Draft:
-        """
-        
-            # LLM Call
+        system_prompt = self._build_system_prompt(
+            brand_name=brand_name,
+            platform_style=platform_style,
+            strategy=strategy,
+            brand_reply_profile=brand_reply_profile,
+        )
+        user_prompt = self._build_user_prompt(
+            comment_text=comment_text,
+            original_intent=str(original_intent or ""),
+            buyer_stage=str(buyer_stage or ""),
+            strategy=strategy,
+            brand_name=brand_name,
+            brand_domain=brand_domain,
+            brand_reply_profile=brand_reply_profile,
+            product_context_text=product_context_text,
+            knowledge_context_text=knowledge_context_text,
+            few_shots=few_shots,
+            language=language,
+            platform_style=platform_style,
+            tone=tone,
+            cta_target_human=cta_target_human,
+        )
+
         try:
             response_text = self.llm_client.chat_completion(
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7
+                messages=[{"role": "user", "content": user_prompt}],
+                temperature=0.7,
+                system_message=system_prompt,
             )
-            
-            draft_text = response_text.strip().replace('"', '')
 
-            # Note: ai-core does NOT persist here per plan, operator-api persists.
-            # WAIT - Plan says: "ai-core does NOT persist OutreachDraft directly. It returns text."
-            # BUT idempotency check requires checking DB.
-            # So ai-core MUST READ from DB, but maybe operator-api WRITES.
-            # However, for idempotency to work securely across standard services, 
-            # if ai-core is the logic center, it should probably just return the text
-            # and let operator-api handle the "get existing" check?
-            # NO, the plan says: "Idempotency: If force=False and draft exists... return existing."
-            # So ai-core has to check DB.
-            # To avoid race conditions or split logic, ideally operator-api handles the DB orchestration.
-            # But the 'mandatory refinement' put the logic in ai-core.
-            # "Draft Logic: ... Idempotency: ... check DB".
-            
-            # Implementation Detail Correction:
-            # If ai-core checks DB for existing, it implies ai-core KNOWS about persistance.
-            # But "Persistence: ai-core does NOT persist... operator-api handles persistence".
-            # This is a slight contradiction in the plan vs refinement.
-            # Resolution: ai-core checks DB (READ), generates (PROCESS), returns result.
-            # Operator-api WRITES the result.
-            # This means valid idempotency relies on operator-api writing it after ai-core returns.
-            # This is acceptable for "Assisted" mode.
-            
+            draft_text = self._clean_reply_text(response_text)
+            should_redirect = bool(strategy.get("should_redirect"))
+            strategy_meta = {
+                "reply_mode": strategy.get("reply_mode"),
+                "should_redirect": should_redirect,
+                "cta_strength": strategy.get("cta_strength"),
+                "require_diagnostic": strategy.get("require_diagnostic", False),
+            }
+
             return {
                 "draft_text": draft_text,
                 "tone": tone,
@@ -193,14 +404,13 @@ class DraftGenerationService:
                 "source_language": language,
                 "prompt_version": PROMPT_VERSION,
                 "cached": False,
-                "cta_target": reply_redirect_target,
-                "cta_label": cta_target_human,
-                "reply_strategy": "single_shot_public_redirect",
-                "risk_flags": [],
+                "cta_target": reply_redirect_target if should_redirect else "NONE",
+                "cta_label": cta_target_human if should_redirect else None,
+                "reply_strategy": strategy.get("reply_intent") or "general_interest",
+                "risk_flags": strategy.get("risk_flags", []),
                 "human_review_required": True,
+                "strategy_meta": strategy_meta,
             }
 
         except Exception as e:
-            # Fallback or re-raise
             raise RuntimeError(f"LLM generation failed: {str(e)}")
-

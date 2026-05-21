@@ -49,7 +49,7 @@ class LLMClient:
         intent: str = "lookup",
         result_hint: str | None = None,
         tenant_id: Optional[str] = None,
-        generation_config: Optional[Dict[str, Any]] = None
+        generation_config: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         # Choose client: prefer per-tenant BYO key when available
         client = self.client
@@ -80,7 +80,7 @@ class LLMClient:
                 "messages": [
                     {"role": "system", "content": self._system_policy},
                     {"role": "user", "content": prompt},
-                ]
+                ],
             }
             if completion_max_tokens:
                 kwargs["max_tokens"] = completion_max_tokens
@@ -184,25 +184,34 @@ class LLMClient:
         return ". ".join(kept) + ("." if kept else "")
 
     def chat_completion(
-        self, messages: List[Dict[str, str]], temperature: Optional[float] = None
+        self,
+        messages: List[Dict[str, str]],
+        temperature: Optional[float] = None,
+        system_message: Optional[str] = None,
     ) -> str:
         """Direct chat completion exposing raw messages to the model."""
         client = self.client
         # For now, draft generation uses global key, but we could extend to support tenant context later
         if not client:
-             raise RuntimeError("OpenAI client not initialized")
+            raise RuntimeError("OpenAI client not initialized")
 
         if not circuit_breaker.allow("openai_chat", tenant_id=None):
-             raise RuntimeError("Circuit breaker open for openai_chat")
+            raise RuntimeError("Circuit breaker open for openai_chat")
 
         @retry_with_backoff("openai.chat")
         def _do_chat() -> str:
+            request_messages = list(messages)
+            if system_message:
+                request_messages = [
+                    {"role": "system", "content": system_message},
+                    *request_messages,
+                ]
             safe_messages = [
                 {
                     **message,
                     "content": redact(message.get("content", "")),
                 }
-                for message in messages
+                for message in request_messages
             ]
             completion = client.chat.completions.create(
                 model=self.model,
