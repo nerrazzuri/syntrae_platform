@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from ai_core.pipeline.draft.draft_qc import DraftQualityChecker
 from ai_core.pipeline.draft.few_shot_bank import get_few_shots
 from ai_core.pipeline.llm.llm_client import LLMClient
 from ai_core.services.reply_strategy_adapter import adapt_reply_strategy
@@ -16,9 +17,15 @@ PROMPT_VERSION = "v2_strategy_platform_profile"
 
 
 class DraftGenerationService:
-    def __init__(self, db: Session, llm_client: LLMClient):
+    def __init__(
+        self,
+        db: Session,
+        llm_client: LLMClient,
+        draft_qc: DraftQualityChecker | None = None,
+    ):
         self.db = db
         self.llm_client = llm_client
+        self.draft_qc = draft_qc or DraftQualityChecker()
 
     def _value_name(self, value: Any) -> str:
         if value is None:
@@ -280,6 +287,72 @@ Output only the reply text."""
             return text[1:-1].strip()
         return text
 
+    def _build_rewrite_prompt(
+        self,
+        *,
+        original_user_prompt: str,
+        failed_draft: str,
+        qc_result: dict[str, Any],
+        strategy: dict[str, Any],
+    ) -> str:
+        flag_lines = []
+        for flag in qc_result.get("flags") or []:
+            if not isinstance(flag, dict):
+                continue
+            evidence = flag.get("evidence")
+            evidence_text = f" Evidence: {evidence}" if evidence else ""
+            flag_lines.append(
+                f"- {flag.get('type')}: {flag.get('message')}{evidence_text}"
+            )
+
+        if not flag_lines:
+            flag_lines.append(
+                "- QUALITY_CHECK_FAILED: Rewrite to be more natural and concrete."
+            )
+
+        no_cta_rule = ""
+        if not strategy.get("should_redirect"):
+            no_cta_rule = (
+                "- If should_redirect=false, do not include "
+                "CTA/store/link/private-message language."
+            )
+
+        return f"""The previous draft failed quality checks.
+
+Original task:
+{original_user_prompt}
+
+Failed draft:
+{failed_draft}
+
+Quality issues:
+{chr(10).join(flag_lines)}
+
+Rewrite the reply.
+Requirements:
+- Keep the same reply strategy: {strategy.get("reply_intent")} / {strategy.get("reply_mode")}
+{no_cta_rule}
+- Remove AI/customer-service phrasing.
+- Be concrete and natural.
+- Output only the rewritten public reply text."""
+
+    def _qc_flag_types(self, qc_result: dict[str, Any]) -> list[str]:
+        flag_types: list[str] = []
+        for flag in qc_result.get("flags") or []:
+            if isinstance(flag, dict) and isinstance(flag.get("type"), str):
+                flag_types.append(flag["type"])
+        return flag_types
+
+    def _merge_risk_flags(
+        self,
+        strategy: dict[str, Any],
+        qc_result: dict[str, Any],
+    ) -> list[str]:
+        flags = list(strategy.get("risk_flags") or [])
+        if not qc_result.get("passed"):
+            flags.extend(self._qc_flag_types(qc_result))
+        return self._dedupe(flags)
+
     def generate_draft(
         self,
         lead_id: str,
@@ -389,6 +462,44 @@ Output only the reply text."""
             )
 
             draft_text = self._clean_reply_text(response_text)
+            qc_result = self.draft_qc.check(
+                draft_text=draft_text,
+                comment_text=comment_text,
+                strategy=strategy,
+                platform_style=platform_style,
+                brand_reply_profile=brand_reply_profile,
+            )
+
+            rewrite_attempted = False
+            final_qc_result = qc_result
+            if not qc_result.get("passed"):
+                rewrite_attempted = True
+                rewrite_prompt = self._build_rewrite_prompt(
+                    original_user_prompt=user_prompt,
+                    failed_draft=draft_text,
+                    qc_result=qc_result,
+                    strategy=strategy,
+                )
+                rewrite_response_text = self.llm_client.chat_completion(
+                    messages=[{"role": "user", "content": rewrite_prompt}],
+                    temperature=0.5,
+                    system_message=system_prompt,
+                )
+                rewritten_text = self._clean_reply_text(rewrite_response_text)
+                rewrite_qc_result = self.draft_qc.check(
+                    draft_text=rewritten_text,
+                    comment_text=comment_text,
+                    strategy=strategy,
+                    platform_style=platform_style,
+                    brand_reply_profile=brand_reply_profile,
+                )
+
+                if rewrite_qc_result.get("passed") or rewrite_qc_result.get(
+                    "score", 0
+                ) > qc_result.get("score", 0):
+                    draft_text = rewritten_text
+                    final_qc_result = rewrite_qc_result
+
             should_redirect = bool(strategy.get("should_redirect"))
             strategy_meta = {
                 "reply_mode": strategy.get("reply_mode"),
@@ -407,9 +518,11 @@ Output only the reply text."""
                 "cta_target": reply_redirect_target if should_redirect else "NONE",
                 "cta_label": cta_target_human if should_redirect else None,
                 "reply_strategy": strategy.get("reply_intent") or "general_interest",
-                "risk_flags": strategy.get("risk_flags", []),
+                "risk_flags": self._merge_risk_flags(strategy, final_qc_result),
                 "human_review_required": True,
                 "strategy_meta": strategy_meta,
+                "qc_status": final_qc_result,
+                "rewrite_attempted": rewrite_attempted,
             }
 
         except Exception as e:
