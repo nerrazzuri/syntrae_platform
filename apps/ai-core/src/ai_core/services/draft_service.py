@@ -158,6 +158,27 @@ class DraftGenerationService:
             return f"- {principles.strip()}"
         return "- Keep the reply concrete, natural, and directly useful."
 
+    def _product_grounding_instruction(self, product_grounding_mode: str) -> str:
+        instructions = {
+            "product_first": (
+                "Product information can be the main answer. If strategy allows "
+                "redirect, a soft CTA is acceptable."
+            ),
+            "answer_from_product": (
+                "先回答产品/功能/规格问题；有 product_context / knowledge_context 时优先使用，"
+                "但不要超出已有信息。"
+            ),
+            "diagnostic_then_product_support": (
+                "先诊断用户情况，再给建议；产品信息只能作为支持，不要强行推荐；" "除非用户问产品，不要用产品名开头。"
+            ),
+            "instruction_then_product_support": ("先给使用/行动指导；只有产品细节能让步骤更清楚时才提产品。"),
+            "concern_first_product_support": ("先承接并降低用户顾虑；产品信息只能用来支持解释，避免硬卖。"),
+            "repair_first_no_sell": "不要销售；先承认问题，并给出修复/协助路径。",
+            "light_optional": "产品提及是可选的，只在自然时轻轻带到。",
+            "none": "不要使用 product_context 或 knowledge_context。",
+        }
+        return instructions.get(product_grounding_mode, instructions["light_optional"])
+
     def _build_system_prompt(
         self,
         brand_name: str,
@@ -219,6 +240,7 @@ class DraftGenerationService:
             "cta_strength": strategy.get("cta_strength"),
             "require_diagnostic": strategy.get("require_diagnostic"),
             "require_specific_answer": strategy.get("require_specific_answer"),
+            "product_grounding_mode": strategy.get("product_grounding_mode"),
             "suggested_focus": strategy.get("suggested_focus"),
         }
 
@@ -226,6 +248,12 @@ class DraftGenerationService:
         suggested_focus = strategy.get("suggested_focus")
         if suggested_focus:
             extra_instructions.append(f"回复重点：{suggested_focus}")
+        product_grounding_mode = (
+            strategy.get("product_grounding_mode") or "light_optional"
+        )
+        extra_instructions.append(
+            "产品知识边界：" + self._product_grounding_instruction(str(product_grounding_mode))
+        )
         if not strategy.get("should_redirect"):
             extra_instructions.append("这条回复不需要导购或 CTA，专注回答用户问题。")
         if strategy.get("reply_intent") == "suitability_advice":
@@ -273,7 +301,8 @@ CTA context:
 - Allowed target if strategy permits redirect: {cta_target_human}
 
 Product/knowledge context rule:
-- If product_context or knowledge_context exists, use it only as supporting context.
+- Product grounding mode: {product_grounding_mode}.
+- Follow the product grounding boundary above.
 - Do not force product recommendation when strategy.should_redirect is false.
 
 Additional instructions:

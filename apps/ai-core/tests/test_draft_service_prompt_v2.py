@@ -95,6 +95,10 @@ def generate(owner_settings=None, lead=None, response="测试回复"):
     return result, fake_llm
 
 
+def first_user_prompt(fake_llm):
+    return fake_llm.calls[0]["messages"][0]["content"]
+
+
 def test_system_user_prompt_separation():
     result, fake_llm = generate()
 
@@ -112,6 +116,53 @@ def test_system_user_prompt_separation():
     assert "- 回复重点：" in user_prompt
     assert "脸型" in user_prompt
     assert "STRICT RULES" not in user_prompt
+
+
+def test_user_prompt_includes_product_grounding_mode_for_suitability():
+    _result, fake_llm = generate()
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert "product_grounding_mode" in user_prompt
+    assert "diagnostic_then_product_support" in user_prompt
+    assert "先诊断用户情况" in user_prompt
+
+
+def test_purchase_request_prompt_allows_product_first_and_soft_cta():
+    owner_settings = make_owner_settings(
+        comment_text="这个哪里买啊",
+        intent="PURCHASE_INTENT",
+        buyer_stage="READY",
+    )
+    lead = make_lead(intent="PURCHASE_INTENT", buyer_stage="READY")
+
+    _result, fake_llm = generate(owner_settings=owner_settings, lead=lead)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert "product_first" in user_prompt
+    assert "Product information can be the main answer" in user_prompt
+    assert "soft CTA is acceptable" in user_prompt
+
+
+def test_product_question_prompt_answers_from_product_context_first():
+    owner_settings = make_owner_settings(
+        comment_text="这个镜框材质是什么",
+        intent="PRODUCT_INQUIRY",
+        buyer_stage="EVALUATING",
+        product_context={
+            "name": "AirFrame",
+            "category": "eyewear",
+            "description": "Lightweight TR90 frame",
+            "key_benefits": ["lightweight"],
+        },
+    )
+    lead = make_lead(intent="PRODUCT_INQUIRY", buyer_stage="EVALUATING")
+
+    _result, fake_llm = generate(owner_settings=owner_settings, lead=lead)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert "answer_from_product" in user_prompt
+    assert "先回答产品/功能/规格问题" in user_prompt
+    assert "AirFrame" in user_prompt
 
 
 def test_strategy_driven_cta_control_for_suitability():

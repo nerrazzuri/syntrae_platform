@@ -32,21 +32,84 @@ PURCHASE_KEYWORDS = [
     "price",
 ]
 
-SUITABILITY_KEYWORDS = [
+SUITABILITY_PATTERNS = [
+    "适不适合",
     "适合我吗",
+    "适合吗",
+    "能不能用",
+    "可不可以用",
     "可以用吗",
+    "能用吗",
+    "能不能吃",
+    "可以吃吗",
     "能吃吗",
-    "脸型",
-    "敏感肌",
-    "小猫",
-    "会不会",
+    "能不能穿",
+    "可以穿吗",
+    "能穿吗",
+    "能不能装",
+    "可以装吗",
+    "能装吗",
+    "新手可以",
+    "小孩可以",
+    "孕妇可以",
+    "老人可以",
+    "家用可以",
+    "小团队适合",
+    "适合新手",
+    "适合小白",
+    "会不会适合",
+    "会不会不适合",
 ]
+
+WEAK_SUITABILITY_PATTERNS = [
+    "可以吗",
+    "行吗",
+    "能行吗",
+    "合适吗",
+    "适配吗",
+]
+
+WILL_IT_CONCERN_KEYWORDS = [
+    "太贵",
+    "很贵",
+    "贵",
+    "难",
+    "掉色",
+    "过敏",
+    "刺激",
+    "不适合",
+    "麻烦",
+    "失败",
+    "坏",
+    "风险",
+]
+
+PRODUCT_GROUNDING_MODE_BY_INTENT = {
+    "purchase_request": "product_first",
+    "product_question": "answer_from_product",
+    "suitability_advice": "diagnostic_then_product_support",
+    "usage_advice": "instruction_then_product_support",
+    "objection_or_concern": "concern_first_product_support",
+    "complaint_or_negative": "repair_first_no_sell",
+    "compliment_or_interest": "light_optional",
+    "general_interest": "light_optional",
+    "irrelevant_or_low_value": "none",
+    "comparison_request": "answer_from_product",
+}
 
 COMPARISON_KEYWORDS = ["哪个好", "对比", "compare", "a和b"]
 USAGE_KEYWORDS = ["怎么用", "怎么搭", "怎么安装"]
 OBJECTION_KEYWORDS = ["太贵", "怕踩雷", "没效果", "担心"]
 COMPLAINT_KEYWORDS = ["不好看", "没用", "后悔", "投诉"]
-COMPLIMENT_KEYWORDS = ["好看", "种草", "喜欢", "nice"]
+COMPLIMENT_KEYWORDS = ["好看", "可爱", "种草", "喜欢", "nice"]
+
+# Core vs domain fallback boundary:
+# - Core fallback detects generic intent patterns such as purchase, suitability,
+#   comparison, usage, objection, complaint, or light interest.
+# - Core fallback should not become a growing hardcoded industry keyword list.
+# - Domain/product terms may support fallback only when combined with generic
+#   intent language. Those terms should come from brand_reply_profile or
+#   product_context and eventually from domain_context/profile services.
 
 
 def _normalize_text(value: str | None) -> str:
@@ -80,6 +143,28 @@ def _list_from_dict(value: dict | None, key: str) -> list[str]:
         return []
     raw = value.get(key)
     return raw if isinstance(raw, list) else []
+
+
+def _append_text_values(values: list[str], raw: Any) -> None:
+    if isinstance(raw, str):
+        values.append(raw)
+    elif isinstance(raw, list):
+        values.extend(item for item in raw if isinstance(item, str))
+
+
+def _domain_terms(
+    product_context: dict | None,
+    brand_reply_profile: dict | None,
+) -> list[str]:
+    terms: list[str] = []
+    for key in ("diagnostic_factors", "customer_concerns"):
+        terms.extend(_list_from_dict(brand_reply_profile, key))
+
+    if isinstance(product_context, dict):
+        for key in ("category", "target_buyer"):
+            _append_text_values(terms, product_context.get(key))
+
+    return _dedupe([term for term in terms if len(_normalize_text(term)) >= 2])
 
 
 def _buyer_stage_is_weak(buyer_stage: str | None) -> bool:
@@ -132,16 +217,47 @@ def _map_intent(intent: str | None, confidence: float | None) -> tuple[str, bool
     return "general_interest", True
 
 
-def _fallback_reply_intent(comment_text: str | None) -> str | None:
+def _has_domain_assisted_suitability(
+    comment_text: str | None,
+    product_context: dict | None,
+    brand_reply_profile: dict | None,
+) -> bool:
+    return _contains_any(comment_text, WEAK_SUITABILITY_PATTERNS) and _contains_any(
+        comment_text,
+        _domain_terms(product_context, brand_reply_profile),
+    )
+
+
+def _has_will_it_concern(comment_text: str | None) -> bool:
+    return _contains_any(comment_text, ["会不会"]) and _contains_any(
+        comment_text,
+        WILL_IT_CONCERN_KEYWORDS,
+    )
+
+
+def _fallback_reply_intent(
+    comment_text: str | None,
+    product_context: dict | None = None,
+    brand_reply_profile: dict | None = None,
+) -> str | None:
     if _contains_any(comment_text, PURCHASE_KEYWORDS):
         return "purchase_request"
-    if _contains_any(comment_text, SUITABILITY_KEYWORDS):
+    if _contains_any(
+        comment_text, SUITABILITY_PATTERNS
+    ) or _has_domain_assisted_suitability(
+        comment_text,
+        product_context,
+        brand_reply_profile,
+    ):
         return "suitability_advice"
     if _contains_any(comment_text, COMPARISON_KEYWORDS):
         return "comparison_request"
     if _contains_any(comment_text, USAGE_KEYWORDS):
         return "usage_advice"
-    if _contains_any(comment_text, OBJECTION_KEYWORDS):
+    if _has_will_it_concern(comment_text) or _contains_any(
+        comment_text,
+        OBJECTION_KEYWORDS,
+    ):
         return "objection_or_concern"
     if _contains_any(comment_text, COMPLAINT_KEYWORDS):
         return "complaint_or_negative"
@@ -182,6 +298,10 @@ def _suggested_focus(
     return focus_by_intent.get(reply_intent, focus_by_intent["general_interest"])
 
 
+def _product_grounding_mode(reply_intent: str) -> str:
+    return PRODUCT_GROUNDING_MODE_BY_INTENT.get(reply_intent, "light_optional")
+
+
 def _base_strategy(reply_intent: str, owner_settings: dict | None) -> dict[str, Any]:
     strategy: dict[str, Any] = {
         "reply_intent": reply_intent,
@@ -190,6 +310,7 @@ def _base_strategy(reply_intent: str, owner_settings: dict | None) -> dict[str, 
         "cta_strength": "none",
         "require_diagnostic": False,
         "require_specific_answer": False,
+        "product_grounding_mode": _product_grounding_mode(reply_intent),
         "risk_flags": [],
     }
 
@@ -254,11 +375,18 @@ def adapt_reply_strategy(
     brand_reply_profile: dict | None = None,
     owner_settings: dict | None = None,
 ) -> dict:
-    del platform, product_context
+    del platform
 
     reply_intent, can_fallback = _map_intent(intent, confidence)
     if can_fallback and _buyer_stage_is_weak(buyer_stage):
-        reply_intent = _fallback_reply_intent(comment_text) or reply_intent
+        reply_intent = (
+            _fallback_reply_intent(
+                comment_text,
+                product_context=product_context,
+                brand_reply_profile=brand_reply_profile,
+            )
+            or reply_intent
+        )
 
     if reply_intent in {"product_question", "general_interest"} and _contains_any(
         comment_text, PURCHASE_KEYWORDS
