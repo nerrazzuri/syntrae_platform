@@ -2,7 +2,7 @@
 
 FROM node:20-bookworm-slim AS base
 WORKDIR /repo
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@10.33.4 --activate
 
 # 1) Copy manifests
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./

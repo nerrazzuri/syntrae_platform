@@ -11,7 +11,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && rm -rf /var/lib/apt/lists/*
 
 # pnpm
-RUN npm install -g pnpm
+RUN npm install -g pnpm@10.33.4
 
 # Workspace config
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
