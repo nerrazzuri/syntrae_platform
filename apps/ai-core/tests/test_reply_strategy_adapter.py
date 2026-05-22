@@ -8,6 +8,17 @@ sys.path.insert(0, str(SRC))
 from ai_core.services.reply_strategy_adapter import adapt_reply_strategy  # noqa: E402
 
 
+def fallback_strategy(comment_text):
+    return adapt_reply_strategy(
+        intent=None,
+        buyer_stage=None,
+        confidence=None,
+        risk_level=None,
+        platform="xiaohongshu",
+        comment_text=comment_text,
+    )
+
+
 def test_fit_suitability_maps_to_advisor_diagnostic():
     strategy = adapt_reply_strategy(
         intent="FIT_SUITABILITY",
@@ -237,3 +248,102 @@ def test_product_inquiry_purchase_wording_upgrades_to_product_first():
 
     assert strategy["reply_intent"] == "purchase_request"
     assert strategy["product_grounding_mode"] == "product_first"
+
+
+def test_chinese_fallback_buckets():
+    cases = [
+        ("会不会很贵", "objection_or_concern"),
+        ("会不会不适合圆脸", "suitability_advice"),
+        ("Mac 支持吗", "product_question"),
+        ("这个可以连接手机吗", "product_question"),
+        ("这个可以用吗", "product_question"),
+        ("新手可以用吗", "suitability_advice"),
+        ("A和B哪个好", "comparison_request"),
+        ("这个怎么安装", "usage_advice"),
+    ]
+
+    for comment_text, expected_intent in cases:
+        strategy = fallback_strategy(comment_text)
+
+        assert strategy["reply_intent"] == expected_intent
+
+
+def test_chinese_safety_suitability_adds_risk_flag():
+    for comment_text in ("敏感肌可以用吗", "小猫可以吃吗"):
+        strategy = fallback_strategy(comment_text)
+
+        assert strategy["reply_intent"] == "suitability_advice"
+        assert strategy["product_grounding_mode"] == "diagnostic_then_product_support"
+        assert "SAFETY_SUITABILITY" in strategy["risk_flags"]
+
+
+def test_chinese_domain_words_alone_do_not_trigger_suitability():
+    for comment_text in ("小猫好可爱", "脸型真的好看"):
+        strategy = fallback_strategy(comment_text)
+
+        assert strategy["reply_intent"] != "suitability_advice"
+        assert strategy["reply_intent"] in {
+            "compliment_or_interest",
+            "general_interest",
+        }
+
+
+def test_english_fallback_buckets():
+    cases = [
+        ("where can I buy this", "purchase_request"),
+        ("how much is this", "purchase_request"),
+        ("link please", "purchase_request"),
+        ("would this suit me", "suitability_advice"),
+        ("does this work with Mac", "product_question"),
+        ("is it too expensive", "objection_or_concern"),
+    ]
+
+    for comment_text, expected_intent in cases:
+        strategy = fallback_strategy(comment_text)
+
+        assert strategy["reply_intent"] == expected_intent
+
+
+def test_standalone_link_does_not_force_purchase_request():
+    cases = [
+        ("how to link my account", {"usage_advice", "product_question"}),
+        ("can I link this with Shopify", {"product_question", "usage_advice"}),
+    ]
+
+    for comment_text, acceptable_intents in cases:
+        strategy = fallback_strategy(comment_text)
+
+        assert strategy["reply_intent"] != "purchase_request"
+        assert strategy["reply_intent"] in acceptable_intents
+
+
+def test_english_safety_suitability_adds_risk_flag():
+    strategy = fallback_strategy("safe for pregnant")
+
+    assert strategy["reply_intent"] == "suitability_advice"
+    assert "SAFETY_SUITABILITY" in strategy["risk_flags"]
+
+
+def test_malay_indonesian_fallback_buckets():
+    cases = [
+        ("mana beli", "purchase_request"),
+        ("harga berapa", "purchase_request"),
+        ("ada link", "purchase_request"),
+        ("sesuai untuk beginner tak", "suitability_advice"),
+        ("compatible dengan Android tak", "product_question"),
+        ("mahal tak", "objection_or_concern"),
+        ("cocok untuk pemula gak", "suitability_advice"),
+        ("bisa connect ke iPhone", "product_question"),
+    ]
+
+    for comment_text, expected_intent in cases:
+        strategy = fallback_strategy(comment_text)
+
+        assert strategy["reply_intent"] == expected_intent
+
+
+def test_indonesian_safety_suitability_adds_risk_flag():
+    strategy = fallback_strategy("kucing bisa makan")
+
+    assert strategy["reply_intent"] == "suitability_advice"
+    assert "SAFETY_SUITABILITY" in strategy["risk_flags"]

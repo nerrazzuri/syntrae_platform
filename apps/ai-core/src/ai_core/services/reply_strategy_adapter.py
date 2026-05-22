@@ -23,42 +23,247 @@ GLOBAL_FORBIDDEN_PHRASES = [
     "feel free to contact us",
 ]
 
-PURCHASE_KEYWORDS = [
+PURCHASE_PATTERNS = [
     "哪里买",
     "有链接吗",
     "多少钱",
     "求链接",
-    "link",
+    "怎么买",
+    "价格多少",
+    "where to buy",
+    "where can i buy",
+    "link please",
+    "how much",
+    "buy link",
+    "where do i get",
+    "mana beli",
+    "boleh beli",
+    "harga berapa",
+    "berapa harga",
+    "link ada",
+    "ada link",
+    "berapa",
+    "beli mana",
     "price",
+]
+
+PURCHASE_KEYWORDS = PURCHASE_PATTERNS
+
+COMPARISON_PATTERNS = [
+    "哪个好",
+    "哪个更好",
+    "对比",
+    "比较",
+    "a和b",
+    "which is better",
+    "compare",
+    "comparison",
+    "vs",
+    "difference between",
+    "mana lagi bagus",
+    "mana lebih bagus",
+    "banding",
+    "dibanding",
+    "beza",
+    "bedanya",
+    "lebih baik",
+]
+
+USAGE_PATTERNS = [
+    "怎么用",
+    "怎么搭",
+    "怎么安装",
+    "怎么设置",
+    "怎么接",
+    "怎么连接",
+    "怎么吃",
+    "怎么穿",
+    "怎么操作",
+    "how to use",
+    "how do i use",
+    "how to install",
+    "how to set up",
+    "how to connect",
+    "how to link",
+    "how to wear",
+    "how to apply",
+    "cara guna",
+    "macam mana guna",
+    "cara pakai",
+    "cara install",
+    "cara pasang",
+    "cara sambung",
+    "cara menggunakan",
+    "gimana pakai",
+    "gimana cara",
+    "cara connect",
 ]
 
 SUITABILITY_PATTERNS = [
     "适不适合",
     "适合我吗",
     "适合吗",
+    "适合新手",
+    "适合小白",
+    "新手可以",
+    "小白可以",
+    "小孩可以",
+    "孩子可以",
+    "孕妇可以",
+    "老人可以",
+    "家用可以",
+    "家用适合",
+    "小团队适合",
+    "小店适合",
+    "公司适合",
+    "工厂适合",
+    "会不会适合",
+    "会不会不适合",
+    "suit me",
+    "suitable for me",
+    "is it suitable",
+    "good for beginners",
+    "beginner friendly",
+    "good for newbie",
+    "suitable for beginners",
+    "suitable for small team",
+    "suitable for home use",
+    "can beginners use",
+    "can kids use",
+    "can pregnant women use",
+    "sesuai untuk saya",
+    "sesuai tak",
+    "sesuai ke",
+    "sesuai untuk beginner",
+    "sesuai untuk pemula",
+    "sesuai untuk budak",
+    "sesuai untuk ibu mengandung",
+    "sesuai untuk rumah",
+    "sesuai untuk team kecil",
+    "beginner boleh guna",
+    "budak boleh guna",
+    "cocok untuk saya",
+    "cocok gak",
+    "cocok nggak",
+    "cocok untuk pemula",
+    "cocok untuk anak",
+    "cocok untuk ibu hamil",
+    "cocok untuk rumah",
+    "cocok untuk tim kecil",
+    "pemula bisa pakai",
+    "anak bisa pakai",
+]
+
+COMPATIBILITY_PATTERNS = [
+    "支持吗",
+    "兼容吗",
+    "可以接",
+    "能接",
+    "可以连",
+    "能连",
+    "可以连接",
+    "能连接",
+    "可以安装",
+    "能安装",
+    "可以装",
+    "能装",
+    "可以跑",
+    "能跑",
     "能不能用",
     "可不可以用",
     "可以用吗",
     "能用吗",
+    "does it support",
+    "is it compatible with",
+    "compatible with",
+    "does it work with",
+    "does this work with",
+    "work with",
+    "can it connect",
+    "can connect to",
+    "can i link",
+    "link this with",
+    "link with",
+    "can install",
+    "can be installed",
+    "can run on",
+    "does it fit",
+    "will it fit",
+    "support mac",
+    "support android",
+    "support iphone",
+    "support tak",
+    "compatible dengan",
+    "sesuai dengan",
+    "boleh connect",
+    "boleh sambung",
+    "boleh pasang",
+    "boleh install",
+    "boleh guna dengan",
+    "boleh pakai dengan",
+    "support gak",
+    "support nggak",
+    "kompatibel dengan",
+    "bisa connect",
+    "bisa sambung",
+    "bisa dipasang",
+    "bisa install",
+    "bisa dipakai dengan",
+    "bisa digunakan dengan",
+]
+
+SAFETY_SUITABILITY_PATTERNS = [
     "能不能吃",
     "可以吃吗",
     "能吃吗",
-    "能不能穿",
-    "可以穿吗",
-    "能穿吗",
-    "能不能装",
-    "可以装吗",
-    "能装吗",
-    "新手可以",
-    "小孩可以",
-    "孕妇可以",
-    "老人可以",
-    "家用可以",
-    "小团队适合",
-    "适合新手",
-    "适合小白",
-    "会不会适合",
-    "会不会不适合",
+    "安全吗",
+    "有没有副作用",
+    "会不会过敏",
+    "会不会刺激",
+    "会不会不舒服",
+    "会不会伤",
+    "孕妇可以用吗",
+    "小孩可以用吗",
+    "宝宝可以用吗",
+    "宠物可以吃吗",
+    "猫可以吃吗",
+    "狗可以吃吗",
+    "敏感肌可以用吗",
+    "is it safe",
+    "safe for",
+    "any side effects",
+    "allergic",
+    "allergy",
+    "irritation",
+    "safe for kids",
+    "safe for baby",
+    "safe for pregnant",
+    "safe for pets",
+    "can pets eat",
+    "can cats eat",
+    "can dogs eat",
+    "good for sensitive skin",
+    "selamat tak",
+    "selamat untuk",
+    "ada side effect",
+    "alergi",
+    "iritasi",
+    "sesuai untuk kulit sensitif",
+    "budak boleh makan",
+    "bayi boleh guna",
+    "ibu mengandung boleh guna",
+    "kucing boleh makan",
+    "anjing boleh makan",
+    "aman gak",
+    "aman nggak",
+    "aman untuk",
+    "ada efek samping",
+    "cocok untuk kulit sensitif",
+    "anak boleh makan",
+    "bayi bisa pakai",
+    "ibu hamil bisa pakai",
+    "kucing bisa makan",
+    "anjing bisa makan",
 ]
 
 WEAK_SUITABILITY_PATTERNS = [
@@ -69,19 +274,94 @@ WEAK_SUITABILITY_PATTERNS = [
     "适配吗",
 ]
 
-WILL_IT_CONCERN_KEYWORDS = [
+CONCERN_PATTERNS = [
+    "会不会很贵",
+    "会不会太贵",
+    "会不会很难",
+    "会不会难",
+    "会不会麻烦",
+    "会不会掉色",
+    "会不会坏",
+    "会不会踩雷",
+    "会不会被骗",
+    "会不会没效果",
+    "怕踩雷",
+    "担心",
     "太贵",
-    "很贵",
-    "贵",
-    "难",
-    "掉色",
-    "过敏",
-    "刺激",
-    "不适合",
-    "麻烦",
-    "失败",
-    "坏",
-    "风险",
+    "没效果",
+    "too expensive",
+    "is it expensive",
+    "will it be expensive",
+    "is it hard",
+    "will it be hard",
+    "worried",
+    "worry",
+    "does it really work",
+    "afraid it won't work",
+    "scared it won't work",
+    "hard to use",
+    "difficult to install",
+    "mahal tak",
+    "mahal ke",
+    "susah tak",
+    "susah guna",
+    "risau",
+    "takut tak sesuai",
+    "berkesan tak",
+    "takut tak jadi",
+    "takut tak berkesan",
+    "mahal gak",
+    "mahal nggak",
+    "susah gak",
+    "susah nggak",
+    "khawatir",
+    "takut gak cocok",
+    "takut nggak cocok",
+    "efektif gak",
+    "takut gak berhasil",
+    "takut nggak berhasil",
+]
+
+COMPLAINT_PATTERNS = [
+    "不好看",
+    "不好用",
+    "没用",
+    "后悔",
+    "投诉",
+    "翻车",
+    "差评",
+    "disappointed",
+    "regret buying",
+    "not good",
+    "doesn't work",
+    "did not work",
+    "bad experience",
+    "menyesal beli",
+    "tak bagus",
+    "gak bagus",
+    "nggak bagus",
+    "tidak bagus",
+    "tak berfungsi",
+    "tidak berfungsi",
+    "kecewa",
+]
+
+COMPLIMENT_PATTERNS = [
+    "好看",
+    "可爱",
+    "种草",
+    "喜欢",
+    "nice",
+    "cute",
+    "love it",
+    "looks good",
+    "so pretty",
+    "cantik",
+    "comel",
+    "suka",
+    "bagus",
+    "keren",
+    "lucu",
 ]
 
 PRODUCT_GROUNDING_MODE_BY_INTENT = {
@@ -96,12 +376,6 @@ PRODUCT_GROUNDING_MODE_BY_INTENT = {
     "irrelevant_or_low_value": "none",
     "comparison_request": "answer_from_product",
 }
-
-COMPARISON_KEYWORDS = ["哪个好", "对比", "compare", "a和b"]
-USAGE_KEYWORDS = ["怎么用", "怎么搭", "怎么安装"]
-OBJECTION_KEYWORDS = ["太贵", "怕踩雷", "没效果", "担心"]
-COMPLAINT_KEYWORDS = ["不好看", "没用", "后悔", "投诉"]
-COMPLIMENT_KEYWORDS = ["好看", "可爱", "种草", "喜欢", "nice"]
 
 # Core vs domain fallback boundary:
 # - Core fallback detects generic intent patterns such as purchase, suitability,
@@ -228,20 +502,21 @@ def _has_domain_assisted_suitability(
     )
 
 
-def _has_will_it_concern(comment_text: str | None) -> bool:
-    return _contains_any(comment_text, ["会不会"]) and _contains_any(
-        comment_text,
-        WILL_IT_CONCERN_KEYWORDS,
-    )
-
-
 def _fallback_reply_intent(
     comment_text: str | None,
     product_context: dict | None = None,
     brand_reply_profile: dict | None = None,
-) -> str | None:
-    if _contains_any(comment_text, PURCHASE_KEYWORDS):
-        return "purchase_request"
+) -> tuple[str | None, list[str]]:
+    if _contains_any(comment_text, PURCHASE_PATTERNS):
+        return "purchase_request", []
+    if _contains_any(comment_text, COMPARISON_PATTERNS):
+        return "comparison_request", []
+    if _contains_any(comment_text, COMPLAINT_PATTERNS):
+        return "complaint_or_negative", []
+    if _contains_any(comment_text, CONCERN_PATTERNS):
+        return "objection_or_concern", []
+    if _contains_any(comment_text, SAFETY_SUITABILITY_PATTERNS):
+        return "suitability_advice", ["SAFETY_SUITABILITY"]
     if _contains_any(
         comment_text, SUITABILITY_PATTERNS
     ) or _has_domain_assisted_suitability(
@@ -249,21 +524,14 @@ def _fallback_reply_intent(
         product_context,
         brand_reply_profile,
     ):
-        return "suitability_advice"
-    if _contains_any(comment_text, COMPARISON_KEYWORDS):
-        return "comparison_request"
-    if _contains_any(comment_text, USAGE_KEYWORDS):
-        return "usage_advice"
-    if _has_will_it_concern(comment_text) or _contains_any(
-        comment_text,
-        OBJECTION_KEYWORDS,
-    ):
-        return "objection_or_concern"
-    if _contains_any(comment_text, COMPLAINT_KEYWORDS):
-        return "complaint_or_negative"
-    if _contains_any(comment_text, COMPLIMENT_KEYWORDS):
-        return "compliment_or_interest"
-    return None
+        return "suitability_advice", []
+    if _contains_any(comment_text, COMPATIBILITY_PATTERNS):
+        return "product_question", []
+    if _contains_any(comment_text, USAGE_PATTERNS):
+        return "usage_advice", []
+    if _contains_any(comment_text, COMPLIMENT_PATTERNS):
+        return "compliment_or_interest", []
+    return None, []
 
 
 def _cta_strength(owner_settings: dict | None) -> str:
@@ -378,24 +646,23 @@ def adapt_reply_strategy(
     del platform
 
     reply_intent, can_fallback = _map_intent(intent, confidence)
+    fallback_risk_flags: list[str] = []
     if can_fallback and _buyer_stage_is_weak(buyer_stage):
-        reply_intent = (
-            _fallback_reply_intent(
-                comment_text,
-                product_context=product_context,
-                brand_reply_profile=brand_reply_profile,
-            )
-            or reply_intent
+        fallback_intent, fallback_risk_flags = _fallback_reply_intent(
+            comment_text,
+            product_context=product_context,
+            brand_reply_profile=brand_reply_profile,
         )
+        reply_intent = fallback_intent or reply_intent
 
     if reply_intent in {"product_question", "general_interest"} and _contains_any(
-        comment_text, PURCHASE_KEYWORDS
+        comment_text, PURCHASE_PATTERNS
     ):
         reply_intent = "purchase_request"
 
     strategy = _base_strategy(reply_intent, owner_settings)
 
-    risk_flags = list(strategy.get("risk_flags", []))
+    risk_flags = list(strategy.get("risk_flags", [])) + fallback_risk_flags
     if _normalize_text(risk_level) in {"high", "critical"}:
         risk_flags.append("HIGH_RISK")
 
