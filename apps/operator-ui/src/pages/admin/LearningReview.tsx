@@ -567,9 +567,21 @@ export function LearningReviewPage() {
                                             <Pill key={reason} value={reason} />
                                         ))}
                                     </div>
-                                    <div className="text-sm font-semibold text-slate-900">{shortText(example.original_draft_text, 500)}</div>
+                                    <div>
+                                        <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Generated reply</div>
+                                        <div className="mt-1 text-sm font-semibold text-slate-900">{shortText(example.original_draft_text, 500)}</div>
+                                    </div>
                                     {example.human_edited_text && (
-                                        <div className="mt-2 text-sm text-slate-600">{shortText(example.human_edited_text, 500)}</div>
+                                        <div className="mt-3">
+                                            <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Human edit</div>
+                                            <div className="mt-1 text-sm text-slate-600">{shortText(example.human_edited_text, 500)}</div>
+                                        </div>
+                                    )}
+                                    {example.final_sent_text && (
+                                        <div className="mt-3">
+                                            <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Final sent reply</div>
+                                            <div className="mt-1 text-sm text-slate-600">{shortText(example.final_sent_text, 500)}</div>
+                                        </div>
                                     )}
                                     <button
                                         type="button"

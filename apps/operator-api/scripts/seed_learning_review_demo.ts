@@ -127,6 +127,37 @@ function feedbackTypeForReasons(reasons: readonly string[]) {
     return 'TOO_AI';
 }
 
+function demoOriginalDraftText(scenario: typeof DEMO_SCENARIOS[number]) {
+    if (scenario.selectedReasons.includes('TOO_SALESY')) {
+        return 'Thank you for your interest! Please visit our store to explore more options and place your order today.';
+    }
+    if (scenario.selectedReasons.includes('WRONG_INTENT')) {
+        return 'You can buy this from our product page. The link is available in the store profile.';
+    }
+    if (scenario.selectedReasons.includes('PRODUCT_INFO_WRONG')) {
+        return 'This product is compatible with every device and is guaranteed to work for all users.';
+    }
+    return 'Dear customer, thank you for your attention. We are committed to helping you find the perfect product.';
+}
+
+function demoHumanEditedText(scenario: typeof DEMO_SCENARIOS[number]) {
+    if (scenario.selectedReasons.includes('TOO_SALESY')) {
+        return 'Start with the user context first; do not push an order. If they only want to try it, suggest a lower-risk option.';
+    }
+    if (scenario.selectedReasons.includes('WRONG_INTENT')) {
+        return 'The user asked whether it fits, not where to buy. Answer the fit question before mentioning any purchase path.';
+    }
+    if (scenario.selectedReasons.includes('PRODUCT_INFO_WRONG')) {
+        return 'Compatibility depends on the exact model and port. Ask for the device model instead of assuming universal support.';
+    }
+    return 'Avoid customer-service phrasing. Answer the real question directly, then add one concrete suggestion.';
+}
+
+function demoFinalSentText(scenario: typeof DEMO_SCENARIOS[number]) {
+    if (scenario.suggestionStatus === 'REJECTED') return null;
+    return demoHumanEditedText(scenario);
+}
+
 function suggestionPayload(scenario: typeof DEMO_SCENARIOS[number], index: number) {
     return {
         title: `Demo ${index + 1}: ${scenario.key.replace(/_/g, ' ')}`,
@@ -166,11 +197,9 @@ async function createScenarioRecords(accountId: string, brandId: string, platfor
                 platform,
                 feedback_type: feedbackTypeForReasons(scenario.selectedReasons) as any,
                 selected_reasons: scenario.selectedReasons,
-                original_draft_text: `Demo original draft for ${scenario.key}. It intentionally represents ${scenario.selectedReasons.join(', ')} feedback.`,
-                human_edited_text: `Demo human edit for ${scenario.key}.`,
-                final_sent_text: scenario.suggestionStatus === 'REJECTED'
-                    ? null
-                    : `Demo final reply for ${scenario.key}.`,
+                original_draft_text: demoOriginalDraftText(scenario),
+                human_edited_text: demoHumanEditedText(scenario),
+                final_sent_text: demoFinalSentText(scenario),
                 reply_strategy: scenario.suggestionType === 'CTA_GATING_REVIEW'
                     ? 'suitability_advice'
                     : 'product_question',
