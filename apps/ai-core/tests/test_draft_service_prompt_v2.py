@@ -165,6 +165,59 @@ def test_product_question_prompt_answers_from_product_context_first():
     assert "AirFrame" in user_prompt
 
 
+def test_draft_service_builds_normalized_profile_without_owner_profile():
+    owner_settings = make_owner_settings()
+    owner_settings.pop("brand_reply_profile")
+
+    _result, fake_llm = generate(owner_settings=owner_settings)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert '"version": 1' in user_prompt
+    assert '"source": "auto_derived"' in user_prompt
+    assert (
+        "Answer the user's actual question before mentioning products." in user_prompt
+    )
+
+
+def test_sunglasses_product_context_adds_inferred_profile_guidance():
+    owner_settings = make_owner_settings(
+        brand_domain="sunglasses",
+        product_context={
+            "name": "Ava Cat Eye",
+            "category": "sunglasses",
+            "description": "UV400 cat eye sunglasses for Asian face shape",
+        },
+    )
+    owner_settings.pop("brand_reply_profile")
+
+    _result, fake_llm = generate(owner_settings=owner_settings)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert "镜框宽度" in user_prompt or "上扬角度" in user_prompt
+    assert "先判断款式比例" in user_prompt
+
+
+def test_existing_brand_reply_profile_values_are_preserved_in_prompt():
+    owner_settings = make_owner_settings(
+        brand_reply_profile={
+            "domain_label": "custom_domain",
+            "diagnostic_factors": ["Custom Factor"],
+            "forbidden_phrases": ["Never say X"],
+            "reply_principles": ["Custom principle"],
+        }
+    )
+
+    _result, fake_llm = generate(owner_settings=owner_settings)
+
+    user_prompt = first_user_prompt(fake_llm)
+    system_prompt = fake_llm.calls[0]["system_message"]
+    assert '"domain_label": "custom_domain"' in user_prompt
+    assert "Custom Factor" in user_prompt
+    assert "Never say X" in user_prompt
+    assert "Custom principle" in user_prompt
+    assert "Custom principle" in system_prompt
+
+
 def test_strategy_driven_cta_control_for_suitability():
     result, _fake_llm = generate()
 

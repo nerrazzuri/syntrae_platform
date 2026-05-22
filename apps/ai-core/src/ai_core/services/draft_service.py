@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ai_core.pipeline.draft.draft_qc import DraftQualityChecker
 from ai_core.pipeline.draft.few_shot_bank import get_few_shots
 from ai_core.pipeline.llm.llm_client import LLMClient
+from ai_core.services.domain_profile_service import build_brand_reply_profile
 from ai_core.services.reply_strategy_adapter import adapt_reply_strategy
 from ai_core.services.reply_style_profiles import get_platform_style
 from shared.database.models import BuyerStage, LeadOpportunity, RecommendedAction
@@ -416,7 +417,14 @@ Requirements:
         brand_domain = owner_settings.get("brand_domain") or ""
         product_context = owner_settings.get("product_context") or {}
         knowledge_context = owner_settings.get("knowledge_context") or []
-        brand_reply_profile = self._extract_brand_reply_profile(owner_settings)
+        brand_reply_profile = build_brand_reply_profile(
+            brand_name=brand_name,
+            brand_domain=brand_domain,
+            product_context=product_context,
+            knowledge_context=knowledge_context,
+            existing_profile=self._extract_brand_reply_profile(owner_settings),
+            owner_settings=owner_settings,
+        )
 
         product_context_text, _has_product_context = self._format_product_context(
             product_context

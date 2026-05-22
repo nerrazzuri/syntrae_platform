@@ -6,6 +6,9 @@ SRC = ROOT / "src"
 sys.path.insert(0, str(SRC))
 
 from ai_core.pipeline.draft.draft_qc import DraftQualityChecker  # noqa: E402
+from ai_core.services.domain_profile_service import (
+    build_brand_reply_profile,
+)  # noqa: E402
 from ai_core.services.reply_style_profiles import get_platform_style  # noqa: E402
 
 
@@ -141,6 +144,38 @@ def test_clean_suitability_advice_passes_with_profile_factors():
 
     assert result["passed"] is True
     assert result["score"] >= 0.75
+
+
+def test_qc_uses_auto_derived_profile_diagnostic_factors():
+    checker = DraftQualityChecker()
+    profile = build_brand_reply_profile(
+        product_context={
+            "name": "Ava Cat Eye",
+            "category": "sunglasses",
+            "description": "UV400 cat eye sunglasses for Asian face shape",
+        }
+    )
+    strategy = base_strategy(require_diagnostic=True)
+    platform_style = get_platform_style("xiaohongshu")
+
+    passing_result = checker.check(
+        draft_text="主要是这副镜框宽度偏大、上扬角度也比较强，所以有点抢脸。换小一圈会自然很多～",
+        comment_text="帮我看下这个猫眼为什么显得怪",
+        strategy=strategy,
+        platform_style=platform_style,
+        brand_reply_profile=profile,
+    )
+    failing_result = checker.check(
+        draft_text="可以试试看哦～",
+        comment_text="帮我看下这个猫眼为什么显得怪",
+        strategy=strategy,
+        platform_style=platform_style,
+        brand_reply_profile=profile,
+    )
+
+    assert passing_result["passed"] is True
+    assert failing_result["passed"] is False
+    assert flag_types(failing_result) & {"MISSING_DIAGNOSTIC", "TOO_VAGUE"}
 
 
 def test_detects_unsafe_claims():
