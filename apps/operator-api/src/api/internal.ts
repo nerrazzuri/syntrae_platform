@@ -34,6 +34,10 @@ import {
     listLearningApplyPlans,
     updateLearningApplyPlanStatus,
 } from '../services/learningApplyPlan.service';
+import {
+    getLearningReviewDashboard,
+    getLearningReviewDetail,
+} from '../services/learningReview.service';
 
 const router = Router();
 const DEFAULT_LEASE_SECONDS = 120;
@@ -639,6 +643,46 @@ router.post('/learning-apply-plans/:id/status', async (req: Request, res: Respon
                     ? 400
                     : 500;
         console.error(`Failed to update learning apply plan ${req.params.id}:`, e);
+        return res.status(status).json({ error: message });
+    }
+});
+
+router.get('/learning-review/dashboard', async (req: Request, res: Response) => {
+    try {
+        const dashboard = await getLearningReviewDashboard({
+            accountId: accountScopeFromRequest(req) || String(req.query.account_id || ''),
+            brandId: String(req.query.brand_id || ''),
+            platform: String(req.query.platform || ''),
+            suggestionStatus: String(req.query.suggestion_status || ''),
+            planStatus: String(req.query.plan_status || ''),
+            limit: Number(req.query.limit || ''),
+        });
+        return res.json({ dashboard });
+    } catch (e: any) {
+        const message = String(e?.message || 'Failed to load learning review dashboard');
+        const status = message.includes('required') || message.includes('Invalid') ? 400 : 500;
+        console.error('Failed to load learning review dashboard:', e);
+        return res.status(status).json({ error: message });
+    }
+});
+
+router.get('/learning-review/suggestions/:id', async (req: Request, res: Response) => {
+    try {
+        const detail = await getLearningReviewDetail({
+            accountId: accountScopeFromRequest(req) || String(req.query.account_id || ''),
+            learningSuggestionId: req.params.id,
+        });
+        return res.json({ detail });
+    } catch (e: any) {
+        const message = String(e?.message || 'Failed to load learning review detail');
+        const status = message.includes('not found')
+            ? 404
+            : message.includes('scope mismatch')
+                ? 403
+                : message.includes('required') || message.includes('Invalid')
+                    ? 400
+                    : 500;
+        console.error(`Failed to load learning review detail ${req.params.id}:`, e);
         return res.status(status).json({ error: message });
     }
 });
