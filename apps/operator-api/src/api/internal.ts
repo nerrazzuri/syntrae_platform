@@ -20,6 +20,10 @@ import {
     listDraftFeedbackForDraft,
     recordDraftFeedback,
 } from '../services/draftFeedback.service';
+import {
+    buildFeedbackRecommendations,
+    getDraftFeedbackInsights,
+} from '../services/draftFeedbackInsight.service';
 
 const router = Router();
 const DEFAULT_LEASE_SECONDS = 120;
@@ -479,6 +483,26 @@ router.get('/feedback/summary', async (req: Request, res: Response) => {
     } catch (e: any) {
         console.error('Failed to summarize draft feedback:', e);
         return res.status(500).json({ error: 'Failed to summarize draft feedback' });
+    }
+});
+
+router.get('/feedback/insights', async (req: Request, res: Response) => {
+    try {
+        const insights = await getDraftFeedbackInsights({
+            accountId: accountScopeFromRequest(req) || String(req.query.account_id || ''),
+            brandId: String(req.query.brand_id || ''),
+            platform: String(req.query.platform || ''),
+            from: String(req.query.from || ''),
+            to: String(req.query.to || ''),
+            limitExamples: Number(req.query.limit_examples || ''),
+        });
+        return res.json({
+            insights,
+            recommendations: buildFeedbackRecommendations(insights),
+        });
+    } catch (e: any) {
+        console.error('Failed to build draft feedback insights:', e);
+        return res.status(500).json({ error: 'Failed to build draft feedback insights' });
     }
 });
 
