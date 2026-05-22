@@ -15,6 +15,11 @@ import {
     markReplyWatchChecked,
     markReplyWatchUserReplied,
 } from '../services/replyWatch.service';
+import {
+    getDraftFeedbackSummary,
+    listDraftFeedbackForDraft,
+    recordDraftFeedback,
+} from '../services/draftFeedback.service';
 
 const router = Router();
 const DEFAULT_LEASE_SECONDS = 120;
@@ -48,6 +53,12 @@ function resolvePositiveInteger(rawValue: unknown, fallback: number, min: number
     }
 
     return Math.max(min, Math.min(max, Math.floor(parsed)));
+}
+
+function accountScopeFromRequest(req: Request): string | undefined {
+    const header = req.headers['x-account-id'];
+    if (Array.isArray(header)) return header[0];
+    return header || undefined;
 }
 
 async function ensureWorkspaceAutomationInstall(workspaceId: string) {
@@ -413,6 +424,61 @@ router.post('/billing/lead-quota/reserve', async (req: Request, res: Response) =
     } catch (e: any) {
         console.error('Failed to reserve lead quota capacity:', e);
         return res.status(500).json({ error: 'Failed to reserve lead quota capacity' });
+    }
+});
+
+router.post('/drafts/:id/feedback', async (req: Request, res: Response) => {
+    try {
+        const feedback = await recordDraftFeedback({
+            accountId: accountScopeFromRequest(req) || req.body?.account_id,
+            outreachDraftId: req.params.id,
+            feedbackType: req.body?.feedback_type || req.body?.feedbackType,
+            humanEditedText: req.body?.human_edited_text || req.body?.humanEditedText,
+            feedbackNote: req.body?.feedback_note || req.body?.feedbackNote,
+            selectedReasons: req.body?.selected_reasons || req.body?.selectedReasons,
+            finalSentText: req.body?.final_sent_text || req.body?.finalSentText,
+            metadata: req.body?.metadata,
+        });
+        return res.status(201).json({ feedback });
+    } catch (e: any) {
+        const message = String(e?.message || 'Failed to record draft feedback');
+        const status = message.includes('not found')
+            ? 404
+            : message.includes('scope mismatch')
+                ? 403
+                : message.includes('Invalid') || message.includes('required') || message.includes('array')
+                    ? 400
+                    : 500;
+        console.error(`Failed to record feedback for draft ${req.params.id}:`, e);
+        return res.status(status).json({ error: message });
+    }
+});
+
+router.get('/drafts/:id/feedback', async (req: Request, res: Response) => {
+    try {
+        const feedback = await listDraftFeedbackForDraft({
+            accountId: accountScopeFromRequest(req) || String(req.query.account_id || ''),
+            outreachDraftId: req.params.id,
+        });
+        return res.json({ feedback });
+    } catch (e: any) {
+        const message = String(e?.message || 'Failed to list draft feedback');
+        const status = message.includes('required') ? 400 : 500;
+        console.error(`Failed to list feedback for draft ${req.params.id}:`, e);
+        return res.status(status).json({ error: message });
+    }
+});
+
+router.get('/feedback/summary', async (req: Request, res: Response) => {
+    try {
+        const summary = await getDraftFeedbackSummary({
+            accountId: accountScopeFromRequest(req) || String(req.query.account_id || ''),
+            brandId: String(req.query.brand_id || ''),
+        });
+        return res.json(summary);
+    } catch (e: any) {
+        console.error('Failed to summarize draft feedback:', e);
+        return res.status(500).json({ error: 'Failed to summarize draft feedback' });
     }
 });
 

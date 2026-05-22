@@ -608,6 +608,22 @@ enum ReplyWatchStatus {
   @@schema("core")
 }
 
+enum DraftFeedbackType {
+  ACCEPTED_AS_IS
+  EDITED_BEFORE_SEND
+  REJECTED
+  NEEDS_REWRITE
+  WRONG_STRATEGY
+  WRONG_TONE
+  TOO_AI
+  TOO_SALESY
+  TOO_VAGUE
+  UNSAFE_OR_OVERCLAIM
+  OTHER
+
+  @@schema("core")
+}
+
 model LeadOpportunity {
   id                String            @id @default(uuid())
   platform          String
@@ -766,6 +782,42 @@ model ReplyWatch {
   @@index([thread_key])
   @@index([lead_id])
   @@index([outreach_draft_id])
+  @@schema("core")
+}
+
+model DraftFeedback {
+  id                     String            @id @default(cuid())
+
+  account_id             String
+  brand_id               String
+  lead_id                String?
+  outreach_draft_id      String
+  reply_watch_id         String?
+
+  platform               String?
+  feedback_type          DraftFeedbackType
+  human_edited_text      String?
+  feedback_note          String?
+  selected_reasons       Json              @default("[]")
+  original_draft_text    String
+  final_sent_text        String?
+  reply_strategy         String?
+  reply_mode             String?
+  product_grounding_mode String?
+  buyer_stage            String?
+  intent                 String?
+  qc_status              Json?
+  generation_meta        Json?
+  metadata               Json?
+
+  created_at             DateTime          @default(now())
+  updated_at             DateTime          @updatedAt
+
+  @@index([account_id, created_at])
+  @@index([brand_id, created_at])
+  @@index([outreach_draft_id])
+  @@index([reply_watch_id])
+  @@index([feedback_type])
   @@schema("core")
 }
 
