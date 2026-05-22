@@ -648,6 +648,15 @@ enum LearningSuggestionType {
   @@schema("core")
 }
 
+enum LearningApplyPlanStatus {
+  DRAFT
+  REVIEWED
+  CANCELLED
+  SUPERSEDED
+
+  @@schema("core")
+}
+
 model LeadOpportunity {
   id                String            @id @default(uuid())
   platform          String
@@ -875,6 +884,41 @@ model LearningSuggestion {
   @@index([platform, created_at])
   @@index([suggestion_type, status])
   @@index([status, created_at])
+  @@schema("core")
+}
+
+model LearningApplyPlan {
+  id                       String                  @id @default(cuid())
+
+  account_id               String
+  brand_id                 String?
+  platform                 String?
+  learning_suggestion_id   String
+  status                   LearningApplyPlanStatus @default(DRAFT)
+  target_area              String
+  proposed_change_type     String
+  risk_level               String
+  summary                  String
+  rationale                String
+  proposed_patch           Json?
+  proposed_config_change   Json?
+  suggested_tests          Json?
+  blocked_auto_apply_reason String?
+  requires_human_approval  Boolean                 @default(true)
+  created_by               String                  @default("SYSTEM")
+  reviewed_by              String?
+  reviewed_at              DateTime?
+  review_note              String?
+  metadata                 Json?
+
+  created_at               DateTime                @default(now())
+  updated_at               DateTime                @updatedAt
+
+  @@index([account_id, created_at])
+  @@index([brand_id, created_at])
+  @@index([learning_suggestion_id])
+  @@index([status, created_at])
+  @@index([target_area, proposed_change_type])
   @@schema("core")
 }
 
