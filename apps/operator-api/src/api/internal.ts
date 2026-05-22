@@ -24,6 +24,11 @@ import {
     buildFeedbackRecommendations,
     getDraftFeedbackInsights,
 } from '../services/draftFeedbackInsight.service';
+import {
+    generateLearningSuggestions,
+    listLearningSuggestions,
+    updateLearningSuggestionStatus,
+} from '../services/learningSuggestion.service';
 
 const router = Router();
 const DEFAULT_LEASE_SECONDS = 120;
@@ -503,6 +508,68 @@ router.get('/feedback/insights', async (req: Request, res: Response) => {
     } catch (e: any) {
         console.error('Failed to build draft feedback insights:', e);
         return res.status(500).json({ error: 'Failed to build draft feedback insights' });
+    }
+});
+
+router.post('/learning-suggestions/generate', async (req: Request, res: Response) => {
+    try {
+        const result = await generateLearningSuggestions({
+            accountId: accountScopeFromRequest(req) || req.body?.account_id,
+            brandId: req.body?.brand_id,
+            platform: req.body?.platform,
+            from: req.body?.from,
+            to: req.body?.to,
+            dryRun: req.body?.dry_run !== false,
+        });
+        return res.json(result);
+    } catch (e: any) {
+        const message = String(e?.message || 'Failed to generate learning suggestions');
+        const status = message.includes('required') ? 400 : 500;
+        console.error('Failed to generate learning suggestions:', e);
+        return res.status(status).json({ error: message });
+    }
+});
+
+router.get('/learning-suggestions', async (req: Request, res: Response) => {
+    try {
+        const suggestions = await listLearningSuggestions({
+            accountId: accountScopeFromRequest(req) || String(req.query.account_id || ''),
+            brandId: String(req.query.brand_id || ''),
+            platform: String(req.query.platform || ''),
+            status: String(req.query.status || ''),
+            suggestionType: String(req.query.suggestion_type || ''),
+            limit: Number(req.query.limit || ''),
+        });
+        return res.json({ suggestions });
+    } catch (e: any) {
+        const message = String(e?.message || 'Failed to list learning suggestions');
+        const status = message.includes('required') || message.includes('Invalid') ? 400 : 500;
+        console.error('Failed to list learning suggestions:', e);
+        return res.status(status).json({ error: message });
+    }
+});
+
+router.post('/learning-suggestions/:id/status', async (req: Request, res: Response) => {
+    try {
+        const suggestion = await updateLearningSuggestionStatus({
+            accountId: accountScopeFromRequest(req) || req.body?.account_id,
+            suggestionId: req.params.id,
+            status: req.body?.status,
+            reviewedBy: req.body?.reviewed_by,
+            reviewNote: req.body?.review_note,
+        });
+        return res.json({ suggestion });
+    } catch (e: any) {
+        const message = String(e?.message || 'Failed to update learning suggestion status');
+        const status = message.includes('not found')
+            ? 404
+            : message.includes('scope mismatch')
+                ? 403
+                : message.includes('required') || message.includes('Invalid')
+                    ? 400
+                    : 500;
+        console.error(`Failed to update learning suggestion ${req.params.id}:`, e);
+        return res.status(status).json({ error: message });
     }
 });
 
