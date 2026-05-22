@@ -21,6 +21,7 @@ import { UsageAnalytics } from './pages/analytics/UsageAnalytics';
 import { AutomationPolicySettings } from './pages/settings/AutomationPolicy';
 import { MarketProfiles } from './pages/settings/MarketProfiles';
 import { ProductCatalogPage } from './pages/settings/ProductCatalog';
+import { LearningReviewPage } from './pages/admin/LearningReview';
 
 function App() {
     return (
@@ -49,6 +50,7 @@ function App() {
                     {/* Analytics */}
                     <Route path="analytics/brands" element={<BrandsAnalytics />} />
                     <Route path="analytics/usage" element={<UsageAnalytics />} />
+                    <Route path="admin/learning-review" element={<LearningReviewPage />} />
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
