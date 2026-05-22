@@ -624,6 +624,30 @@ enum DraftFeedbackType {
   @@schema("core")
 }
 
+enum LearningSuggestionStatus {
+  OPEN
+  ACCEPTED
+  REJECTED
+  APPLIED
+  ARCHIVED
+
+  @@schema("core")
+}
+
+enum LearningSuggestionType {
+  PROMPT_STYLE_REVIEW
+  BANNED_PHRASE_CANDIDATE
+  CTA_GATING_REVIEW
+  INTENT_MAPPING_REVIEW
+  PRODUCT_GROUNDING_REVIEW
+  DRAFT_QC_RULE_REVIEW
+  FOLLOW_UP_PROMPT_REVIEW
+  BRAND_PROFILE_REVIEW
+  OTHER
+
+  @@schema("core")
+}
+
 model LeadOpportunity {
   id                String            @id @default(uuid())
   platform          String
@@ -818,6 +842,39 @@ model DraftFeedback {
   @@index([outreach_draft_id])
   @@index([reply_watch_id])
   @@index([feedback_type])
+  @@schema("core")
+}
+
+model LearningSuggestion {
+  id                    String                   @id @default(cuid())
+
+  account_id            String
+  brand_id              String?
+  platform              String?
+  suggestion_type       LearningSuggestionType
+  status                LearningSuggestionStatus @default(OPEN)
+  severity              String
+  title                 String
+  message               String
+  evidence              Json
+  proposed_action       Json
+  source_insight        Json
+  source_feedback_ids   Json                     @default("[]")
+  created_by            String                   @default("SYSTEM")
+  reviewed_by           String?
+  reviewed_at           DateTime?
+  review_note           String?
+  applied_at            DateTime?
+  metadata              Json?
+
+  created_at            DateTime                 @default(now())
+  updated_at            DateTime                 @updatedAt
+
+  @@index([account_id, created_at])
+  @@index([brand_id, created_at])
+  @@index([platform, created_at])
+  @@index([suggestion_type, status])
+  @@index([status, created_at])
   @@schema("core")
 }
 
