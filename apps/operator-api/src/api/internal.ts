@@ -35,6 +35,11 @@ import {
     updateLearningApplyPlanStatus,
 } from '../services/learningApplyPlan.service';
 import {
+    generateApplyCandidatesFromPlan,
+    listApplyCandidates,
+    updateApplyCandidateStatus,
+} from '../services/applyCandidate.service';
+import {
     getLearningReviewDashboard,
     getLearningReviewDetail,
 } from '../services/learningReview.service';
@@ -643,6 +648,71 @@ router.post('/learning-apply-plans/:id/status', async (req: Request, res: Respon
                     ? 400
                     : 500;
         console.error(`Failed to update learning apply plan ${req.params.id}:`, e);
+        return res.status(status).json({ error: message });
+    }
+});
+
+router.post('/learning-apply-plans/:id/candidates', async (req: Request, res: Response) => {
+    try {
+        const result = await generateApplyCandidatesFromPlan({
+            accountId: accountScopeFromRequest(req) || req.body?.account_id,
+            learningApplyPlanId: req.params.id,
+            force: req.body?.force === true,
+        });
+        return res.json(result);
+    } catch (e: any) {
+        const message = String(e?.message || 'Failed to generate apply candidates');
+        const status = message.includes('not found')
+            ? 404
+            : message.includes('scope mismatch')
+                ? 403
+                : message.includes('required') || message.includes('REVIEWED')
+                    ? 400
+                    : 500;
+        console.error(`Failed to generate apply candidates for plan ${req.params.id}:`, e);
+        return res.status(status).json({ error: message });
+    }
+});
+
+router.get('/apply-candidates', async (req: Request, res: Response) => {
+    try {
+        const candidates = await listApplyCandidates({
+            accountId: accountScopeFromRequest(req) || String(req.query.account_id || ''),
+            brandId: String(req.query.brand_id || ''),
+            platform: String(req.query.platform || ''),
+            status: String(req.query.status || ''),
+            candidateType: String(req.query.candidate_type || ''),
+            limit: Number(req.query.limit || ''),
+        });
+        return res.json({ candidates });
+    } catch (e: any) {
+        const message = String(e?.message || 'Failed to list apply candidates');
+        const status = message.includes('required') || message.includes('Invalid') ? 400 : 500;
+        console.error('Failed to list apply candidates:', e);
+        return res.status(status).json({ error: message });
+    }
+});
+
+router.post('/apply-candidates/:id/status', async (req: Request, res: Response) => {
+    try {
+        const candidate = await updateApplyCandidateStatus({
+            accountId: accountScopeFromRequest(req) || req.body?.account_id,
+            candidateId: req.params.id,
+            status: req.body?.status,
+            reviewedBy: req.body?.reviewed_by,
+            reviewNote: req.body?.review_note,
+        });
+        return res.json({ candidate });
+    } catch (e: any) {
+        const message = String(e?.message || 'Failed to update apply candidate status');
+        const status = message.includes('not found')
+            ? 404
+            : message.includes('scope mismatch')
+                ? 403
+                : message.includes('required') || message.includes('Invalid')
+                    ? 400
+                    : 500;
+        console.error(`Failed to update apply candidate ${req.params.id}:`, e);
         return res.status(status).json({ error: message });
     }
 });
