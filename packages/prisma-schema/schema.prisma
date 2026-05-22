@@ -657,6 +657,29 @@ enum LearningApplyPlanStatus {
   @@schema("core")
 }
 
+enum ApplyCandidateStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  ARCHIVED
+  IMPLEMENTED
+
+  @@schema("core")
+}
+
+enum ApplyCandidateType {
+  BANNED_PHRASE
+  STYLE_GUIDANCE
+  DRAFT_QC_TEST_CASE
+  INTENT_MAPPING_TEST_CASE
+  PRODUCT_GROUNDING_REVIEW
+  BRAND_PROFILE_HINT
+  FOLLOW_UP_PROMPT_TEST_CASE
+  OTHER
+
+  @@schema("core")
+}
+
 model LeadOpportunity {
   id                String            @id @default(uuid())
   platform          String
@@ -919,6 +942,41 @@ model LearningApplyPlan {
   @@index([learning_suggestion_id])
   @@index([status, created_at])
   @@index([target_area, proposed_change_type])
+  @@schema("core")
+}
+
+model ApplyCandidate {
+  id                       String                 @id @default(cuid())
+
+  account_id               String
+  brand_id                 String?
+  platform                 String?
+  learning_suggestion_id   String?
+  learning_apply_plan_id   String?
+  candidate_type           ApplyCandidateType
+  status                   ApplyCandidateStatus   @default(PENDING)
+  title                    String
+  description              String
+  candidate_payload        Json
+  source_feedback_ids      Json                   @default("[]")
+  risk_level               String
+  created_by               String                 @default("SYSTEM")
+  reviewed_by              String?
+  reviewed_at              DateTime?
+  review_note              String?
+  implemented_at           DateTime?
+  metadata                 Json?
+
+  created_at               DateTime               @default(now())
+  updated_at               DateTime               @updatedAt
+
+  @@index([account_id, created_at])
+  @@index([brand_id, created_at])
+  @@index([platform, created_at])
+  @@index([learning_suggestion_id])
+  @@index([learning_apply_plan_id])
+  @@index([candidate_type, status])
+  @@index([status, created_at])
   @@schema("core")
 }
 
