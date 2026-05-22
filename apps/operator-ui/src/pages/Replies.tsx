@@ -3,6 +3,23 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { PaginationControls } from '../components/PaginationControls';
 
+const REJECTION_REASONS = [
+    { value: 'TOO_AI', label: 'Too AI' },
+    { value: 'TOO_GENERIC', label: 'Too generic' },
+    { value: 'TOO_SALESY', label: 'Too salesy' },
+    { value: 'WRONG_INTENT', label: 'Wrong intent' },
+    { value: 'MISSED_USER_QUESTION', label: 'Missed question' },
+    { value: 'CTA_SHOULD_NOT_BE_INCLUDED', label: 'CTA should not be included' },
+    { value: 'CTA_MISSING', label: 'CTA missing' },
+    { value: 'WRONG_LANGUAGE', label: 'Wrong language' },
+    { value: 'TOO_LONG', label: 'Too long' },
+    { value: 'TOO_SHORT', label: 'Too short' },
+    { value: 'UNSAFE_CLAIM', label: 'Unsafe claim' },
+    { value: 'PRODUCT_INFO_WRONG', label: 'Product info wrong' },
+    { value: 'NOT_BRAND_VOICE', label: 'Not brand voice' },
+    { value: 'OTHER', label: 'Other' },
+];
+
 export function RepliesPage() {
     const [drafts, setDrafts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -13,6 +30,9 @@ export function RepliesPage() {
     const [sendError, setSendError] = useState<string | null>(null);
     const [sendSuccess, setSendSuccess] = useState<string | null>(null);
     const [sending, setSending] = useState(false);
+    const [rejecting, setRejecting] = useState(false);
+    const [rejectReasons, setRejectReasons] = useState<string[]>([]);
+    const [rejectNote, setRejectNote] = useState('');
     const [filter, setFilter] = useState('PENDING');
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(25);
@@ -25,6 +45,8 @@ export function RepliesPage() {
         setEditText(draft?.edited_text || draft?.draft_text || '');
         setSendError(null);
         setSendSuccess(null);
+        setRejectReasons([]);
+        setRejectNote('');
     }
 
     async function loadDrafts() {
@@ -96,9 +118,43 @@ export function RepliesPage() {
 
     async function rejectDraft() {
         if (!selectedDraft) return;
-        await api.post(`/drafts/${selectedDraft.id}/reject`, { reason: 'Rejected by operator' });
-        syncSelectedDraft(null);
-        await loadDrafts();
+        if (rejectReasons.length === 0) {
+            setSendError('Choose at least one rejection reason.');
+            return;
+        }
+
+        setRejecting(true);
+        setSendError(null);
+        setSendSuccess(null);
+        try {
+            await api.post(`/drafts/${selectedDraft.id}/reject`, {
+                reason: rejectNote || `Rejected: ${rejectReasons.join(', ')}`,
+                selected_reasons: rejectReasons,
+                feedback_note: rejectNote || undefined,
+                human_edited_text:
+                    editText.trim() && editText.trim() !== String(selectedDraft.draft_text || '').trim()
+                        ? editText
+                        : undefined,
+            });
+            if (selectedDraft.status === 'REJECTED') {
+                setSendSuccess('Rejection feedback recorded.');
+            } else {
+                syncSelectedDraft(null);
+            }
+            await loadDrafts();
+        } catch (err: any) {
+            setSendError(err.message || 'Failed to reject draft.');
+        } finally {
+            setRejecting(false);
+        }
+    }
+
+    function toggleRejectReason(value: string) {
+        setRejectReasons((current) => (
+            current.includes(value)
+                ? current.filter((item) => item !== value)
+                : [...current, value]
+        ));
     }
 
     async function sendDraft() {
@@ -302,6 +358,36 @@ export function RepliesPage() {
                                 />
                             </div>
 
+                            {selectedDraft.status !== 'SENT' && (
+                                <div className="rounded-2xl border border-rose-100 bg-rose-50/60 px-4 py-4">
+                                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-rose-500">Reject Reason</div>
+                                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                        {REJECTION_REASONS.map((reason) => (
+                                            <label
+                                                key={reason.value}
+                                                className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${rejectReasons.includes(reason.value)
+                                                    ? 'border-rose-300 bg-white text-rose-800'
+                                                    : 'border-rose-100 bg-white/60 text-slate-600'
+                                                    }`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={rejectReasons.includes(reason.value)}
+                                                    onChange={() => toggleRejectReason(reason.value)}
+                                                />
+                                                {reason.label}
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <textarea
+                                        className="mt-3 min-h-[80px] w-full rounded-2xl border border-rose-100 bg-white px-4 py-3 text-sm"
+                                        value={rejectNote}
+                                        onChange={(event) => setRejectNote(event.target.value)}
+                                        placeholder="Optional note for Learning Review"
+                                    />
+                                </div>
+                            )}
+
                             <div className="flex flex-wrap gap-3">
                                 <button onClick={saveEdit} className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">
                                     Save Edit
@@ -316,9 +402,17 @@ export function RepliesPage() {
                                 >
                                     {sending ? 'Sending…' : 'Send to Thread'}
                                 </button>
-                                <button onClick={rejectDraft} className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700">
-                                    Reject
-                                </button>
+                                {selectedDraft.status !== 'SENT' && (
+                                    <button
+                                        onClick={rejectDraft}
+                                        disabled={rejecting}
+                                        className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {rejecting
+                                            ? (selectedDraft.status === 'REJECTED' ? 'Recording…' : 'Rejecting…')
+                                            : (selectedDraft.status === 'REJECTED' ? 'Record feedback' : 'Reject')}
+                                    </button>
+                                )}
                             </div>
                             {sendError && (
                                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

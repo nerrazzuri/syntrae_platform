@@ -4,6 +4,7 @@ import { prisma } from '../db';
 import { requireSession, requireWorkspace } from '../middleware/session_auth';
 import { FeedbackService, FeedbackAction } from '../services/feedback.service';
 import { createReplyWatchForSentDraft } from '../services/replyWatch.service';
+import { recordDraftFeedback } from '../services/draftFeedback.service';
 import { buildThreadReference } from '../utils/thread_reference';
 
 const router = Router();
@@ -187,7 +188,15 @@ router.post('/:id/approve', async (req, res) => {
 // Reject Draft
 router.post('/:id/reject', async (req, res) => {
     const { id } = req.params;
-    const { reason } = req.body;
+    const {
+        reason,
+        selected_reasons,
+        selectedReasons,
+        feedback_note,
+        feedbackNote,
+        human_edited_text,
+        humanEditedText,
+    } = req.body;
     const userId = req.session!.user_id;
     const accountId = req.activeWorkspaceId!;
 
@@ -204,19 +213,44 @@ router.post('/:id/reject', async (req, res) => {
             return res.status(400).json({ error: "Cannot reject a SENT draft" });
         }
 
-        // Transition: * -> REJECTED (except SENT)
-        const updated = await prisma.outreachDraft.update({
-            where: { id },
-            data: {
-                status: 'REJECTED',
-                updated_at: new Date()
-            }
+        // Transition: * -> REJECTED (except SENT), while preserving structured feedback for Learning Review.
+        const result = await prisma.$transaction(async (tx) => {
+            const feedback = await recordDraftFeedback({
+                db: tx,
+                accountId,
+                outreachDraftId: id,
+                feedbackType: 'REJECTED',
+                selectedReasons: selected_reasons || selectedReasons,
+                feedbackNote: feedback_note || feedbackNote || reason,
+                humanEditedText: human_edited_text || humanEditedText,
+                metadata: {
+                    source: 'reply_inbox_reject',
+                },
+            });
+
+            const updated = await tx.outreachDraft.update({
+                where: { id },
+                data: {
+                    status: 'REJECTED',
+                    updated_at: new Date()
+                }
+            });
+
+            return { updated, feedback };
         });
 
-        await FeedbackService.logFeedback(id, FeedbackAction.DRAFT_REJECTED, userId, { reason });
-        res.json(updated);
+        await FeedbackService.logFeedback(id, FeedbackAction.DRAFT_REJECTED, userId, {
+            reason,
+            selected_reasons: result.feedback.selected_reasons,
+            draft_feedback_id: result.feedback.id,
+        });
+        res.json(result.updated);
     } catch (error: any) {
-        res.status(500).json({ error: error.message });
+        const message = String(error?.message || 'Failed to reject draft');
+        const status = message.includes('Invalid') || message.includes('required') || message.includes('array')
+            ? 400
+            : 500;
+        res.status(status).json({ error: message });
     }
 });
 
