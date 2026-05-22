@@ -598,6 +598,16 @@ enum OutcomeSource {
   @@schema("core")
 }
 
+enum ReplyWatchStatus {
+  WAITING_USER_REPLY
+  USER_REPLIED
+  FOLLOW_UP_READY
+  EXPIRED_NO_REPLY
+  CLOSED
+
+  @@schema("core")
+}
+
 model LeadOpportunity {
   id                String            @id @default(uuid())
   platform          String
@@ -714,6 +724,48 @@ model ManualSendEvent {
   @@index([brand_id])
   @@index([draft_id])
   @@index([sent_by_user_id])
+  @@schema("core")
+}
+
+model ReplyWatch {
+  id                     String           @id @default(cuid())
+
+  account_id             String
+  brand_id               String?
+  lead_id                String?
+  outreach_draft_id      String?
+
+  platform               String
+  source_post_id         String?
+  source_comment_id      String?
+  parent_comment_id      String?
+  thread_key             String?
+
+  status                 ReplyWatchStatus @default(WAITING_USER_REPLY)
+
+  reason                 String?
+  reply_strategy         String?
+  reply_mode             String?
+  product_grounding_mode String?
+  buyer_stage            String?
+
+  watch_until            DateTime
+  last_checked_at        DateTime?
+  last_seen_reply_id     String?
+  user_replied_at        DateTime?
+  follow_up_ready_at     DateTime?
+  closed_at              DateTime?
+
+  metadata               Json?
+
+  created_at             DateTime         @default(now())
+  updated_at             DateTime         @updatedAt
+
+  @@index([account_id, status, watch_until])
+  @@index([platform, source_comment_id])
+  @@index([thread_key])
+  @@index([lead_id])
+  @@index([outreach_draft_id])
   @@schema("core")
 }
 

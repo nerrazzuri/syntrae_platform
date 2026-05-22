@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { prisma } from '../db';
 import { requireSession, requireWorkspace } from '../middleware/session_auth';
 import { FeedbackService, FeedbackAction } from '../services/feedback.service';
+import { createReplyWatchForSentDraft } from '../services/replyWatch.service';
 import { buildThreadReference } from '../utils/thread_reference';
 
 const router = Router();
@@ -227,7 +228,23 @@ router.post('/:id/mark-sent', async (req, res) => {
     const accountId = req.activeWorkspaceId!;
 
     try {
-        const draft = await prisma.outreachDraft.findUnique({ where: { id } });
+        const draft = await prisma.outreachDraft.findUnique({
+            where: { id },
+            include: {
+                lead: {
+                    select: {
+                        id: true,
+                        account_id: true,
+                        brand_id: true,
+                        platform: true,
+                        video_id: true,
+                        comment_id: true,
+                        buyer_stage: true,
+                        recommended_action: true,
+                    },
+                },
+            },
+        });
 
         // 1. RBAC
         if (!draft || draft.account_id !== accountId) {
@@ -277,6 +294,20 @@ router.post('/:id/mark-sent', async (req, res) => {
             return d;
         });
 
+        try {
+            await createReplyWatchForSentDraft({
+                draft: updated,
+                lead: draft.lead,
+                sentAt: updated.sent_at,
+                metadata: {
+                    send_mode: send_mode || 'OTHER',
+                    notes: notes || null,
+                },
+            });
+        } catch (watchError) {
+            console.error(`Failed to create ReplyWatch for draft ${id}:`, watchError);
+        }
+
         await FeedbackService.logFeedback(id, FeedbackAction.MANUAL_SENT, userId);
         res.json(updated);
 
@@ -296,8 +327,14 @@ router.post('/:id/send', async (req, res) => {
             include: {
                 lead: {
                     select: {
+                        id: true,
+                        account_id: true,
+                        brand_id: true,
+                        platform: true,
                         comment_id: true,
                         video_id: true,
+                        buyer_stage: true,
+                        recommended_action: true,
                     }
                 }
             }
@@ -394,6 +431,20 @@ router.post('/:id/send', async (req, res) => {
 
             return nextDraft;
         });
+
+        try {
+            await createReplyWatchForSentDraft({
+                draft: updated,
+                lead: draft.lead,
+                sentAt: updated.sent_at,
+                metadata: {
+                    send_mode: 'PLATFORM_API',
+                    delivery: payload,
+                },
+            });
+        } catch (watchError) {
+            console.error(`Failed to create ReplyWatch for draft ${id}:`, watchError);
+        }
 
         await FeedbackService.logFeedback(id, FeedbackAction.MANUAL_SENT, userId, { automated_delivery: true });
         res.json({ draft: updated, delivery: payload });

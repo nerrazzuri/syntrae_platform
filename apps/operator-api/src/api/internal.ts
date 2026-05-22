@@ -7,6 +7,14 @@ import { MarketProfileService } from '../services/market_profile.service';
 import { LeadQuotaService } from '../services/billing/lead_quota.service';
 import { PolicyService } from '../services/policy.service';
 import { SubscriptionPolicyService } from '../services/billing/subscription_policy.service';
+import {
+    closeReplyWatch,
+    createReplyWatchForSentDraft,
+    expireReplyWatches,
+    listDueReplyWatches,
+    markReplyWatchChecked,
+    markReplyWatchUserReplied,
+} from '../services/replyWatch.service';
 
 const router = Router();
 const DEFAULT_LEASE_SECONDS = 120;
@@ -405,6 +413,101 @@ router.post('/billing/lead-quota/reserve', async (req: Request, res: Response) =
     } catch (e: any) {
         console.error('Failed to reserve lead quota capacity:', e);
         return res.status(500).json({ error: 'Failed to reserve lead quota capacity' });
+    }
+});
+
+router.post('/reply-watches/from-sent-draft', async (req: Request, res: Response) => {
+    const outreachDraftId = String(req.body?.outreach_draft_id || req.body?.outreachDraftId || '').trim();
+    if (!outreachDraftId) {
+        return res.status(400).json({ error: 'Missing outreach_draft_id' });
+    }
+
+    try {
+        const watch = await createReplyWatchForSentDraft({
+            outreachDraftId,
+            sentAt: req.body?.sent_at,
+            platform: req.body?.platform,
+            sourcePostId: req.body?.source_post_id,
+            sourceCommentId: req.body?.source_comment_id,
+            parentCommentId: req.body?.parent_comment_id,
+            threadKey: req.body?.thread_key,
+            metadata: {
+                ...(req.body?.metadata || {}),
+                ...(req.body?.platform_reply_id ? { platform_reply_id: req.body.platform_reply_id } : {}),
+            },
+        });
+
+        return res.status(watch ? 201 : 200).json({ watch });
+    } catch (e: any) {
+        console.error('Failed to create ReplyWatch from sent draft:', e);
+        return res.status(500).json({ error: 'Failed to create ReplyWatch' });
+    }
+});
+
+router.get('/reply-watches/due', async (req: Request, res: Response) => {
+    try {
+        const watches = await listDueReplyWatches({
+            limit: resolvePositiveInteger(req.query.limit, 50, 1, 200),
+        });
+        return res.json({ watches });
+    } catch (e: any) {
+        console.error('Failed to list due ReplyWatch records:', e);
+        return res.status(500).json({ error: 'Failed to list due ReplyWatch records' });
+    }
+});
+
+router.post('/reply-watches/expire', async (req: Request, res: Response) => {
+    try {
+        const expired = await expireReplyWatches({
+            now: req.body?.now ? new Date(req.body.now) : undefined,
+        });
+        return res.json({ expired });
+    } catch (e: any) {
+        console.error('Failed to expire ReplyWatch records:', e);
+        return res.status(500).json({ error: 'Failed to expire ReplyWatch records' });
+    }
+});
+
+router.post('/reply-watches/:id/checked', async (req: Request, res: Response) => {
+    try {
+        const watch = await markReplyWatchChecked({
+            id: req.params.id,
+            checkedAt: req.body?.checked_at,
+            lastSeenReplyId: req.body?.last_seen_reply_id,
+        });
+        return res.json({ watch });
+    } catch (e: any) {
+        console.error(`Failed to mark ReplyWatch ${req.params.id} checked:`, e);
+        return res.status(500).json({ error: 'Failed to mark ReplyWatch checked' });
+    }
+});
+
+router.post('/reply-watches/:id/user-replied', async (req: Request, res: Response) => {
+    try {
+        const watch = await markReplyWatchUserReplied({
+            id: req.params.id,
+            replyId: req.body?.reply_id,
+            repliedAt: req.body?.replied_at,
+            engagementEventId: req.body?.engagement_event_id,
+            metadata: req.body?.metadata,
+        });
+        return res.json({ watch });
+    } catch (e: any) {
+        console.error(`Failed to mark ReplyWatch ${req.params.id} user replied:`, e);
+        return res.status(500).json({ error: 'Failed to mark ReplyWatch user replied' });
+    }
+});
+
+router.post('/reply-watches/:id/close', async (req: Request, res: Response) => {
+    try {
+        const watch = await closeReplyWatch({
+            id: req.params.id,
+            closedAt: req.body?.closed_at,
+        });
+        return res.json({ watch });
+    } catch (e: any) {
+        console.error(`Failed to close ReplyWatch ${req.params.id}:`, e);
+        return res.status(500).json({ error: 'Failed to close ReplyWatch' });
     }
 });
 
