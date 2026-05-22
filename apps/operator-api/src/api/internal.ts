@@ -29,6 +29,11 @@ import {
     listLearningSuggestions,
     updateLearningSuggestionStatus,
 } from '../services/learningSuggestion.service';
+import {
+    generateLearningApplyPlan,
+    listLearningApplyPlans,
+    updateLearningApplyPlanStatus,
+} from '../services/learningApplyPlan.service';
 
 const router = Router();
 const DEFAULT_LEASE_SECONDS = 120;
@@ -569,6 +574,71 @@ router.post('/learning-suggestions/:id/status', async (req: Request, res: Respon
                     ? 400
                     : 500;
         console.error(`Failed to update learning suggestion ${req.params.id}:`, e);
+        return res.status(status).json({ error: message });
+    }
+});
+
+router.post('/learning-suggestions/:id/apply-plan', async (req: Request, res: Response) => {
+    try {
+        const result = await generateLearningApplyPlan({
+            accountId: accountScopeFromRequest(req) || req.body?.account_id,
+            learningSuggestionId: req.params.id,
+            force: req.body?.force === true,
+        });
+        return res.status(result.generated ? 201 : 200).json(result);
+    } catch (e: any) {
+        const message = String(e?.message || 'Failed to generate learning apply plan');
+        const status = message.includes('not found')
+            ? 404
+            : message.includes('scope mismatch')
+                ? 403
+                : message.includes('required') || message.includes('ACCEPTED')
+                    ? 400
+                    : 500;
+        console.error(`Failed to generate apply plan for learning suggestion ${req.params.id}:`, e);
+        return res.status(status).json({ error: message });
+    }
+});
+
+router.get('/learning-apply-plans', async (req: Request, res: Response) => {
+    try {
+        const plans = await listLearningApplyPlans({
+            accountId: accountScopeFromRequest(req) || String(req.query.account_id || ''),
+            brandId: String(req.query.brand_id || ''),
+            platform: String(req.query.platform || ''),
+            status: String(req.query.status || ''),
+            targetArea: String(req.query.target_area || ''),
+            limit: Number(req.query.limit || ''),
+        });
+        return res.json({ plans });
+    } catch (e: any) {
+        const message = String(e?.message || 'Failed to list learning apply plans');
+        const status = message.includes('required') || message.includes('Invalid') ? 400 : 500;
+        console.error('Failed to list learning apply plans:', e);
+        return res.status(status).json({ error: message });
+    }
+});
+
+router.post('/learning-apply-plans/:id/status', async (req: Request, res: Response) => {
+    try {
+        const plan = await updateLearningApplyPlanStatus({
+            accountId: accountScopeFromRequest(req) || req.body?.account_id,
+            planId: req.params.id,
+            status: req.body?.status,
+            reviewedBy: req.body?.reviewed_by,
+            reviewNote: req.body?.review_note,
+        });
+        return res.json({ plan });
+    } catch (e: any) {
+        const message = String(e?.message || 'Failed to update learning apply plan status');
+        const status = message.includes('not found')
+            ? 404
+            : message.includes('scope mismatch')
+                ? 403
+                : message.includes('required') || message.includes('Invalid')
+                    ? 400
+                    : 500;
+        console.error(`Failed to update learning apply plan ${req.params.id}:`, e);
         return res.status(status).json({ error: message });
     }
 });
