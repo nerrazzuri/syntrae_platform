@@ -23,6 +23,7 @@ import { internalRouter } from './api/internal';
 import { onboardingRouter } from './api/onboarding';
 import { platformConnectionsRouter } from './api/platform_connections';
 import { adminRouter } from './api/admin';
+import { learningReviewRouter } from './api/learning_review';
 import { AdminAuthService } from './services/admin_auth.service';
 
 dotenv.config();
@@ -84,6 +85,7 @@ export function createApp() {
     app.use('/internal', internalRouter);
     app.use('/onboarding', onboardingRouter);
     app.use('/admin', adminRouter);
+    app.use('/learning-review', learningReviewRouter);
     app.use('/', platformConnectionsRouter);
     app.use('/', runsRouter);
     app.use('/', policyRouter);

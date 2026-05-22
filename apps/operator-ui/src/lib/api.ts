@@ -98,3 +98,69 @@ export class Api extends Client {
 }
 
 export const api = Api;
+
+function compactQuery(params: Record<string, any>) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+            query.set(key, String(value));
+        }
+    });
+    const text = query.toString();
+    return text ? `?${text}` : '';
+}
+
+export type LearningReviewFilters = {
+    brand_id?: string;
+    platform?: string;
+    suggestion_status?: string;
+    plan_status?: string;
+    limit?: number;
+};
+
+export type ApplyCandidateFilters = {
+    brand_id?: string;
+    platform?: string;
+    status?: string;
+    candidate_type?: string;
+    limit?: number;
+};
+
+export const LearningReviewApi = {
+    fetchDashboard: (filters: LearningReviewFilters = {}) =>
+        Client.get(`/learning-review/dashboard${compactQuery(filters)}`),
+
+    fetchDetail: (suggestionId: string) =>
+        Client.get(`/learning-review/suggestions/${encodeURIComponent(suggestionId)}`),
+
+    updateSuggestionStatus: (id: string, status: string, reviewNote?: string | null) =>
+        Client.post(`/learning-review/suggestions/${encodeURIComponent(id)}/status`, {
+            status,
+            review_note: reviewNote || undefined,
+        }),
+
+    generateApplyPlan: (suggestionId: string, force = false) =>
+        Client.post(`/learning-review/suggestions/${encodeURIComponent(suggestionId)}/apply-plan`, {
+            force,
+        }),
+
+    updateApplyPlanStatus: (id: string, status: string, reviewNote?: string | null) =>
+        Client.post(`/learning-review/apply-plans/${encodeURIComponent(id)}/status`, {
+            status,
+            review_note: reviewNote || undefined,
+        }),
+
+    generateApplyCandidates: (planId: string, force = false) =>
+        Client.post(`/learning-review/apply-plans/${encodeURIComponent(planId)}/candidates`, {
+            force,
+        }),
+
+    fetchApplyCandidates: (filters: ApplyCandidateFilters = {}) =>
+        Client.get(`/learning-review/apply-candidates${compactQuery(filters)}`),
+
+    updateApplyCandidateStatus: (id: string, status: string, reviewNote?: string | null) =>
+        Client.post(`/learning-review/apply-candidates/${encodeURIComponent(id)}/status`, {
+            status,
+            review_note: reviewNote || undefined,
+        }),
+};

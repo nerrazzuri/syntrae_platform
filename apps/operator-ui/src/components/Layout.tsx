@@ -14,6 +14,7 @@ import {
     Menu,
     X,
     Sparkles,
+    ShieldCheck,
 } from 'lucide-react';
 
 export function Layout() {
@@ -201,6 +202,10 @@ export function Layout() {
                                 <Link to="/settings" className={navClass('/settings')} onClick={closeMobileNav}>
                                     <Settings className="h-5 w-5" />
                                     Settings
+                                </Link>
+                                <Link to="/admin/learning-review" className={navClass('/admin/learning-review')} onClick={closeMobileNav}>
+                                    <ShieldCheck className="h-5 w-5" />
+                                    Learning Review
                                 </Link>
                             </div>
                         </div>
