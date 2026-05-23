@@ -126,6 +126,13 @@ export type ApplyCandidateFilters = {
     limit?: number;
 };
 
+export type EditMiningInput = {
+    brand_id?: string;
+    platform?: string;
+    min_occurrences?: number;
+    dry_run?: boolean;
+};
+
 export type DraftFeedbackPayload = {
     feedback_type: 'ACCEPTED_AS_IS' | 'EDITED_BEFORE_SEND' | 'REJECTED' | 'NEEDS_REWRITE';
     human_edited_text?: string;
@@ -177,4 +184,7 @@ export const LearningReviewApi = {
             status,
             review_note: reviewNote || undefined,
         }),
+
+    runEditMining: (input: EditMiningInput = {}) =>
+        Client.post('/learning-review/edit-mining/run', input),
 };

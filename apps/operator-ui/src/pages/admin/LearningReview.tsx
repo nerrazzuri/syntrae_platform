@@ -96,6 +96,25 @@ function ActionButton({
     );
 }
 
+function InsightPhraseList({ title, items }: { title: string; items: any[] }) {
+    return (
+        <div className="rounded-2xl border border-slate-200 bg-white/70 p-3">
+            <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{title}</div>
+            <div className="mt-2 space-y-2">
+                {(items || []).length === 0 && <div className="text-sm text-slate-400">None detected</div>}
+                {(items || []).map((item) => (
+                    <div key={`${item.phrase}-${item.count}`} className="flex items-center justify-between gap-3 text-sm">
+                        <span className="font-semibold text-slate-800">{item.phrase}</span>
+                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
+                            {item.count}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 export function LearningReviewPage() {
     const [filters, setFilters] = useState<LearningReviewFilters>({ limit: 50 });
     const [dashboard, setDashboard] = useState<any>(null);
@@ -107,6 +126,15 @@ export function LearningReviewPage() {
     const [detailLoading, setDetailLoading] = useState(false);
     const [busyAction, setBusyAction] = useState('');
     const [notice, setNotice] = useState<Notice | null>(null);
+    const [editMiningForm, setEditMiningForm] = useState({
+        brand_id: '',
+        platform: '',
+        min_occurrences: 3,
+        dry_run: true,
+    });
+    const [editMiningLoading, setEditMiningLoading] = useState(false);
+    const [editMiningAction, setEditMiningAction] = useState<'preview' | 'persist' | ''>('');
+    const [editMiningResult, setEditMiningResult] = useState<any>(null);
 
     const queue = dashboard?.review_queue || [];
     const summary = dashboard?.summary || {};
@@ -158,6 +186,14 @@ export function LearningReviewPage() {
     useEffect(() => {
         loadDashboard();
     }, [loadDashboard]);
+
+    useEffect(() => {
+        setEditMiningForm((current) => ({
+            ...current,
+            brand_id: current.brand_id || filters.brand_id || '',
+            platform: current.platform || filters.platform || '',
+        }));
+    }, [filters.brand_id, filters.platform]);
 
     useEffect(() => {
         if (selectedId) {
@@ -215,6 +251,46 @@ export function LearningReviewPage() {
             ...current,
             [key]: value,
         }));
+    };
+
+    const updateEditMiningForm = (key: keyof typeof editMiningForm, value: string | number | boolean) => {
+        setEditMiningForm((current) => ({
+            ...current,
+            [key]: value,
+        }));
+    };
+
+    const runEditMining = async (dryRun: boolean) => {
+        if (!dryRun && !window.confirm('This will create inactive ApplyCandidate records only. It will not change AI behavior.')) {
+            return;
+        }
+        setEditMiningLoading(true);
+        setEditMiningAction(dryRun ? 'preview' : 'persist');
+        setNotice(null);
+        try {
+            const result = await LearningReviewApi.runEditMining({
+                brand_id: editMiningForm.brand_id.trim() || undefined,
+                platform: editMiningForm.platform.trim() || undefined,
+                min_occurrences: Number(editMiningForm.min_occurrences) || 3,
+                dry_run: dryRun,
+            });
+            setEditMiningResult(result);
+            setEditMiningForm((current) => ({ ...current, dry_run: dryRun }));
+            setNotice({
+                type: 'success',
+                message: dryRun
+                    ? 'Edit mining preview completed.'
+                    : `Edit mining persisted ${result.persisted_count || 0} inactive candidate records.`,
+            });
+            if (!dryRun) {
+                await refreshAll();
+            }
+        } catch (error: any) {
+            setNotice({ type: 'error', message: error.message || 'Failed to run edit mining' });
+        } finally {
+            setEditMiningLoading(false);
+            setEditMiningAction('');
+        }
     };
 
     const activePlan = detail?.apply_plans?.find((plan: any) => plan.status === 'DRAFT') ||
@@ -327,6 +403,126 @@ export function LearningReviewPage() {
                         </select>
                     </label>
                 </div>
+            </section>
+
+            <section className="panel p-5">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                    <div>
+                        <div className="hero-kicker">Edit Mining</div>
+                        <h2 className="mt-2 text-xl font-bold text-slate-900">Mine human edits for inactive candidates</h2>
+                        <p className="mt-2 max-w-3xl text-sm font-medium text-slate-600">
+                            These candidates are inactive. Persisting them does not change prompts, QC, strategy, or runtime behavior.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <ActionButton
+                            disabled={editMiningLoading}
+                            onClick={() => runEditMining(true)}
+                        >
+                            {editMiningLoading && editMiningAction === 'preview' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                            Preview mined candidates
+                        </ActionButton>
+                        <ActionButton
+                            tone="warning"
+                            disabled={editMiningLoading}
+                            onClick={() => runEditMining(false)}
+                        >
+                            {editMiningLoading && editMiningAction === 'persist' ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                            Persist candidates
+                        </ActionButton>
+                    </div>
+                </div>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-4">
+                    <label className="space-y-2 text-sm font-semibold text-slate-600">
+                        <span>Brand ID</span>
+                        <input
+                            className="surface-input"
+                            value={editMiningForm.brand_id}
+                            onChange={(event) => updateEditMiningForm('brand_id', event.target.value)}
+                            placeholder="Optional"
+                        />
+                    </label>
+                    <label className="space-y-2 text-sm font-semibold text-slate-600">
+                        <span>Platform</span>
+                        <input
+                            className="surface-input"
+                            value={editMiningForm.platform}
+                            onChange={(event) => updateEditMiningForm('platform', event.target.value)}
+                            placeholder="xiaohongshu"
+                        />
+                    </label>
+                    <label className="space-y-2 text-sm font-semibold text-slate-600">
+                        <span>Min occurrences</span>
+                        <input
+                            className="surface-input"
+                            type="number"
+                            min={1}
+                            value={editMiningForm.min_occurrences}
+                            onChange={(event) => updateEditMiningForm('min_occurrences', Number(event.target.value))}
+                        />
+                    </label>
+                    <label className="flex min-h-11 items-center gap-3 self-end rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+                        <input
+                            type="checkbox"
+                            checked={editMiningForm.dry_run}
+                            onChange={(event) => updateEditMiningForm('dry_run', event.target.checked)}
+                        />
+                        Dry run by default
+                    </label>
+                </div>
+
+                {editMiningResult && (
+                    <div className="mt-5 space-y-4">
+                        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                            {[
+                                ['Total feedback', editMiningResult.insights?.total_feedback ?? 0],
+                                ['Analyzed', editMiningResult.insights?.analyzed_feedback ?? 0],
+                                ['Shortened', editMiningResult.insights?.shortened_reply_count ?? 0],
+                                ['Direct answers', editMiningResult.insights?.direct_answer_added_count ?? 0],
+                                ['Drafts', editMiningResult.candidate_drafts?.length ?? 0],
+                                ['Persisted', editMiningResult.persisted_count ?? 0],
+                            ].map(([label, value]) => (
+                                <div key={String(label)} className="rounded-2xl border border-slate-200 bg-white/70 p-4">
+                                    <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{label}</div>
+                                    <div className="mt-2 text-2xl font-bold text-slate-900">{value}</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="grid gap-3 lg:grid-cols-3">
+                            <InsightPhraseList title="Removed AI phrases" items={editMiningResult.insights?.removed_ai_phrases || []} />
+                            <InsightPhraseList title="Removed CTA phrases" items={editMiningResult.insights?.removed_cta_phrases || []} />
+                            <InsightPhraseList title="Removed questions" items={editMiningResult.insights?.removed_unnecessary_questions || []} />
+                        </div>
+
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
+                            Skipped duplicate pending candidates: {editMiningResult.skipped_duplicate_count || 0}. Persisted candidates remain inactive until a future controlled implementation workflow.
+                        </div>
+
+                        <div className="grid gap-3 xl:grid-cols-2">
+                            {(editMiningResult.candidate_drafts || []).map((candidate: any, index: number) => (
+                                <div key={`${candidate.title}-${index}`} className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+                                    <div className="flex flex-wrap gap-2">
+                                        <Pill value={candidate.candidate_type} />
+                                        <Pill value={candidate.risk_level || 'low'} />
+                                        <Pill value={`${(candidate.source_feedback_ids || []).length} sources`} />
+                                    </div>
+                                    <h3 className="mt-3 text-sm font-bold text-slate-900">{candidate.title}</h3>
+                                    <p className="mt-1 text-sm text-slate-600">{candidate.description}</p>
+                                    <div className="mt-3">
+                                        <JsonBlock value={candidate.candidate_payload} />
+                                    </div>
+                                </div>
+                            ))}
+                            {(editMiningResult.candidate_drafts || []).length === 0 && (
+                                <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 text-sm text-slate-500">
+                                    No candidate drafts met the current minimum occurrence threshold.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </section>
 
             <section className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.9fr)]">
