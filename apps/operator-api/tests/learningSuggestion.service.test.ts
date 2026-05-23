@@ -124,10 +124,47 @@ function rowsWithReason(reason: string, count = 3, overrides: Record<string, any
     );
 }
 
+function rowsWithReasonPrefix(reason: string, count: number, prefix: string, overrides: Record<string, any> = {}) {
+    return rowsWithReason(reason, count, overrides).map((row, index) => ({
+        ...row,
+        id: `${prefix}-${index}`,
+    }));
+}
+
 function makeDb(feedbackRows: any[] = [], suggestionRows: any[] = []) {
     return {
         draftFeedback: new FakeModel('feedback', feedbackRows),
         learningSuggestion: new FakeModel('suggestion', suggestionRows),
+    };
+}
+
+async function suggestionDraftFor(feedbackRows: any[], index = 0) {
+    const db = makeDb(feedbackRows);
+    const result = await generateLearningSuggestions({
+        db,
+        accountId: 'account-1',
+        dryRun: true,
+    });
+    return result.suggestions[index];
+}
+
+function duplicateSuggestionFrom(draft: any, overrides: Record<string, any> = {}) {
+    return {
+        id: overrides.id || 'duplicate-suggestion',
+        created_at: new Date('2026-05-21T00:00:00.000Z'),
+        updated_at: new Date('2026-05-21T00:00:00.000Z'),
+        ...draft,
+        status: overrides.status || 'OPEN',
+        message: overrides.message || 'stale message',
+        evidence: overrides.evidence || { stale: true },
+        source_feedback_ids: overrides.source_feedback_ids || ['stale-feedback-id'],
+        metadata: {
+            ...(draft.metadata || {}),
+            ...(overrides.metadata || {}),
+        },
+        reviewed_by: overrides.reviewed_by,
+        reviewed_at: overrides.reviewed_at,
+        review_note: overrides.review_note,
     };
 }
 
@@ -219,12 +256,99 @@ test('persists suggestions when dryRun is false', async () => {
     });
 
     assert.equal(result.persisted_count, 1);
+    assert.equal(result.refreshed_count, 0);
     assert.equal(db.learningSuggestion.rows.length, 1);
 });
 
-test('skips duplicate OPEN suggestions using evidence signature', async () => {
+test('refreshes duplicate OPEN suggestions using evidence signature', async () => {
     const db = makeDb(rowsWithReason('TOO_AI'));
     await generateLearningSuggestions({ db, accountId: 'account-1', dryRun: false });
+
+    db.draftFeedback.rows = rowsWithReasonPrefix('TOO_AI', 4, 'latest-feedback');
+    const result = await generateLearningSuggestions({
+        db,
+        accountId: 'account-1',
+        dryRun: false,
+    });
+
+    assert.equal(result.persisted_count, 0);
+    assert.equal(result.refreshed_count, 1);
+    assert.equal(result.skipped_duplicate_count, 0);
+    assert.equal(db.learningSuggestion.rows.length, 1);
+    assert.equal(db.learningSuggestion.rows[0].evidence.too_ai_count, 4);
+});
+
+test('refreshed suggestion gets updated evidence and message', async () => {
+    const draft = await suggestionDraftFor(rowsWithReason('TOO_AI'));
+    const db = makeDb(rowsWithReason('TOO_AI', 5), [
+        duplicateSuggestionFrom(draft, {
+            evidence: { selected_reason: 'TOO_AI', too_ai_count: 1 },
+            message: 'old stale message',
+        }),
+    ]);
+
+    const result = await generateLearningSuggestions({
+        db,
+        accountId: 'account-1',
+        dryRun: false,
+    });
+
+    assert.equal(result.refreshed_count, 1);
+    assert.equal(result.suggestions[0].id, 'duplicate-suggestion');
+    assert.equal(result.suggestions[0].evidence.too_ai_count, 5);
+    assert.notEqual(result.suggestions[0].message, 'old stale message');
+});
+
+test('refreshed suggestion replaces source feedback ids with latest samples', async () => {
+    const draft = await suggestionDraftFor(rowsWithReasonPrefix('TOO_AI', 3, 'old-feedback'));
+    const latestRows = rowsWithReasonPrefix('TOO_AI', 4, 'latest-feedback');
+    const db = makeDb(latestRows, [
+        duplicateSuggestionFrom(draft, {
+            source_feedback_ids: ['old-feedback-1'],
+        }),
+    ]);
+
+    await generateLearningSuggestions({
+        db,
+        accountId: 'account-1',
+        dryRun: false,
+    });
+
+    assert.deepEqual(
+        db.learningSuggestion.rows[0].source_feedback_ids,
+        latestRows.map((row) => row.id),
+    );
+});
+
+test('refreshed suggestion increments refresh metadata', async () => {
+    const draft = await suggestionDraftFor(rowsWithReason('TOO_AI'));
+    const db = makeDb(rowsWithReason('TOO_AI', 4), [
+        duplicateSuggestionFrom(draft, {
+            metadata: { refresh_count: 2 },
+        }),
+    ]);
+
+    await generateLearningSuggestions({
+        db,
+        accountId: 'account-1',
+        dryRun: false,
+    });
+
+    const metadata = db.learningSuggestion.rows[0].metadata;
+    assert.equal(metadata.refresh_count, 3);
+    assert.equal(metadata.last_refresh_reason, 'duplicate_open_suggestion_evidence_refresh');
+    assert.ok(metadata.refreshed_at);
+    assert.equal(metadata.evidence_signature, draft.metadata.evidence_signature);
+});
+
+test('ACCEPTED duplicate is skipped and not refreshed', async () => {
+    const draft = await suggestionDraftFor(rowsWithReason('TOO_AI'));
+    const db = makeDb(rowsWithReason('TOO_AI', 4), [
+        duplicateSuggestionFrom(draft, {
+            status: 'ACCEPTED',
+            evidence: { selected_reason: 'TOO_AI', too_ai_count: 1 },
+        }),
+    ]);
 
     const result = await generateLearningSuggestions({
         db,
@@ -233,7 +357,94 @@ test('skips duplicate OPEN suggestions using evidence signature', async () => {
     });
 
     assert.equal(result.persisted_count, 0);
+    assert.equal(result.refreshed_count, 0);
     assert.equal(result.skipped_duplicate_count, 1);
+    assert.equal(db.learningSuggestion.rows[0].status, 'ACCEPTED');
+    assert.equal(db.learningSuggestion.rows[0].evidence.too_ai_count, 1);
+});
+
+test('REJECTED duplicate is skipped and not refreshed', async () => {
+    const draft = await suggestionDraftFor(rowsWithReason('TOO_AI'));
+    const db = makeDb(rowsWithReason('TOO_AI', 4), [
+        duplicateSuggestionFrom(draft, {
+            status: 'REJECTED',
+            evidence: { selected_reason: 'TOO_AI', too_ai_count: 1 },
+        }),
+    ]);
+
+    const result = await generateLearningSuggestions({
+        db,
+        accountId: 'account-1',
+        dryRun: false,
+    });
+
+    assert.equal(result.persisted_count, 0);
+    assert.equal(result.refreshed_count, 0);
+    assert.equal(result.skipped_duplicate_count, 1);
+    assert.equal(db.learningSuggestion.rows[0].status, 'REJECTED');
+    assert.equal(db.learningSuggestion.rows[0].evidence.too_ai_count, 1);
+});
+
+test('ARCHIVED duplicate is skipped and not refreshed', async () => {
+    const draft = await suggestionDraftFor(rowsWithReason('TOO_AI'));
+    const db = makeDb(rowsWithReason('TOO_AI', 4), [
+        duplicateSuggestionFrom(draft, {
+            status: 'ARCHIVED',
+            evidence: { selected_reason: 'TOO_AI', too_ai_count: 1 },
+        }),
+    ]);
+
+    const result = await generateLearningSuggestions({
+        db,
+        accountId: 'account-1',
+        dryRun: false,
+    });
+
+    assert.equal(result.persisted_count, 0);
+    assert.equal(result.refreshed_count, 0);
+    assert.equal(result.skipped_duplicate_count, 1);
+    assert.equal(db.learningSuggestion.rows[0].status, 'ARCHIVED');
+    assert.equal(db.learningSuggestion.rows[0].evidence.too_ai_count, 1);
+});
+
+test('persisted count includes only new records when another suggestion refreshes', async () => {
+    const rows = [
+        ...rowsWithReason('TOO_AI', 3),
+        ...rowsWithReason('WRONG_INTENT', 3),
+    ];
+    const tooAiDraft = await suggestionDraftFor(rowsWithReason('TOO_AI'));
+    const db = makeDb(rows, [duplicateSuggestionFrom(tooAiDraft)]);
+
+    const result = await generateLearningSuggestions({
+        db,
+        accountId: 'account-1',
+        dryRun: false,
+    });
+
+    assert.equal(result.persisted_count, 1);
+    assert.equal(result.refreshed_count, 1);
+    assert.equal(result.skipped_duplicate_count, 0);
+    assert.equal(db.learningSuggestion.rows.length, 2);
+});
+
+test('skipped duplicate count includes non-refreshable duplicates while new records persist', async () => {
+    const rows = [
+        ...rowsWithReason('TOO_AI', 3),
+        ...rowsWithReason('WRONG_INTENT', 3),
+    ];
+    const tooAiDraft = await suggestionDraftFor(rowsWithReason('TOO_AI'));
+    const db = makeDb(rows, [duplicateSuggestionFrom(tooAiDraft, { status: 'ACCEPTED' })]);
+
+    const result = await generateLearningSuggestions({
+        db,
+        accountId: 'account-1',
+        dryRun: false,
+    });
+
+    assert.equal(result.persisted_count, 1);
+    assert.equal(result.refreshed_count, 0);
+    assert.equal(result.skipped_duplicate_count, 1);
+    assert.equal(db.learningSuggestion.rows.length, 2);
 });
 
 test('lists suggestions by account scope', async () => {
