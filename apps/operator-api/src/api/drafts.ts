@@ -9,6 +9,122 @@ import { buildThreadReference } from '../utils/thread_reference';
 
 const router = Router();
 
+function cleanText(value: unknown) {
+    const text = String(value ?? '').trim();
+    return text || null;
+}
+
+function normalizeFeedbackMetadata(value: unknown, defaults: Record<string, any> = {}) {
+    return {
+        ...defaults,
+        ...(value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : {}),
+    };
+}
+
+function feedbackDecisionAction(metadata: unknown) {
+    return metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+        ? cleanText((metadata as Record<string, any>).decision_action)
+        : null;
+}
+
+async function findExistingDecisionFeedback(input: {
+    accountId: string;
+    outreachDraftId: string;
+    feedbackType: string;
+    finalSentText?: string | null;
+    humanEditedText?: string | null;
+    metadata?: Record<string, any> | null;
+}) {
+    const decisionAction = feedbackDecisionAction(input.metadata);
+    if (!decisionAction) return null;
+
+    const rows = await prisma.draftFeedback.findMany({
+        where: {
+            account_id: input.accountId,
+            outreach_draft_id: input.outreachDraftId,
+            feedback_type: input.feedbackType as any,
+        },
+        orderBy: { created_at: 'desc' },
+        take: 20,
+    });
+
+    const finalSentText = cleanText(input.finalSentText);
+    const humanEditedText = cleanText(input.humanEditedText);
+    return rows.find((row) => {
+        const metadata = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+            ? row.metadata as Record<string, any>
+            : {};
+        return (
+            cleanText(metadata.decision_action) === decisionAction &&
+            cleanText(row.final_sent_text) === finalSentText &&
+            cleanText(row.human_edited_text) === humanEditedText
+        );
+    }) || null;
+}
+
+async function recordDecisionFeedback(input: {
+    accountId: string;
+    outreachDraftId: string;
+    feedbackType: string;
+    humanEditedText?: string | null;
+    feedbackNote?: string | null;
+    selectedReasons?: string[] | null;
+    finalSentText?: string | null;
+    metadata?: Record<string, any> | null;
+}) {
+    const existing = await findExistingDecisionFeedback(input);
+    if (existing) {
+        return { feedback: existing, deduped: true };
+    }
+
+    const feedback = await recordDraftFeedback(input);
+    return { feedback, deduped: false };
+}
+
+function finalTextFromDraft(draft: any) {
+    return cleanText(draft?.edited_text) || cleanText(draft?.draft_text) || '';
+}
+
+function draftHasOwnerEdit(draft: any) {
+    return Boolean(cleanText(draft?.edited_text)) || draft?.status === 'EDITED';
+}
+
+async function recordOwnerDecisionFeedback(input: {
+    accountId: string;
+    draft: any;
+    decisionAction: string;
+    finalText?: string | null;
+}) {
+    const finalText = cleanText(input.finalText) || finalTextFromDraft(input.draft);
+    const edited = draftHasOwnerEdit(input.draft);
+    return recordDecisionFeedback({
+        accountId: input.accountId,
+        outreachDraftId: input.draft.id,
+        feedbackType: edited ? 'EDITED_BEFORE_SEND' : 'ACCEPTED_AS_IS',
+        selectedReasons: edited ? [] : ['GOOD_REPLY'],
+        humanEditedText: edited ? finalText : null,
+        finalSentText: finalText,
+        metadata: {
+            source: 'replies_ui',
+            decision_action: input.decisionAction,
+        },
+    });
+}
+
+async function recordOwnerDecisionFeedbackBestEffort(input: {
+    accountId: string;
+    draft: any;
+    decisionAction: string;
+    finalText?: string | null;
+}) {
+    try {
+        return await recordOwnerDecisionFeedback(input);
+    } catch (error) {
+        console.error(`Failed to record owner decision feedback for draft ${input.draft?.id}:`, error);
+        return null;
+    }
+}
+
 function isSyntheticXhsCommentId(commentId?: string | null) {
     const value = String(commentId || '').trim();
     return value.startsWith('xhs-cmt-fb-');
@@ -102,6 +218,51 @@ router.get('/', async (req, res) => {
     }
 });
 
+router.post('/:id/feedback', async (req, res) => {
+    const { id } = req.params;
+    const accountId = req.activeWorkspaceId!;
+    const {
+        feedback_type,
+        feedbackType,
+        human_edited_text,
+        humanEditedText,
+        feedback_note,
+        feedbackNote,
+        selected_reasons,
+        selectedReasons,
+        final_sent_text,
+        finalSentText,
+        metadata,
+    } = req.body || {};
+
+    try {
+        const feedbackTypeValue = String(feedback_type || feedbackType || '').trim();
+        const mergedMetadata = normalizeFeedbackMetadata(metadata, { source: 'replies_ui' });
+        const result = await recordDecisionFeedback({
+            accountId,
+            outreachDraftId: id,
+            feedbackType: feedbackTypeValue,
+            humanEditedText: human_edited_text ?? humanEditedText,
+            feedbackNote: feedback_note ?? feedbackNote,
+            selectedReasons: selected_reasons ?? selectedReasons,
+            finalSentText: final_sent_text ?? finalSentText,
+            metadata: mergedMetadata,
+        });
+
+        return res.status(result.deduped ? 200 : 201).json(result);
+    } catch (error: any) {
+        const message = String(error?.message || 'Failed to record draft feedback');
+        const status = message.includes('not found')
+            ? 404
+            : message.includes('scope mismatch')
+                ? 403
+                : message.includes('Invalid') || message.includes('required') || message.includes('array')
+                    ? 400
+                    : 500;
+        res.status(status).json({ error: message });
+    }
+});
+
 // Edit Draft
 router.post('/:id/edit', async (req, res) => {
     const { id } = req.params;
@@ -179,6 +340,11 @@ router.post('/:id/approve', async (req, res) => {
         });
 
         await FeedbackService.logFeedback(id, FeedbackAction.DRAFT_APPROVED, userId);
+        await recordOwnerDecisionFeedbackBestEffort({
+            accountId,
+            draft,
+            decisionAction: draftHasOwnerEdit(draft) ? 'approve_after_edit' : 'approve_as_is',
+        });
         res.json(updated);
     } catch (error: any) {
         res.status(500).json({ error: error.message });
@@ -224,7 +390,8 @@ router.post('/:id/reject', async (req, res) => {
                 feedbackNote: feedback_note || feedbackNote || reason,
                 humanEditedText: human_edited_text || humanEditedText,
                 metadata: {
-                    source: 'reply_inbox_reject',
+                    source: 'replies_ui',
+                    decision_action: 'reject',
                 },
             });
 
@@ -343,6 +510,12 @@ router.post('/:id/mark-sent', async (req, res) => {
         }
 
         await FeedbackService.logFeedback(id, FeedbackAction.MANUAL_SENT, userId);
+        await recordOwnerDecisionFeedbackBestEffort({
+            accountId,
+            draft,
+            decisionAction: 'mark_sent',
+            finalText,
+        });
         res.json(updated);
 
     } catch (error: any) {
@@ -481,6 +654,12 @@ router.post('/:id/send', async (req, res) => {
         }
 
         await FeedbackService.logFeedback(id, FeedbackAction.MANUAL_SENT, userId, { automated_delivery: true });
+        await recordOwnerDecisionFeedbackBestEffort({
+            accountId,
+            draft,
+            decisionAction: 'send_to_thread',
+            finalText,
+        });
         res.json({ draft: updated, delivery: payload });
     } catch (error: any) {
         res.status(500).json({ error: error.message || 'Failed to send reply' });

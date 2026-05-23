@@ -126,6 +126,20 @@ export type ApplyCandidateFilters = {
     limit?: number;
 };
 
+export type DraftFeedbackPayload = {
+    feedback_type: 'ACCEPTED_AS_IS' | 'EDITED_BEFORE_SEND' | 'REJECTED' | 'NEEDS_REWRITE';
+    human_edited_text?: string;
+    final_sent_text?: string;
+    selected_reasons?: string[];
+    feedback_note?: string;
+    metadata?: Record<string, any>;
+};
+
+export const DraftFeedbackApi = {
+    record: (draftId: string, payload: DraftFeedbackPayload) =>
+        Client.post(`/drafts/${encodeURIComponent(draftId)}/feedback`, payload),
+};
+
 export const LearningReviewApi = {
     fetchDashboard: (filters: LearningReviewFilters = {}) =>
         Client.get(`/learning-review/dashboard${compactQuery(filters)}`),

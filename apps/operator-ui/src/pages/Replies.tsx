@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, DraftFeedbackApi } from '../lib/api';
 import { PaginationControls } from '../components/PaginationControls';
 
 const REJECTION_REASONS = [
@@ -30,6 +30,7 @@ export function RepliesPage() {
     const [sendError, setSendError] = useState<string | null>(null);
     const [sendSuccess, setSendSuccess] = useState<string | null>(null);
     const [sending, setSending] = useState(false);
+    const [approving, setApproving] = useState(false);
     const [rejecting, setRejecting] = useState(false);
     const [rejectReasons, setRejectReasons] = useState<string[]>([]);
     const [rejectNote, setRejectNote] = useState('');
@@ -110,10 +111,55 @@ export function RepliesPage() {
         await loadDrafts();
     }
 
+    function finalReviewText(draft: any) {
+        return String(editText || draft?.edited_text || draft?.draft_text || '').trim();
+    }
+
+    function isEditedDecision(draft: any, text: string) {
+        const originalText = String(draft?.draft_text || '').trim();
+        const savedEditedText = String(draft?.edited_text || '').trim();
+        return Boolean(savedEditedText) || text !== originalText || draft?.status === 'EDITED';
+    }
+
+    async function recordReviewDecision(draft: any, decisionAction: string, finalText: string) {
+        const edited = isEditedDecision(draft, finalText);
+        await DraftFeedbackApi.record(draft.id, {
+            feedback_type: edited ? 'EDITED_BEFORE_SEND' : 'ACCEPTED_AS_IS',
+            selected_reasons: edited ? [] : ['GOOD_REPLY'],
+            human_edited_text: edited ? finalText : undefined,
+            final_sent_text: finalText,
+            metadata: {
+                source: 'replies_ui',
+                decision_action: decisionAction,
+            },
+        });
+    }
+
     async function approveDraft() {
         if (!selectedDraft) return;
-        await api.post(`/drafts/${selectedDraft.id}/approve`, {});
-        await loadDrafts();
+        setApproving(true);
+        setSendError(null);
+        setSendSuccess(null);
+        try {
+            const finalText = finalReviewText(selectedDraft);
+            const savedText = String(selectedDraft.edited_text || selectedDraft.draft_text || '').trim();
+            let draftForDecision = selectedDraft;
+            if (finalText && finalText !== savedText && selectedDraft.status !== 'REJECTED') {
+                draftForDecision = await api.post(`/drafts/${selectedDraft.id}/edit`, { edited_text: finalText });
+            }
+            await api.post(`/drafts/${selectedDraft.id}/approve`, {});
+            await recordReviewDecision(
+                draftForDecision,
+                isEditedDecision(draftForDecision, finalText) ? 'approve_after_edit' : 'approve_as_is',
+                finalText,
+            );
+            setSendSuccess('Approval feedback recorded for Learning Review.');
+            await loadDrafts();
+        } catch (err: any) {
+            setSendError(err.message || 'Failed to approve draft.');
+        } finally {
+            setApproving(false);
+        }
     }
 
     async function rejectDraft() {
@@ -127,7 +173,7 @@ export function RepliesPage() {
         setSendError(null);
         setSendSuccess(null);
         try {
-            await api.post(`/drafts/${selectedDraft.id}/reject`, {
+            const payload = {
                 reason: rejectNote || `Rejected: ${rejectReasons.join(', ')}`,
                 selected_reasons: rejectReasons,
                 feedback_note: rejectNote || undefined,
@@ -135,7 +181,22 @@ export function RepliesPage() {
                     editText.trim() && editText.trim() !== String(selectedDraft.draft_text || '').trim()
                         ? editText
                         : undefined,
-            });
+                metadata: {
+                    source: 'replies_ui',
+                    decision_action: 'reject',
+                },
+            };
+            if (selectedDraft.status === 'REJECTED') {
+                await DraftFeedbackApi.record(selectedDraft.id, {
+                    feedback_type: 'REJECTED',
+                    selected_reasons: rejectReasons,
+                    feedback_note: rejectNote || undefined,
+                    human_edited_text: payload.human_edited_text,
+                    metadata: payload.metadata,
+                });
+            } else {
+                await api.post(`/drafts/${selectedDraft.id}/reject`, payload);
+            }
             if (selectedDraft.status === 'REJECTED') {
                 setSendSuccess('Rejection feedback recorded.');
             } else {
@@ -163,7 +224,9 @@ export function RepliesPage() {
         setSendSuccess(null);
         setSending(true);
         try {
+            const finalText = String(selectedDraft.edited_text || selectedDraft.draft_text || '').trim();
             await api.post(`/drafts/${selectedDraft.id}/send`, {});
+            await recordReviewDecision(selectedDraft, 'send_to_thread', finalText);
             setSendSuccess('Reply sent to the live thread.');
         } catch (err: any) {
             setSendError(err.message || 'Failed to send thread reply.');
@@ -392,8 +455,12 @@ export function RepliesPage() {
                                 <button onClick={saveEdit} className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">
                                     Save Edit
                                 </button>
-                                <button onClick={approveDraft} className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white">
-                                    Approve
+                                <button
+                                    onClick={approveDraft}
+                                    disabled={approving}
+                                    className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {approving ? 'Approving…' : 'Approve'}
                                 </button>
                                 <button
                                     onClick={sendDraft}
