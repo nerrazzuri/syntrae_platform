@@ -5,18 +5,38 @@ from typing import Any
 
 
 UNIVERSAL_AI_SMELL_PHRASES = [
+    "当然可以",
+    "当然啦",
+    "当然！",
+    "非常感谢你的问题",
+    "很高兴为你解答",
+    "感谢你的关心",
+    "我理解你的感受",
+    "完全理解",
     "欢迎访问",
     "探索更多",
+    "探索更多选择",
     "亲爱的用户",
     "亲爱的顾客",
     "感谢关注",
     "希望能帮助到你",
     "独特的感觉",
+    "如果你有兴趣",
+    "我们可以聊聊",
+    "帮你找到最合适的款式",
     "如有任何疑问",
     "请随时联系",
     "竭诚为您",
     "我们致力于",
     "作为一个品牌",
+    "of course!",
+    "certainly!",
+    "great question!",
+    "happy to help!",
+    "i'd be happy to",
+    "i understand your concern",
+    "thank you for reaching out",
+    "absolutely!",
     "thank you for your interest",
     "please visit our store",
     "explore more options",
@@ -125,7 +145,11 @@ def _contains_phrase(text: str, phrase: str) -> bool:
         return False
 
     if re.search(r"[a-z0-9]", normalized_phrase):
-        return re.search(rf"\b{re.escape(normalized_phrase)}\b", normalized) is not None
+        phrase_pattern = re.escape(normalized_phrase).replace(r"\ ", r"\s+")
+        return (
+            re.search(rf"(?<![a-z0-9]){phrase_pattern}(?![a-z0-9])", normalized)
+            is not None
+        )
 
     return _compact_text(normalized_phrase) in _compact_text(normalized)
 

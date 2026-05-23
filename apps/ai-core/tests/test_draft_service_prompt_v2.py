@@ -9,6 +9,7 @@ sys.path.insert(0, str(SRC))
 from ai_core.services.draft_service import (  # noqa: E402
     PROMPT_VERSION,
     DraftGenerationService,
+    temperature_for_reply_intent,
 )
 
 
@@ -107,6 +108,9 @@ def test_system_user_prompt_separation():
     assert call["system_message"] is not None
     assert "SUNGLASS" in call["system_message"]
     assert "Authenticity > salesmanship" in call["system_message"]
+    assert "不要用「当然」「非常感谢」「我理解你的感受」" in call["system_message"]
+    assert "不要每句话都完整、对称、像客服说明" in call["system_message"]
+    assert "如果不确定产品细节，不要编造" in call["system_message"]
     assert "STRICT RULES" not in call["system_message"]
 
     user_prompt = call["messages"][0]["content"]
@@ -265,6 +269,24 @@ def test_prompt_version():
 
     assert result["prompt_version"] == PROMPT_VERSION
     assert result["prompt_version"] == "v2_strategy_platform_profile"
+
+
+def test_temperature_mapping_by_reply_intent():
+    assert temperature_for_reply_intent("compliment_or_interest") == 0.82
+    assert temperature_for_reply_intent("general_interest") == 0.82
+    assert temperature_for_reply_intent("suitability_advice") == 0.78
+    assert temperature_for_reply_intent("product_question") == 0.62
+    assert temperature_for_reply_intent("purchase_request") == 0.62
+    assert temperature_for_reply_intent("complaint_or_negative") == 0.5
+    assert temperature_for_reply_intent("unknown") == 0.7
+
+
+def test_generation_uses_intent_temperature_and_rewrite_temperature_is_lower():
+    _result, fake_llm = generate(response="可以哦")
+
+    assert fake_llm.calls[0]["temperature"] == 0.78
+    assert fake_llm.calls[1]["temperature"] == 0.5
+    assert temperature_for_reply_intent("suitability_advice", is_rewrite=True) == 0.5
 
 
 def test_clean_reply_text_strips_only_outer_ascii_double_quotes():

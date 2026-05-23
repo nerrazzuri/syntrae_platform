@@ -7,6 +7,7 @@ process.env.AI_CORE_INTERNAL_SECRET = process.env.AI_CORE_INTERNAL_SECRET || 'te
 import { createApp } from '../src/index';
 import { prisma } from '../src/db';
 import {
+    buildLearningSuggestionDrafts,
     generateLearningSuggestions,
     listLearningSuggestions,
     updateLearningSuggestionStatus,
@@ -153,6 +154,28 @@ test('TOO_AI insight creates PROMPT_STYLE_REVIEW', async () => {
     assert.equal(result.suggestions[0].suggestion_type, 'PROMPT_STYLE_REVIEW');
 });
 
+test('TOO_AI message includes affected platform and strategy when available', async () => {
+    const suggestions = buildLearningSuggestionDrafts({
+        total_feedback: 18,
+        by_selected_reason: { TOO_AI: 5 },
+        top_problem_groups: {
+            by_platform_and_selected_reason: [
+                { platform: 'xiaohongshu', selected_reason: 'TOO_AI', count: 5 },
+            ],
+            by_reply_strategy_and_selected_reason: [
+                { reply_strategy: 'suitability_advice', selected_reason: 'TOO_AI', count: 5 },
+            ],
+            by_product_grounding_mode_and_selected_reason: [],
+        },
+        rejected_examples: [],
+        edited_examples: [],
+        qc_mismatch_examples: [],
+    }, { accountId: 'account-1' });
+
+    assert.match(suggestions[0].message, /5\/18 drafts were flagged TOO_AI/);
+    assert.match(suggestions[0].message, /xiaohongshu \/ suitability_advice/);
+});
+
 test('TOO_SALESY and CTA_SHOULD_NOT_BE_INCLUDED create CTA_GATING_REVIEW', async () => {
     const db = makeDb([
         ...rowsWithReason('TOO_SALESY', 2),
@@ -164,12 +187,79 @@ test('TOO_SALESY and CTA_SHOULD_NOT_BE_INCLUDED create CTA_GATING_REVIEW', async
     assert.equal(result.suggestions[0].suggestion_type, 'CTA_GATING_REVIEW');
 });
 
+test('CTA suggestion message includes affected strategy and grounding mode when available', async () => {
+    const suggestions = buildLearningSuggestionDrafts({
+        total_feedback: 12,
+        by_selected_reason: { TOO_SALESY: 2, CTA_SHOULD_NOT_BE_INCLUDED: 2 },
+        top_problem_groups: {
+            by_platform_and_selected_reason: [],
+            by_reply_strategy_and_selected_reason: [
+                { reply_strategy: 'suitability_advice', selected_reason: 'TOO_SALESY', count: 2 },
+            ],
+            by_product_grounding_mode_and_selected_reason: [
+                {
+                    product_grounding_mode: 'diagnostic_then_product_support',
+                    selected_reason: 'CTA_SHOULD_NOT_BE_INCLUDED',
+                    count: 2,
+                },
+            ],
+        },
+        rejected_examples: [],
+        edited_examples: [],
+        qc_mismatch_examples: [],
+    }, { accountId: 'account-1' });
+
+    assert.equal(suggestions[0].suggestion_type, 'CTA_GATING_REVIEW');
+    assert.match(suggestions[0].message, /4\/12 drafts were flagged TOO_SALESY\/CTA/);
+    assert.match(suggestions[0].message, /suitability_advice \/ diagnostic_then_product_support/);
+});
+
 test('WRONG_INTENT creates INTENT_MAPPING_REVIEW', async () => {
     const db = makeDb(rowsWithReason('WRONG_INTENT'));
 
     const result = await generateLearningSuggestions({ db, accountId: 'account-1', dryRun: true });
 
     assert.equal(result.suggestions[0].suggestion_type, 'INTENT_MAPPING_REVIEW');
+});
+
+test('WRONG_INTENT message includes affected reply strategy when available', async () => {
+    const suggestions = buildLearningSuggestionDrafts({
+        total_feedback: 10,
+        by_selected_reason: { WRONG_INTENT: 3 },
+        top_problem_groups: {
+            by_platform_and_selected_reason: [],
+            by_reply_strategy_and_selected_reason: [
+                { reply_strategy: 'purchase_request', selected_reason: 'WRONG_INTENT', count: 3 },
+            ],
+            by_product_grounding_mode_and_selected_reason: [],
+        },
+        rejected_examples: [],
+        edited_examples: [],
+        qc_mismatch_examples: [],
+    }, { accountId: 'account-1' });
+
+    assert.equal(suggestions[0].suggestion_type, 'INTENT_MAPPING_REVIEW');
+    assert.match(suggestions[0].message, /purchase_request/);
+});
+
+test('learning suggestion message falls back to generic wording without problem groups', async () => {
+    const suggestions = buildLearningSuggestionDrafts({
+        total_feedback: 8,
+        by_selected_reason: { TOO_AI: 3 },
+        top_problem_groups: {
+            by_platform_and_selected_reason: [],
+            by_reply_strategy_and_selected_reason: [],
+            by_product_grounding_mode_and_selected_reason: [],
+        },
+        rejected_examples: [],
+        edited_examples: [],
+        qc_mismatch_examples: [],
+    }, { accountId: 'account-1' });
+
+    assert.equal(
+        suggestions[0].message,
+        'Feedback indicates drafts are too AI-like. Review platform style profile, banned phrases, and rejected examples before changing prompts.',
+    );
 });
 
 test('PRODUCT_INFO_WRONG creates PRODUCT_GROUNDING_REVIEW', async () => {

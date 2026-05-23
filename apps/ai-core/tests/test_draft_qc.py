@@ -118,6 +118,34 @@ def test_ai_tone_alone_is_blocking():
     assert result["passed"] is False
 
 
+def test_new_chinese_ai_openers_are_caught_by_qc():
+    checker = DraftQualityChecker()
+
+    result = checker.check(
+        draft_text="当然可以，非常感谢你的问题。这个款式整体还不错。",
+        comment_text="这个适合我吗",
+        strategy=base_strategy(should_redirect=True),
+        platform_style=get_platform_style("xiaohongshu"),
+    )
+
+    assert result["passed"] is False
+    assert flag_types(result) & {"BANNED_PHRASE", "AI_TONE"}
+
+
+def test_new_english_ai_openers_are_caught_by_qc_case_insensitive():
+    checker = DraftQualityChecker()
+
+    result = checker.check(
+        draft_text="Of course! Happy to help! This one is lightweight.",
+        comment_text="What brand is this?",
+        strategy=base_strategy(should_redirect=True),
+        platform_style=get_platform_style("instagram"),
+    )
+
+    assert result["passed"] is False
+    assert flag_types(result) & {"BANNED_PHRASE", "AI_TONE"}
+
+
 def test_advisory_purchase_word_does_not_trigger_cta_violation():
     checker = DraftQualityChecker()
 

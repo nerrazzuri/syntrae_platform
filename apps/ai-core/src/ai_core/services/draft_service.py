@@ -17,6 +17,29 @@ from shared.database.models import BuyerStage, LeadOpportunity, RecommendedActio
 PROMPT_VERSION = "v2_strategy_platform_profile"
 
 
+def temperature_for_reply_intent(
+    reply_intent: str | None, is_rewrite: bool = False
+) -> float:
+    if is_rewrite:
+        return 0.5
+
+    normalized = str(reply_intent or "").strip().lower()
+    if normalized in {
+        "complaint_or_negative",
+        "safety_suitability",
+        "product_claim",
+        "unsafe_or_overclaim",
+    } or any(token in normalized for token in ("safety", "unsafe", "claim", "risk")):
+        return 0.5
+    if normalized in {"product_question", "purchase_request"}:
+        return 0.62
+    if normalized == "suitability_advice":
+        return 0.78
+    if normalized in {"compliment_or_interest", "general_interest"}:
+        return 0.82
+    return 0.7
+
+
 class DraftGenerationService:
     def __init__(
         self,
@@ -212,8 +235,12 @@ class DraftGenerationService:
 {forbidden_text}
 
 重要：
+- 不要用「当然」「非常感谢」「我理解你的感受」这类 AI/客服式开头。
+- 不要每句话都完整、对称、像客服说明；真实评论区回复可以更短、更直接。
+- 先回答用户真正问的问题，再决定要不要追问。
 - 如果回复策略 should_redirect=false，不要导购，不要叫用户进店，不要引导购买。
-- 先回答用户真实问题，再考虑是否需要轻微引导。
+- 如果不确定产品细节，不要编造，宁愿跳过。
+- 不要暗示亲身使用体验，除非品牌资料明确支持。
 - 直接输出回复文本，不要解释。"""
 
     def _build_user_prompt(
@@ -494,7 +521,7 @@ Requirements:
         try:
             response_text = self.llm_client.chat_completion(
                 messages=[{"role": "user", "content": user_prompt}],
-                temperature=0.7,
+                temperature=temperature_for_reply_intent(strategy.get("reply_intent")),
                 system_message=system_prompt,
             )
 
@@ -519,7 +546,9 @@ Requirements:
                 )
                 rewrite_response_text = self.llm_client.chat_completion(
                     messages=[{"role": "user", "content": rewrite_prompt}],
-                    temperature=0.5,
+                    temperature=temperature_for_reply_intent(
+                        strategy.get("reply_intent"), is_rewrite=True
+                    ),
                     system_message=system_prompt,
                 )
                 rewritten_text = self._clean_reply_text(rewrite_response_text)

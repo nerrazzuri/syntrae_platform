@@ -154,6 +154,48 @@ function topGroups(groups: any[] = [], reason: string, limit = 5) {
         .slice(0, limit);
 }
 
+function topGroupForReasons(groups: any[] = [], reasons: string[]) {
+    for (const reason of reasons) {
+        const group = topGroups(groups, reason, 1)[0];
+        if (group) return group;
+    }
+    return null;
+}
+
+function problemFocus(
+    insights: any,
+    reasons: string[],
+    fields: Array<'platform' | 'reply_strategy' | 'product_grounding_mode'>,
+) {
+    const values = fields
+        .map((field) => {
+            if (field === 'platform') {
+                return cleanString(
+                    topGroupForReasons(
+                        insights.top_problem_groups?.by_platform_and_selected_reason,
+                        reasons,
+                    )?.platform,
+                );
+            }
+            if (field === 'reply_strategy') {
+                return cleanString(
+                    topGroupForReasons(
+                        insights.top_problem_groups?.by_reply_strategy_and_selected_reason,
+                        reasons,
+                    )?.reply_strategy,
+                );
+            }
+            return cleanString(
+                topGroupForReasons(
+                    insights.top_problem_groups?.by_product_grounding_mode_and_selected_reason,
+                    reasons,
+                )?.product_grounding_mode,
+            );
+        })
+        .filter(Boolean);
+    return values.length ? values.join(' / ') : null;
+}
+
 function baseSourceInsight(insights: any) {
     return {
         total_feedback: insights.total_feedback,
@@ -240,6 +282,8 @@ export function buildLearningSuggestionDrafts(
     const suggestions: SuggestionDraft[] = [];
 
     if (highCount(count(insights, 'TOO_AI'), total)) {
+        const tooAiCount = count(insights, 'TOO_AI');
+        const focus = problemFocus(insights, ['TOO_AI'], ['platform', 'reply_strategy']);
         suggestions.push(makeSuggestion({
             accountId,
             brandId,
@@ -247,10 +291,12 @@ export function buildLearningSuggestionDrafts(
             suggestionType: 'PROMPT_STYLE_REVIEW',
             severity: 'HIGH',
             title: 'Review platform style guidance',
-            message: 'Feedback indicates drafts are too AI-like. Review platform style profile, banned phrases, and rejected examples before changing prompts.',
+            message: focus
+                ? `${tooAiCount}/${total} drafts were flagged TOO_AI, especially on ${focus}. Review platform style profile, banned phrases, and rejected examples before changing prompts.`
+                : 'Feedback indicates drafts are too AI-like. Review platform style profile, banned phrases, and rejected examples before changing prompts.',
             evidence: {
                 selected_reason: 'TOO_AI',
-                too_ai_count: count(insights, 'TOO_AI'),
+                too_ai_count: tooAiCount,
                 total_feedback: total,
                 related_problem_groups: topGroups(
                     insights.top_problem_groups?.by_platform_and_selected_reason,
@@ -273,6 +319,11 @@ export function buildLearningSuggestionDrafts(
         count(insights, 'TOO_SALESY') +
         count(insights, 'CTA_SHOULD_NOT_BE_INCLUDED');
     if (highCount(salesyCount, total)) {
+        const focus = problemFocus(
+            insights,
+            ['TOO_SALESY', 'CTA_SHOULD_NOT_BE_INCLUDED'],
+            ['reply_strategy', 'product_grounding_mode'],
+        );
         suggestions.push(makeSuggestion({
             accountId,
             brandId,
@@ -280,7 +331,9 @@ export function buildLearningSuggestionDrafts(
             suggestionType: 'CTA_GATING_REVIEW',
             severity: 'HIGH',
             title: 'Review CTA gating behavior',
-            message: 'Feedback indicates replies are too salesy or include CTA language when reviewers do not want it.',
+            message: focus
+                ? `${salesyCount}/${total} drafts were flagged TOO_SALESY/CTA, especially on ${focus}. Review CTA gating and should_redirect behavior.`
+                : 'Feedback indicates replies are too salesy or include CTA language when reviewers do not want it.',
             evidence: {
                 selected_reason: 'TOO_SALESY',
                 too_salesy_count: count(insights, 'TOO_SALESY'),
@@ -310,6 +363,8 @@ export function buildLearningSuggestionDrafts(
     }
 
     if (highCount(count(insights, 'WRONG_INTENT'), total)) {
+        const wrongIntentCount = count(insights, 'WRONG_INTENT');
+        const focus = problemFocus(insights, ['WRONG_INTENT'], ['reply_strategy']);
         suggestions.push(makeSuggestion({
             accountId,
             brandId,
@@ -317,10 +372,12 @@ export function buildLearningSuggestionDrafts(
             suggestionType: 'INTENT_MAPPING_REVIEW',
             severity: 'MEDIUM',
             title: 'Review intent mapping',
-            message: 'Feedback indicates wrong intent or strategy selection. Review fallback intent buckets and SignalInference mapping.',
+            message: focus
+                ? `${wrongIntentCount}/${total} drafts were flagged WRONG_INTENT, especially on ${focus}. Review fallback intent buckets and SignalInference mapping.`
+                : 'Feedback indicates wrong intent or strategy selection. Review fallback intent buckets and SignalInference mapping.',
             evidence: {
                 selected_reason: 'WRONG_INTENT',
-                wrong_intent_count: count(insights, 'WRONG_INTENT'),
+                wrong_intent_count: wrongIntentCount,
                 affected_reply_strategies: topGroups(
                     insights.top_problem_groups?.by_reply_strategy_and_selected_reason,
                     'WRONG_INTENT',
