@@ -458,19 +458,47 @@ export function buildLearningSuggestionDrafts(
     return suggestions;
 }
 
-async function hasOpenDuplicate(db: DbLike, suggestion: SuggestionDraft) {
+function duplicateSearchWhere(suggestion: SuggestionDraft) {
+    return {
+        account_id: suggestion.account_id,
+        suggestion_type: suggestion.suggestion_type,
+        ...(suggestion.brand_id ? { brand_id: suggestion.brand_id } : {}),
+        ...(suggestion.platform ? { platform: suggestion.platform } : {}),
+    };
+}
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function metadataRefreshCount(metadata: unknown): number {
+    if (!isPlainObject(metadata)) return 0;
+    const count = Number(metadata.refresh_count || 0);
+    return Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
+}
+
+function refreshedMetadata(existing: any, suggestion: SuggestionDraft) {
+    const existingMetadata = isPlainObject(existing?.metadata) ? existing.metadata : {};
+    const signature = suggestion.metadata.evidence_signature;
+    return {
+        ...existingMetadata,
+        evidence_signature: signature,
+        updated_evidence_signature: signature,
+        refreshed_at: new Date().toISOString(),
+        refresh_count: metadataRefreshCount(existingMetadata) + 1,
+        last_refresh_reason: 'duplicate_open_suggestion_evidence_refresh',
+    };
+}
+
+async function findDuplicateSuggestion(db: DbLike, suggestion: SuggestionDraft) {
     const candidates = await db.learningSuggestion.findMany({
-        where: {
-            account_id: suggestion.account_id,
-            suggestion_type: suggestion.suggestion_type,
-            status: 'OPEN',
-            ...(suggestion.brand_id ? { brand_id: suggestion.brand_id } : {}),
-            ...(suggestion.platform ? { platform: suggestion.platform } : {}),
-        },
+        where: duplicateSearchWhere(suggestion),
     });
     const signature = suggestion.metadata.evidence_signature;
-    return candidates.some(
-        (candidate: any) => candidate?.metadata?.evidence_signature === signature,
+    return candidates.find(
+        (candidate: any) =>
+            candidate?.metadata?.evidence_signature === signature ||
+            candidate?.metadata?.updated_evidence_signature === signature,
     );
 }
 
@@ -498,15 +526,35 @@ export async function generateLearningSuggestions(input: GenerateLearningSuggest
             insights,
             suggestions,
             persisted_count: 0,
+            refreshed_count: 0,
             skipped_duplicate_count: 0,
         };
     }
 
     const persisted: any[] = [];
+    const refreshed: any[] = [];
     let skippedDuplicateCount = 0;
 
     for (const suggestion of suggestions) {
-        if (await hasOpenDuplicate(db, suggestion)) {
+        const duplicate = await findDuplicateSuggestion(db, suggestion);
+        if (duplicate?.status === 'OPEN') {
+            const updated = await db.learningSuggestion.update({
+                where: { id: duplicate.id },
+                data: {
+                    severity: suggestion.severity,
+                    title: suggestion.title,
+                    message: suggestion.message,
+                    evidence: suggestion.evidence,
+                    proposed_action: suggestion.proposed_action,
+                    source_insight: suggestion.source_insight,
+                    source_feedback_ids: suggestion.source_feedback_ids,
+                    metadata: refreshedMetadata(duplicate, suggestion),
+                },
+            });
+            refreshed.push(updated);
+            continue;
+        }
+        if (duplicate) {
             skippedDuplicateCount += 1;
             continue;
         }
@@ -516,8 +564,9 @@ export async function generateLearningSuggestions(input: GenerateLearningSuggest
 
     return {
         insights,
-        suggestions: persisted,
+        suggestions: [...persisted, ...refreshed],
         persisted_count: persisted.length,
+        refreshed_count: refreshed.length,
         skipped_duplicate_count: skippedDuplicateCount,
     };
 }
