@@ -588,3 +588,181 @@ test('internal route status update works', async (t) => {
     assert.equal(res.body.suggestion.status, 'ACCEPTED');
     assert.equal(res.body.suggestion.reviewed_by, 'user-1');
 });
+
+// --- P9.6-D: GENERIC_REPLY_REVIEW ---
+
+test('TOO_GENERIC high creates GENERIC_REPLY_REVIEW', async () => {
+    const db = makeDb(rowsWithReason('TOO_GENERIC'));
+
+    const result = await generateLearningSuggestions({ db, accountId: 'account-1', dryRun: true });
+
+    assert.ok(result.suggestions.some((s: any) => s.suggestion_type === 'GENERIC_REPLY_REVIEW'));
+});
+
+test('GENERIC_REPLY_REVIEW message includes count and total', async () => {
+    const db = makeDb(rowsWithReason('TOO_GENERIC', 5));
+
+    const result = await generateLearningSuggestions({ db, accountId: 'account-1', dryRun: true });
+
+    const s = result.suggestions.find((s: any) => s.suggestion_type === 'GENERIC_REPLY_REVIEW');
+    assert.ok(s, 'GENERIC_REPLY_REVIEW suggestion not found');
+    assert.match(s.message, /5/);
+    assert.match(s.message, /5/);
+});
+
+test('GENERIC_REPLY_REVIEW proposed_action mentions reducing generic reusable advice', async () => {
+    const s = await suggestionDraftFor(rowsWithReason('TOO_GENERIC'));
+
+    const actions: string[] = s.proposed_action.actions;
+    assert.ok(
+        actions.some((a) => /generic/i.test(a) && /reusable/i.test(a)),
+        `No action about reducing generic reusable advice. Got: ${JSON.stringify(actions)}`,
+    );
+});
+
+test('GENERIC_REPLY_REVIEW severity is HIGH when count/total >= 0.4', async () => {
+    // 3/3 = 100% >= 40%
+    const s = await suggestionDraftFor(rowsWithReason('TOO_GENERIC', 3));
+
+    assert.equal(s.suggestion_type, 'GENERIC_REPLY_REVIEW');
+    assert.equal(s.severity, 'HIGH');
+});
+
+test('GENERIC_REPLY_REVIEW severity is MEDIUM when count/total < 0.4 and count < 10', async () => {
+    // 3 TOO_GENERIC out of 13 total: 3/13 ≈ 23% < 40%, 3 < 10 → MEDIUM
+    const rows = [
+        ...rowsWithReason('TOO_GENERIC', 3),
+        ...rowsWithReason('GOOD_REPLY', 10),
+    ];
+    const db = makeDb(rows);
+    const result = await generateLearningSuggestions({ db, accountId: 'account-1', dryRun: true });
+
+    const s = result.suggestions.find((s: any) => s.suggestion_type === 'GENERIC_REPLY_REVIEW');
+    assert.ok(s, 'GENERIC_REPLY_REVIEW suggestion not found');
+    assert.equal(s.severity, 'MEDIUM');
+});
+
+test('GENERIC_REPLY_REVIEW deduplicates by evidence signature', async () => {
+    const draft = await suggestionDraftFor(rowsWithReason('TOO_GENERIC'));
+    const db = makeDb(rowsWithReason('TOO_GENERIC'), [duplicateSuggestionFrom(draft)]);
+
+    const result = await generateLearningSuggestions({ db, accountId: 'account-1', dryRun: false });
+
+    assert.equal(result.persisted_count, 0);
+    assert.equal(result.refreshed_count, 1);
+    assert.equal(db.learningSuggestion.rows.length, 1);
+});
+
+test('duplicate OPEN GENERIC_REPLY_REVIEW refreshes with updated evidence', async () => {
+    const draft = await suggestionDraftFor(rowsWithReason('TOO_GENERIC', 3));
+    const db = makeDb(rowsWithReason('TOO_GENERIC', 6), [
+        duplicateSuggestionFrom(draft, {
+            evidence: { selected_reason: 'TOO_GENERIC', too_generic_count: 1 },
+            message: 'old generic message',
+        }),
+    ]);
+
+    const result = await generateLearningSuggestions({ db, accountId: 'account-1', dryRun: false });
+
+    assert.equal(result.refreshed_count, 1);
+    assert.equal(result.suggestions[0].evidence.too_generic_count, 6);
+    assert.notEqual(result.suggestions[0].message, 'old generic message');
+    assert.match(result.suggestions[0].message, /6/);
+});
+
+test('non-OPEN GENERIC_REPLY_REVIEW duplicate is skipped', async () => {
+    const draft = await suggestionDraftFor(rowsWithReason('TOO_GENERIC'));
+    const db = makeDb(rowsWithReason('TOO_GENERIC', 4), [
+        duplicateSuggestionFrom(draft, { status: 'ACCEPTED' }),
+    ]);
+
+    const result = await generateLearningSuggestions({ db, accountId: 'account-1', dryRun: false });
+
+    assert.equal(result.persisted_count, 0);
+    assert.equal(result.refreshed_count, 0);
+    assert.equal(result.skipped_duplicate_count, 1);
+    assert.equal(db.learningSuggestion.rows[0].status, 'ACCEPTED');
+});
+
+// --- P9.6-D: MISSED_USER_QUESTION_REVIEW ---
+
+test('MISSED_USER_QUESTION high creates MISSED_USER_QUESTION_REVIEW', async () => {
+    const db = makeDb(rowsWithReason('MISSED_USER_QUESTION'));
+
+    const result = await generateLearningSuggestions({ db, accountId: 'account-1', dryRun: true });
+
+    assert.ok(result.suggestions.some((s: any) => s.suggestion_type === 'MISSED_USER_QUESTION_REVIEW'));
+});
+
+test('MISSED_USER_QUESTION_REVIEW message includes count and total', async () => {
+    const db = makeDb(rowsWithReason('MISSED_USER_QUESTION', 5));
+
+    const result = await generateLearningSuggestions({ db, accountId: 'account-1', dryRun: true });
+
+    const s = result.suggestions.find((s: any) => s.suggestion_type === 'MISSED_USER_QUESTION_REVIEW');
+    assert.ok(s, 'MISSED_USER_QUESTION_REVIEW suggestion not found');
+    assert.match(s.message, /5/);
+});
+
+test('MISSED_USER_QUESTION_REVIEW proposed_action mentions answering exact user question first', async () => {
+    const s = await suggestionDraftFor(rowsWithReason('MISSED_USER_QUESTION'));
+
+    const actions: string[] = s.proposed_action.actions;
+    assert.ok(
+        actions.some((a) => /exact/i.test(a) || /direct/i.test(a) || /answer/i.test(a)),
+        `No action about answering exact user question. Got: ${JSON.stringify(actions)}`,
+    );
+});
+
+test('MISSED_USER_QUESTION_REVIEW severity is HIGH when count/total >= 0.25', async () => {
+    // 3/3 = 100% >= 25%
+    const s = await suggestionDraftFor(rowsWithReason('MISSED_USER_QUESTION', 3));
+
+    assert.equal(s.suggestion_type, 'MISSED_USER_QUESTION_REVIEW');
+    assert.equal(s.severity, 'HIGH');
+});
+
+test('MISSED_USER_QUESTION_REVIEW severity is MEDIUM when count/total < 0.25 and count < 10', async () => {
+    // 3 MISSED out of 13 total: 3/13 ≈ 23% < 25%, 3 < 10 → MEDIUM
+    const rows = [
+        ...rowsWithReason('MISSED_USER_QUESTION', 3),
+        ...rowsWithReason('GOOD_REPLY', 10),
+    ];
+    const db = makeDb(rows);
+    const result = await generateLearningSuggestions({ db, accountId: 'account-1', dryRun: true });
+
+    const s = result.suggestions.find((s: any) => s.suggestion_type === 'MISSED_USER_QUESTION_REVIEW');
+    assert.ok(s, 'MISSED_USER_QUESTION_REVIEW suggestion not found');
+    assert.equal(s.severity, 'MEDIUM');
+});
+
+test('duplicate OPEN MISSED_USER_QUESTION_REVIEW refreshes with updated evidence', async () => {
+    const draft = await suggestionDraftFor(rowsWithReason('MISSED_USER_QUESTION', 3));
+    const db = makeDb(rowsWithReason('MISSED_USER_QUESTION', 6), [
+        duplicateSuggestionFrom(draft, {
+            evidence: { selected_reason: 'MISSED_USER_QUESTION', missed_user_question_count: 1 },
+            message: 'old missed question message',
+        }),
+    ]);
+
+    const result = await generateLearningSuggestions({ db, accountId: 'account-1', dryRun: false });
+
+    assert.equal(result.refreshed_count, 1);
+    assert.equal(result.suggestions[0].evidence.missed_user_question_count, 6);
+    assert.notEqual(result.suggestions[0].message, 'old missed question message');
+    assert.match(result.suggestions[0].message, /6/);
+});
+
+test('non-OPEN MISSED_USER_QUESTION_REVIEW duplicate is skipped', async () => {
+    const draft = await suggestionDraftFor(rowsWithReason('MISSED_USER_QUESTION'));
+    const db = makeDb(rowsWithReason('MISSED_USER_QUESTION', 4), [
+        duplicateSuggestionFrom(draft, { status: 'REJECTED' }),
+    ]);
+
+    const result = await generateLearningSuggestions({ db, accountId: 'account-1', dryRun: false });
+
+    assert.equal(result.persisted_count, 0);
+    assert.equal(result.refreshed_count, 0);
+    assert.equal(result.skipped_duplicate_count, 1);
+    assert.equal(db.learningSuggestion.rows[0].status, 'REJECTED');
+});

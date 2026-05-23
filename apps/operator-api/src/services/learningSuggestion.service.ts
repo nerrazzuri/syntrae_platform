@@ -12,6 +12,8 @@ const SUGGESTION_TYPES = new Set([
     'DRAFT_QC_RULE_REVIEW',
     'FOLLOW_UP_PROMPT_REVIEW',
     'BRAND_PROFILE_REVIEW',
+    'GENERIC_REPLY_REVIEW',
+    'MISSED_USER_QUESTION_REVIEW',
     'OTHER',
 ]);
 
@@ -448,6 +450,92 @@ export function buildLearningSuggestionDrafts(
                     'update brand_reply_profile',
                     'add brand tone examples',
                     'review owner settings',
+                ],
+            },
+            sourceInsight,
+            sourceFeedbackIds: sourceIds,
+        }));
+    }
+
+    const tooGenericCount = count(insights, 'TOO_GENERIC');
+    if (highCount(tooGenericCount, total)) {
+        const platformStr = platform ? ` on ${platform}` : '';
+        const severity =
+            tooGenericCount >= 10 || (total > 0 && tooGenericCount / total >= 0.4)
+                ? 'HIGH'
+                : 'MEDIUM';
+        suggestions.push(makeSuggestion({
+            accountId,
+            brandId,
+            platform,
+            suggestionType: 'GENERIC_REPLY_REVIEW',
+            severity,
+            title: 'Replies are too generic',
+            message: `${tooGenericCount}/${total} drafts were flagged TOO_GENERIC${platformStr}. Replies may be overusing reusable advice instead of answering the specific comment.`,
+            evidence: {
+                selected_reason: 'TOO_GENERIC',
+                too_generic_count: tooGenericCount,
+                total_feedback: total,
+                selected_reasons: insights.by_selected_reason,
+                affected_strategies: topGroups(
+                    insights.top_problem_groups?.by_reply_strategy_and_selected_reason,
+                    'TOO_GENERIC',
+                ),
+                top_problem_groups: topGroups(
+                    insights.top_problem_groups?.by_platform_and_selected_reason,
+                    'TOO_GENERIC',
+                ),
+            },
+            proposedAction: {
+                actions: [
+                    'Review prompt instructions for answer-specific replies',
+                    'Reduce generic reusable advice',
+                    'Add regression tests for simple brand/link/price/color questions',
+                    'Avoid injecting face-shape or styling advice unless the user asks suitability',
+                ],
+            },
+            sourceInsight,
+            sourceFeedbackIds: sourceIds,
+        }));
+    }
+
+    const missedQuestionCount = count(insights, 'MISSED_USER_QUESTION');
+    if (highCount(missedQuestionCount, total)) {
+        const platformStr = platform ? ` on ${platform}` : '';
+        const severity =
+            missedQuestionCount >= 10 || (total > 0 && missedQuestionCount / total >= 0.25)
+                ? 'HIGH'
+                : 'MEDIUM';
+        suggestions.push(makeSuggestion({
+            accountId,
+            brandId,
+            platform,
+            suggestionType: 'MISSED_USER_QUESTION_REVIEW',
+            severity,
+            title: "Replies are missing the user's exact question",
+            message: `${missedQuestionCount}/${total} drafts were flagged MISSED_USER_QUESTION${platformStr}. The model should answer the exact user question first before adding styling or product advice.`,
+            evidence: {
+                selected_reason: 'MISSED_USER_QUESTION',
+                missed_user_question_count: missedQuestionCount,
+                total_feedback: total,
+                selected_reasons: insights.by_selected_reason,
+                affected_strategies: topGroups(
+                    insights.top_problem_groups?.by_reply_strategy_and_selected_reason,
+                    'MISSED_USER_QUESTION',
+                ),
+                top_problem_groups: topGroups(
+                    insights.top_problem_groups?.by_platform_and_selected_reason,
+                    'MISSED_USER_QUESTION',
+                ),
+            },
+            proposedAction: {
+                actions: [
+                    'Add intent-specific answer discipline',
+                    'Brand questions should answer brand directly',
+                    'Price questions should answer price or where price is shown',
+                    'Link questions should answer where the link is',
+                    'Color/stock/shipping questions should answer that exact product detail',
+                    'Suitability advice should not be injected into unrelated intents',
                 ],
             },
             sourceInsight,
