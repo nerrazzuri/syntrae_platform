@@ -238,6 +238,49 @@ function planTemplateForSuggestion(suggestion: any): PlanTemplate {
             ],
             blockedAutoApplyReason: 'Brand voice updates require brand owner review.',
         },
+        GENERIC_REPLY_REVIEW: {
+            targetArea: 'ai_core_prompt_style',
+            proposedChangeType: 'answer_specificity_review',
+            riskLevel: 'medium',
+            summary: `Review answer specificity in reply prompts${scope}`,
+            rationale: 'High TOO_GENERIC rate indicates prompts are producing reusable advice instead of answering specific user comments. This plan previews review work only.',
+            proposedConfigChange: {
+                candidate_changes: [
+                    'Review prompt instructions for answer-specific replies',
+                    'Reduce generic reusable advice in prompt templates',
+                    'Add regression tests for simple brand/link/price/color questions',
+                    'Avoid injecting face-shape or styling advice unless user asks suitability',
+                ],
+            },
+            suggestedTests: [
+                'Brand question should answer brand name directly',
+                'Price question should answer price or where to find it',
+                'Link question should answer where the link is',
+                'Color/stock question should answer that specific detail',
+            ],
+            blockedAutoApplyReason: 'Prompt behavior changes require human approval and regression tests.',
+        },
+        MISSED_USER_QUESTION_REVIEW: {
+            targetArea: 'reply_strategy_adapter',
+            proposedChangeType: 'intent_answer_discipline_review',
+            riskLevel: 'high',
+            summary: `Review intent-answer discipline in reply strategy${scope}`,
+            rationale: 'High MISSED_USER_QUESTION rate indicates replies are not answering the exact user comment first. This plan prevents automatic strategy changes.',
+            proposedConfigChange: {
+                candidate_changes: [
+                    'Add intent-specific answer discipline',
+                    'Ensure brand/price/link/color questions are answered directly before any advice',
+                    'Ensure suitability advice is not injected into unrelated intents',
+                ],
+            },
+            suggestedTests: [
+                'Purchase intent: answer with price/link before any soft CTA',
+                'Product question: answer the exact product detail first',
+                'Suitability advice should not appear on purchase_request intent',
+                'Comparison request should compare directly without pivoting to suitability',
+            ],
+            blockedAutoApplyReason: 'Intent-answer behavior affects many reply types and requires human review.',
+        },
         OTHER: {
             targetArea: 'manual_review',
             proposedChangeType: 'manual_review',

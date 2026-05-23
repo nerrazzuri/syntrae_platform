@@ -399,3 +399,33 @@ test('does not mark LearningSuggestion as APPLIED', async () => {
 
     assert.equal(db.learningSuggestion.rows[0].status, 'ACCEPTED');
 });
+
+// --- P9.6-D: apply plan templates for new suggestion types ---
+
+test('generates plan for GENERIC_REPLY_REVIEW', async () => {
+    const result = await generateForType('GENERIC_REPLY_REVIEW');
+    assert.equal(result.plan.target_area, 'ai_core_prompt_style');
+    assert.equal(result.plan.proposed_change_type, 'answer_specificity_review');
+    assert.equal(result.plan.risk_level, 'medium');
+    assert.match(result.plan.blocked_auto_apply_reason, /Prompt behavior/);
+    assert.ok(
+        result.plan.proposed_config_change.candidate_changes.some(
+            (c: string) => /generic/i.test(c) || /specific/i.test(c),
+        ),
+        'candidate_changes should mention answer specificity',
+    );
+});
+
+test('generates plan for MISSED_USER_QUESTION_REVIEW', async () => {
+    const result = await generateForType('MISSED_USER_QUESTION_REVIEW');
+    assert.equal(result.plan.target_area, 'reply_strategy_adapter');
+    assert.equal(result.plan.proposed_change_type, 'intent_answer_discipline_review');
+    assert.equal(result.plan.risk_level, 'high');
+    assert.match(result.plan.blocked_auto_apply_reason, /human review/i);
+    assert.ok(
+        result.plan.proposed_config_change.candidate_changes.some(
+            (c: string) => /answer/i.test(c) || /discipline/i.test(c) || /direct/i.test(c),
+        ),
+        'candidate_changes should mention intent-answer discipline',
+    );
+});
