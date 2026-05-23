@@ -181,6 +181,7 @@ function emptyInsights() {
             by_product_grounding_mode_and_selected_reason: [],
             by_platform_and_selected_reason: [],
         },
+        feedback_examples: [],
         rejected_examples: [],
         edited_examples: [],
         qc_mismatch_examples: [],
@@ -294,6 +295,9 @@ export async function getDraftFeedbackInsights(input: DraftFeedbackInsightInput 
         by_platform_and_selected_reason: sortedGroups(platformReasonGroups),
     };
 
+    insights.feedback_examples = rows
+        .slice(0, limitExamples)
+        .map(exampleRow);
     insights.rejected_examples = rows
         .filter(isRejected)
         .slice(0, limitExamples)

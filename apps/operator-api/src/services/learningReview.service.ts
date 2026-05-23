@@ -96,7 +96,10 @@ function sourceFeedbackIds(suggestion: any): string[] {
 function feedbackExample(row: any) {
     return {
         id: row.id,
+        lead_id: row.lead_id,
         outreach_draft_id: row.outreach_draft_id,
+        source_comment_id: row.source_comment_id,
+        source_comment_text: truncateText(row.source_comment_text),
         feedback_type: row.feedback_type,
         selected_reasons: selectedReasons(row),
         original_draft_text: truncateText(row.original_draft_text),
@@ -106,6 +109,15 @@ function feedbackExample(row: any) {
         product_grounding_mode: row.product_grounding_mode,
         created_at: row.created_at,
     };
+}
+
+function feedbackRecord(row: any, leadContext: Map<string, any>) {
+    const context = row.lead_id ? leadContext.get(row.lead_id) : null;
+    return feedbackExample({
+        ...row,
+        source_comment_id: context?.source_comment_id,
+        source_comment_text: context?.source_comment_text,
+    });
 }
 
 function riskLevelFor(suggestion: any, plan: any | null): 'low' | 'medium' | 'high' {
@@ -258,6 +270,59 @@ async function loadFeedbackExamplesForSuggestions(
     return result;
 }
 
+async function loadLeadContextForFeedback(db: DbLike, rows: any[]) {
+    if (!db.leadOpportunity?.findMany || !db.engagementEvent?.findMany) {
+        return new Map<string, any>();
+    }
+
+    const leadIds = Array.from(new Set(
+        rows
+            .map((row) => cleanString(row.lead_id))
+            .filter(Boolean) as string[],
+    ));
+    if (!leadIds.length) return new Map<string, any>();
+
+    const leads = await db.leadOpportunity.findMany({
+        where: { id: { in: leadIds } },
+    });
+    const eventIds = Array.from(new Set(
+        leads
+            .map((lead: any) => cleanString(lead.source_event_id))
+            .filter(Boolean) as string[],
+    ));
+    const events = eventIds.length
+        ? await db.engagementEvent.findMany({
+            where: { id: { in: eventIds } },
+        })
+        : [];
+    const eventsById = new Map(events.map((event: any) => [event.id, event]));
+    const context = new Map<string, any>();
+    for (const lead of leads) {
+        const event = eventsById.get(lead.source_event_id) as any;
+        context.set(lead.id, {
+            source_comment_id: lead.comment_id || event?.comment_id || null,
+            source_comment_text: event?.content_text || null,
+        });
+    }
+    return context;
+}
+
+async function loadFeedbackRecords(db: DbLike, input: LearningReviewDashboardInput, accountId: string) {
+    const where: Record<string, any> = { account_id: accountId };
+    const brandId = cleanString(input.brandId);
+    const platform = cleanString(input.platform);
+    if (brandId) where.brand_id = brandId;
+    if (platform) where.platform = platform;
+
+    const rows = await db.draftFeedback.findMany({
+        where,
+        orderBy: { created_at: 'desc' },
+        take: clampLimit(input.limit),
+    });
+    const leadContext = await loadLeadContextForFeedback(db, rows);
+    return rows.map((row: any) => feedbackRecord(row, leadContext));
+}
+
 function examplesForSuggestion(suggestion: any, feedbackById: Map<string, any>) {
     return sourceFeedbackIds(suggestion)
         .map((id) => feedbackById.get(id))
@@ -287,7 +352,9 @@ export async function getLearningReviewDashboard(input: LearningReviewDashboardI
         accountId,
         brandId: input.brandId,
         platform: input.platform,
+        limitExamples: input.limit,
     });
+    const feedbackRecords = await loadFeedbackRecords(db, input, accountId);
     const suggestions = await loadSuggestions(db, input, accountId);
     const suggestionIds = suggestions.map((suggestion: any) => suggestion.id);
     const plans = await loadPlansForSuggestions(
@@ -317,6 +384,7 @@ export async function getLearningReviewDashboard(input: LearningReviewDashboardI
     return {
         summary,
         feedback_insights: feedbackInsights,
+        feedback_records: feedbackRecords,
         review_queue: reviewQueue,
     };
 }

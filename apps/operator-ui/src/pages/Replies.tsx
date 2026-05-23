@@ -459,13 +459,19 @@ export function RepliesPage() {
                                     onClick={approveDraft}
                                     disabled={approving}
                                     className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                                    title={isEditedDecision(selectedDraft, editText) ? 'Will record as EDITED_BEFORE_SEND' : 'Will record as ACCEPTED_AS_IS'}
                                 >
-                                    {approving ? 'Approving…' : 'Approve'}
+                                    {approving
+                                        ? 'Approving…'
+                                        : isEditedDecision(selectedDraft, editText)
+                                            ? 'Approve (edited)'
+                                            : 'Approve (as-is)'}
                                 </button>
                                 <button
                                     onClick={sendDraft}
                                     disabled={sending}
                                     className="rounded-2xl border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-semibold text-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                    title={isEditedDecision(selectedDraft, editText) ? 'Will record as EDITED_BEFORE_SEND' : 'Will record as ACCEPTED_AS_IS'}
                                 >
                                     {sending ? 'Sending…' : 'Send to Thread'}
                                 </button>

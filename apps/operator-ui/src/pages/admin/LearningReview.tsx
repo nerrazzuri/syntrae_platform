@@ -116,7 +116,7 @@ function InsightPhraseList({ title, items }: { title: string; items: any[] }) {
 }
 
 export function LearningReviewPage() {
-    const [filters, setFilters] = useState<LearningReviewFilters>({ limit: 50 });
+    const [filters, setFilters] = useState<LearningReviewFilters>({ limit: 200 });
     const [dashboard, setDashboard] = useState<any>(null);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [detail, setDetail] = useState<any>(null);
@@ -138,6 +138,8 @@ export function LearningReviewPage() {
 
     const queue = dashboard?.review_queue || [];
     const summary = dashboard?.summary || {};
+    const feedbackInsights = dashboard?.feedback_insights || {};
+    const feedbackRecords = dashboard?.feedback_records || [];
     const selectedItem = useMemo(
         () => queue.find((item: any) => item.suggestion?.id === selectedId) || null,
         [queue, selectedId],
@@ -346,6 +348,22 @@ export function LearningReviewPage() {
                 ))}
             </section>
 
+            <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+                {[
+                    ['Total feedback', feedbackInsights.total_feedback ?? 0],
+                    ['Shown records', feedbackRecords.length],
+                    ['Accepted as-is', feedbackInsights.accepted_as_is_count ?? 0],
+                    ['Edited', feedbackInsights.edited_count ?? 0],
+                    ['Rejected', feedbackInsights.rejected_count ?? 0],
+                    ['Too AI', feedbackInsights.too_ai_count ?? 0],
+                ].map(([label, value]) => (
+                    <div key={String(label)} className="metric-panel">
+                        <div className="text-sm font-semibold text-slate-500">{label}</div>
+                        <div className="mt-2 text-3xl font-bold text-slate-900">{value}</div>
+                    </div>
+                ))}
+            </section>
+
             <section className="panel p-5">
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                     <label className="space-y-2 text-sm font-semibold text-slate-600">
@@ -402,6 +420,73 @@ export function LearningReviewPage() {
                             ))}
                         </select>
                     </label>
+                </div>
+            </section>
+
+            <section className="panel p-5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                        <div className="hero-kicker">Feedback Records</div>
+                        <h2 className="mt-2 text-xl font-bold text-slate-900">Reviewed comments and replies</h2>
+                        <p className="mt-2 max-w-3xl text-sm font-medium text-slate-600">
+                            These are the raw DraftFeedback records behind the learning insights. The generated reply is the AI output; human edit and final sent text show the reviewed answer.
+                        </p>
+                    </div>
+                    <Pill value={`Showing ${feedbackRecords.length} / ${feedbackInsights.total_feedback ?? 0}`} />
+                </div>
+
+                <div className="table-shell mt-5 max-h-[680px] overflow-auto">
+                    <table className="min-w-[1120px]">
+                        <thead className="table-head sticky top-0 z-10 border-b border-slate-200">
+                            <tr>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Comment</th>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Generated reply</th>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Review output</th>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Reasons</th>
+                                <th className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Draft</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {feedbackRecords.map((record: any) => (
+                                <tr key={record.id} className="table-row border-b border-slate-100 align-top">
+                                    <td className="w-[220px] px-4 py-4 text-sm font-semibold text-slate-900">
+                                        {shortText(record.source_comment_text, 220)}
+                                        {record.source_comment_id && (
+                                            <div className="mt-2 text-xs font-medium text-slate-400">{record.source_comment_id}</div>
+                                        )}
+                                    </td>
+                                    <td className="w-[280px] px-4 py-4 text-sm text-slate-700">
+                                        {shortText(record.original_draft_text, 320)}
+                                    </td>
+                                    <td className="w-[280px] px-4 py-4 text-sm text-slate-700">
+                                        <div className="font-semibold text-slate-900">{shortText(record.final_sent_text || record.human_edited_text, 320)}</div>
+                                        {record.human_edited_text && record.final_sent_text !== record.human_edited_text && (
+                                            <div className="mt-2 text-slate-500">{shortText(record.human_edited_text, 240)}</div>
+                                        )}
+                                    </td>
+                                    <td className="w-[220px] px-4 py-4">
+                                        <div className="flex flex-wrap gap-2">
+                                            <Pill value={record.feedback_type} />
+                                            {(record.selected_reasons || []).map((reason: string) => (
+                                                <Pill key={`${record.id}-${reason}`} value={reason} />
+                                            ))}
+                                        </div>
+                                    </td>
+                                    <td className="w-[180px] px-4 py-4 text-xs font-medium text-slate-500">
+                                        <div>{record.outreach_draft_id}</div>
+                                        <div className="mt-2">{formatDate(record.created_at)}</div>
+                                    </td>
+                                </tr>
+                            ))}
+                            {feedbackRecords.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="px-4 py-12 text-center text-slate-500">
+                                        No feedback records match the current filters.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </section>
 

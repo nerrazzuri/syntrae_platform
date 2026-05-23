@@ -36,6 +36,15 @@ function byId(rows: any[], id: string) {
 function matchesWhere(row: any, where: Record<string, any> = {}) {
     for (const [key, value] of Object.entries(where || {})) {
         if (value === undefined || value === '') continue;
+        if (
+            value &&
+            typeof value === 'object' &&
+            !Array.isArray(value) &&
+            Array.isArray((value as any).in)
+        ) {
+            if (!(value as any).in.includes(row[key])) return false;
+            continue;
+        }
         if (row[key] !== value) return false;
     }
     return true;
@@ -95,6 +104,7 @@ function feedback(overrides: Record<string, any> = {}) {
         id: overrides.id || 'feedback-1',
         account_id: 'account-1',
         brand_id: 'brand-1',
+        lead_id: 'lead-1',
         platform: 'xiaohongshu',
         outreach_draft_id: 'draft-1',
         feedback_type: 'REJECTED',
@@ -114,15 +124,21 @@ function makeDb({
     suggestions = [],
     plans = [],
     feedbackRows = [],
+    leads = [],
+    events = [],
 }: {
     suggestions?: any[];
     plans?: any[];
     feedbackRows?: any[];
+    leads?: any[];
+    events?: any[];
 } = {}) {
     return {
         learningSuggestion: new FakeModel(suggestions),
         learningApplyPlan: new FakeModel(plans),
         draftFeedback: new FakeModel(feedbackRows),
+        leadOpportunity: new FakeModel(leads),
+        engagementEvent: new FakeModel(events),
     };
 }
 
@@ -152,6 +168,64 @@ test('includes feedback insights', async () => {
 
     assert.equal(dashboard.feedback_insights.total_feedback, 1);
     assert.equal(dashboard.feedback_insights.by_selected_reason.TOO_AI, 1);
+});
+
+test('includes raw feedback records for dashboard review', async () => {
+    const dashboard = await getLearningReviewDashboard({
+        db: makeDb({
+            feedbackRows: [
+                feedback({
+                    id: 'feedback-1',
+                    lead_id: 'lead-1',
+                    original_draft_text: 'Generated reply',
+                    human_edited_text: 'Human edit',
+                    final_sent_text: 'Final text',
+                }),
+            ],
+            leads: [
+                {
+                    id: 'lead-1',
+                    comment_id: 'comment-1',
+                    source_event_id: 'event-1',
+                },
+            ],
+            events: [
+                {
+                    id: 'event-1',
+                    comment_id: 'comment-1',
+                    content_text: 'User question text',
+                },
+            ],
+        }),
+        accountId: 'account-1',
+    });
+
+    assert.equal(dashboard.feedback_records.length, 1);
+    assert.equal(dashboard.feedback_records[0].source_comment_text, 'User question text');
+    assert.equal(dashboard.feedback_records[0].original_draft_text, 'Generated reply');
+    assert.equal(dashboard.feedback_records[0].human_edited_text, 'Human edit');
+    assert.equal(dashboard.feedback_records[0].final_sent_text, 'Final text');
+});
+
+test('dashboard feedback records respect limit', async () => {
+    const rows = Array.from({ length: 3 }, (_, index) =>
+        feedback({
+            id: `feedback-${index}`,
+            created_at: new Date(`2026-05-22T00:0${index}:00.000Z`),
+        }),
+    );
+
+    const dashboard = await getLearningReviewDashboard({
+        db: makeDb({ feedbackRows: rows }),
+        accountId: 'account-1',
+        limit: 2,
+    });
+
+    assert.equal(dashboard.feedback_records.length, 2);
+    assert.deepEqual(
+        dashboard.feedback_records.map((row: any) => row.id),
+        ['feedback-2', 'feedback-1'],
+    );
 });
 
 test('lists OPEN suggestion in review queue', async () => {
@@ -407,6 +481,8 @@ test('internal dashboard route works', async (t) => {
     restores.push(stubMethod(prisma as any, 'learningSuggestion', new FakeModel([suggestion()]) as any));
     restores.push(stubMethod(prisma as any, 'learningApplyPlan', new FakeModel([]) as any));
     restores.push(stubMethod(prisma as any, 'draftFeedback', new FakeModel([feedback()]) as any));
+    restores.push(stubMethod(prisma as any, 'leadOpportunity', new FakeModel([]) as any));
+    restores.push(stubMethod(prisma as any, 'engagementEvent', new FakeModel([]) as any));
 
     const app = createApp();
     const res = await request(app)

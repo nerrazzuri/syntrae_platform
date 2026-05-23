@@ -4,6 +4,7 @@ import path from 'node:path';
 import { prisma } from '../src/db';
 import {
     DEMO_SCENARIOS,
+    SIGNAL_BOOST_RECORDS,
     assertSeedAllowed,
     buildSeedMetadata,
     demoCleanupWhere,
@@ -314,6 +315,53 @@ async function createScenarioRecords(accountId: string, brandId: string, platfor
     return created;
 }
 
+async function createSignalBoostRecords(accountId: string, brandId: string, platform: string) {
+    const created: string[] = [];
+    for (const record of SIGNAL_BOOST_RECORDS) {
+        const hasToAI = record.selectedReasons.includes('TOO_AI');
+        const hasToSalesy = record.selectedReasons.includes('TOO_SALESY');
+        const hasWrongIntent = record.selectedReasons.includes('WRONG_INTENT');
+        const hasProductWrong = record.selectedReasons.includes('PRODUCT_INFO_WRONG');
+
+        let feedbackType: string;
+        if (hasWrongIntent) feedbackType = 'WRONG_STRATEGY';
+        else if (hasToSalesy) feedbackType = 'TOO_SALESY';
+        else if (hasProductWrong) feedbackType = 'REJECTED';
+        else feedbackType = 'TOO_AI';
+
+        const metadata = buildSeedMetadata({ signal_boost: true, signal_key: record.key });
+        const row = await prisma.draftFeedback.create({
+            data: {
+                account_id: accountId,
+                brand_id: brandId,
+                outreach_draft_id: `learning-review-demo-signal-${record.key}`,
+                platform,
+                feedback_type: feedbackType as any,
+                selected_reasons: [...record.selectedReasons],
+                original_draft_text: record.originalDraftText,
+                human_edited_text: record.humanEditedText,
+                final_sent_text: record.humanEditedText,
+                reply_strategy: 'product_question',
+                reply_mode: 'answer_first',
+                product_grounding_mode: 'answer_from_product',
+                buyer_stage: 'EVALUATING',
+                intent: 'DEMO_SEED',
+                qc_status: {
+                    passed: !hasToAI,
+                    flags: [...record.selectedReasons],
+                },
+                generation_meta: {
+                    prompt_version: 'learning_review_demo_seed',
+                    strategy_meta: { reply_mode: 'answer_first', product_grounding_mode: 'answer_from_product' },
+                },
+                metadata,
+            },
+        });
+        created.push(row.id);
+    }
+    return created;
+}
+
 async function seed() {
     assertSeedAllowed({
         nodeEnv: process.env.NODE_ENV,
@@ -324,6 +372,7 @@ async function seed() {
     const brand = await resolveBrand(account.id);
     const platform = envText('SEED_PLATFORM') || DEFAULT_PLATFORM;
     const created = await createScenarioRecords(account.id, brand.id, platform);
+    const signalIds = await createSignalBoostRecords(account.id, brand.id, platform);
 
     console.log('[LearningReviewSeed] Demo records created');
     console.log(`Account: ${account.id} (${account.name})`);
@@ -332,6 +381,8 @@ async function seed() {
     for (const row of created) {
         console.log(JSON.stringify(row));
     }
+    console.log(`[LearningReviewSeed] Signal boost feedback created: ${signalIds.length} records`);
+    console.log('  After seeding, call POST /internal/learning-suggestions/generate to produce all 5 OPEN suggestion types.');
     console.log(`Open UI: ${appUrl()}/admin/learning-review`);
     console.log('Cleanup: SEED_CLEANUP=true pnpm --filter operator-api seed:learning-review-demo');
 }
