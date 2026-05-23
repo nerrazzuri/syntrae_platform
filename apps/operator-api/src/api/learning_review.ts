@@ -17,6 +17,7 @@ import {
     listApplyCandidates,
     updateApplyCandidateStatus,
 } from '../services/applyCandidate.service';
+import { mineDraftEdits } from '../services/draftEditMining.service';
 
 const router = Router();
 
@@ -166,6 +167,22 @@ router.post('/apply-candidates/:id/status', async (req: Request, res: Response) 
     } catch (error) {
         console.error(`[LearningReview] Candidate status failed for ${req.params.id}:`, error);
         return handleError(res, 'Failed to update apply candidate status', error);
+    }
+});
+
+router.post('/edit-mining/run', async (req: Request, res: Response) => {
+    try {
+        const result = await mineDraftEdits({
+            accountId: accountId(req),
+            brandId: req.body?.brand_id,
+            platform: req.body?.platform,
+            minOccurrences: Number(req.body?.min_occurrences || ''),
+            dryRun: req.body?.dry_run !== false,
+        });
+        return res.json(result);
+    } catch (error) {
+        console.error('[LearningReview] Edit mining failed:', error);
+        return handleError(res, 'Failed to run draft edit mining', error);
     }
 });
 
