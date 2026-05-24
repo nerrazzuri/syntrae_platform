@@ -36,12 +36,23 @@ PURCHASE_PATTERNS = [
     "求链接",
     "怎么买",
     "价格多少",
+    "下单",
+    "有活动吗",
+    "包邮",
+    "现货",
+    "可以寄吗",
     "where to buy",
     "where can i buy",
     "link please",
     "how much",
     "buy link",
     "where do i get",
+    "free trial",
+    "book a demo",
+    "pricing",
+    "annual billing",
+    "discount",
+    "sign up",
     "mana beli",
     "boleh beli",
     "harga berapa",
@@ -58,14 +69,23 @@ PURCHASE_KEYWORDS = PURCHASE_PATTERNS
 COMPARISON_PATTERNS = [
     "哪个好",
     "哪个更好",
+    "哪个更",
     "对比",
     "比较",
+    "有什么区别",
+    "性价比",
     "a和b",
     "which is better",
     "compare",
     "comparison",
     "vs",
+    "versus",
     "difference between",
+    "different from",
+    "compared with",
+    "compared to",
+    "better than",
+    "why should we switch",
     "mana lagi bagus",
     "mana lebih bagus",
     "banding",
@@ -125,6 +145,19 @@ SUITABILITY_PATTERNS = [
     "工厂适合",
     "会不会适合",
     "会不会不适合",
+    # Skin type / tone suitability (cross-industry)
+    "干皮",
+    "油皮",
+    "混合肌",
+    "混合皮",
+    "痘痘肌",
+    "黄皮",
+    "冷白皮",
+    # Makeup / appearance suitability
+    "素颜",
+    "好上手",
+    "会不会突兀",
+    # English cross-industry suitability
     "suit me",
     "suitable for me",
     "is it suitable",
@@ -137,6 +170,11 @@ SUITABILITY_PATTERNS = [
     "can beginners use",
     "can kids use",
     "can pregnant women use",
+    "can a non-technical",
+    "would this work for",
+    "overkill for",
+    "remote team",
+    "freelancer",
     "sesuai untuk saya",
     "sesuai tak",
     "sesuai ke",
@@ -158,6 +196,27 @@ SUITABILITY_PATTERNS = [
     "cocok untuk tim kecil",
     "pemula bisa pakai",
     "anak bisa pakai",
+]
+
+PRODUCT_SPEC_PATTERNS = [
+    # Chinese spec / ingredient / feature questions
+    "多少ml", "几ml",
+    "色号",
+    "spf",
+    "pa值", "pa+",
+    "有没有酒精", "含酒精",
+    "是哑光", "哑光还是",
+    "几个颜色", "几色",
+    "质地",
+    "材质",
+    "保修",
+    # English spec / integration / security questions
+    "does it integrate",
+    "can i export", "can you export",
+    "encrypted",
+    "gdpr",
+    "where is data stored",
+    "warranty",
 ]
 
 COMPATIBILITY_PATTERNS = [
@@ -225,6 +284,7 @@ SAFETY_SUITABILITY_PATTERNS = [
     "安全吗",
     "有没有副作用",
     "会不会过敏",
+    "会不会闷痘",
     "会不会刺激",
     "会不会不舒服",
     "会不会伤",
@@ -404,10 +464,15 @@ CONCERN_PATTERNS = [
     "会不会踩雷",
     "会不会被骗",
     "会不会没效果",
+    "会不会暗沉",
     "怕踩雷",
     "担心",
     "太贵",
+    "这么贵",
     "没效果",
+    "仿品",
+    "正品吗",
+    "怎么辨别",
     "too expensive",
     "is it expensive",
     "will it be expensive",
@@ -420,6 +485,8 @@ CONCERN_PATTERNS = [
     "scared it won't work",
     "hard to use",
     "difficult to install",
+    "if we cancel",
+    "nightmare",
     "mahal tak",
     "mahal ke",
     "susah tak",
@@ -643,7 +710,9 @@ def _fallback_reply_intent(
         brand_reply_profile,
     ):
         return "suitability_advice", []
-    if _contains_any(comment_text, COMPATIBILITY_PATTERNS):
+    if _contains_any(comment_text, COMPATIBILITY_PATTERNS) or _contains_any(
+        comment_text, PRODUCT_SPEC_PATTERNS
+    ):
         return "product_question", []
     if _contains_any(comment_text, USAGE_PATTERNS):
         return "usage_advice", []

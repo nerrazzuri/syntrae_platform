@@ -617,3 +617,164 @@ def test_extended_override_upgrades_face_question_to_suitability_with_null_inten
 def test_extended_override_face_concern_upgrades_to_suitability_with_null_intent():
     strategy = _eyewear_null_evaluating('脸大戴这个会不会更显大')
     assert strategy['reply_intent'] == 'suitability_advice'
+
+
+# ---------------------------------------------------------------------------
+# P10.2 — cross-industry routing tests
+# ---------------------------------------------------------------------------
+
+# --- skincare product_question ---
+
+def test_skincare_volume_question_routes_to_product_question():
+    assert fallback_strategy('这个精华液有多少ml？')['reply_intent'] == 'product_question'
+
+
+def test_skincare_spf_question_routes_to_product_question():
+    assert fallback_strategy('这款防晒的SPF是多少？')['reply_intent'] == 'product_question'
+
+
+def test_skincare_ingredient_alcohol_question_routes_to_product_question():
+    assert fallback_strategy('这个成分里有没有酒精？')['reply_intent'] == 'product_question'
+
+
+# --- skincare suitability_advice ---
+
+def test_skincare_sensitive_skin_suitability():
+    assert fallback_strategy('敏感肌可以用吗？')['reply_intent'] == 'suitability_advice'
+
+
+def test_skincare_pregnancy_suitability():
+    assert fallback_strategy('孕妇可以用吗？')['reply_intent'] == 'suitability_advice'
+
+
+def test_skincare_dry_skin_suitability():
+    assert fallback_strategy('干皮用了会不会拔干？')['reply_intent'] == 'suitability_advice'
+
+
+# --- makeup product_question ---
+
+def test_makeup_shade_number_question_routes_to_product_question():
+    assert fallback_strategy('这个口红的色号是几号？')['reply_intent'] == 'product_question'
+
+
+def test_makeup_finish_type_question_routes_to_product_question():
+    assert fallback_strategy('这款腮红是哑光还是带珠光的？')['reply_intent'] == 'product_question'
+
+
+def test_makeup_color_count_question_routes_to_product_question():
+    assert fallback_strategy('这个眼影盘有几个颜色？')['reply_intent'] == 'product_question'
+
+
+# --- makeup suitability_advice ---
+
+def test_makeup_yellow_skin_tone_suitability():
+    assert fallback_strategy('黄皮适合这个色号吗？')['reply_intent'] == 'suitability_advice'
+
+
+def test_makeup_beginner_ease_suitability():
+    assert fallback_strategy('新手好上手吗？')['reply_intent'] == 'suitability_advice'
+
+
+def test_makeup_bare_face_suitability():
+    assert fallback_strategy('素颜涂这个口红会不会突兀？')['reply_intent'] == 'suitability_advice'
+
+
+# --- SaaS product_question ---
+
+def test_saas_integration_question_routes_to_product_question():
+    assert fallback_strategy('Does it integrate with Slack?')['reply_intent'] == 'product_question'
+
+
+def test_saas_export_question_routes_to_product_question():
+    assert fallback_strategy('Can I export my data?')['reply_intent'] == 'product_question'
+
+
+def test_saas_encryption_question_routes_to_product_question():
+    assert fallback_strategy('Is customer data encrypted?')['reply_intent'] == 'product_question'
+
+
+def test_saas_gdpr_question_routes_to_product_question():
+    assert fallback_strategy('Is it GDPR compliant?')['reply_intent'] == 'product_question'
+
+
+# --- SaaS suitability_advice ---
+
+def test_saas_small_agency_suitability():
+    assert fallback_strategy('Is it suitable for a small agency?')['reply_intent'] == 'suitability_advice'
+
+
+def test_saas_non_technical_person_suitability():
+    assert fallback_strategy('Can a non-technical person set this up?')['reply_intent'] == 'suitability_advice'
+
+
+def test_saas_freelancer_suitability():
+    assert fallback_strategy('Would this work for a freelancer?')['reply_intent'] == 'suitability_advice'
+
+
+# --- purchase_request ---
+
+def test_saas_book_demo_routes_to_purchase():
+    assert fallback_strategy('Can I book a demo?')['reply_intent'] == 'purchase_request'
+
+
+def test_saas_free_trial_routes_to_purchase():
+    assert fallback_strategy('Is there a free trial?')['reply_intent'] == 'purchase_request'
+
+
+def test_chinese_price_question_routes_to_purchase():
+    assert fallback_strategy('多少钱？')['reply_intent'] == 'purchase_request'
+
+
+def test_chinese_link_request_routes_to_purchase():
+    assert fallback_strategy('有链接吗？')['reply_intent'] == 'purchase_request'
+
+
+# --- comparison_request ---
+
+def test_saas_different_from_comparison():
+    assert fallback_strategy('How is this different from Notion?')['reply_intent'] == 'comparison_request'
+
+
+def test_skincare_brand_comparison_more_gentle():
+    assert fallback_strategy('和理肤泉比哪个更温和？')['reply_intent'] == 'comparison_request'
+
+
+def test_makeup_brand_comparison_better():
+    assert fallback_strategy('和完美日记比哪个好？')['reply_intent'] == 'comparison_request'
+
+
+# --- objection_or_concern ---
+
+def test_chinese_expensive_quality_concern():
+    assert fallback_strategy('这个这么贵，效果真的有那么好吗？')['reply_intent'] == 'objection_or_concern'
+
+
+def test_saas_cancellation_concern():
+    assert fallback_strategy('What happens to our data if we cancel?')['reply_intent'] == 'objection_or_concern'
+
+
+def test_saas_migration_nightmare_concern():
+    assert fallback_strategy(
+        'We tried a similar tool before and migrating our data was a nightmare.'
+    )['reply_intent'] == 'objection_or_concern'
+
+
+def test_chinese_counterfeit_concern():
+    assert fallback_strategy('这个包装看起来很像仿品，怎么辨别？')['reply_intent'] == 'objection_or_concern'
+
+
+# --- sunglasses regression ---
+
+def test_sunglasses_color_question_is_product_question():
+    strategy = _eyewear_fallback('有黑色吗？')
+    assert strategy['reply_intent'] == 'product_question'
+
+
+def test_sunglasses_face_shape_suitability_fallback():
+    strategy = _eyewear_null_evaluating('圆脸适合猫眼吗？')
+    assert strategy['reply_intent'] == 'suitability_advice'
+
+
+def test_sunglasses_purchase_link_fallback():
+    strategy = _eyewear_fallback('主页没看到链接，是哪一款？')
+    assert strategy['reply_intent'] == 'purchase_request'
