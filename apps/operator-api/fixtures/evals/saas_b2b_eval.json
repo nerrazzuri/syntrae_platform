@@ -1,0 +1,1376 @@
+[
+  {
+    "id": "saas_b2b_001",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Does it support multiple users?",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "answer multi-user support directly",
+      "mention seat/plan limits if relevant",
+      "do not invent unsupported features"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_002",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Can I invite my team members?",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "confirm team invitation capability",
+      "note plan-dependency if applicable"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_003",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Does it integrate with Slack?",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "confirm or deny Slack integration",
+      "do not claim unsupported integrations",
+      "mention configuration requirement if applicable"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_004",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Can I export my data?",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "confirm export capability and format (CSV, JSON, etc.)",
+      "note plan restrictions if applicable"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_005",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "What file formats does it support for import?",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "list supported formats from product data",
+      "do not claim formats unless confirmed"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_006",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Does it have a mobile app?",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "confirm mobile app availability and platforms (iOS/Android)",
+      "if only web-responsive, state that clearly"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_007",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Can it handle approval workflows?",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "confirm workflow/approval support",
+      "note configuration requirements",
+      "do not invent workflow features"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_008",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Does it support single sign-on (SSO)?",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "confirm SSO availability and supported providers",
+      "note plan tier requirement if applicable"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_009",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Is it suitable for a small agency?",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "give concrete small-agency fit verdict",
+      "mention relevant plan or scale factors",
+      "avoid vague sales language"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_010",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "We are a team of 5. Is this overkill for us?",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "honestly assess fit for small team size",
+      "do not push upgrade beyond actual need",
+      "recommend right-sized plan"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_011",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Can a non-technical person set this up?",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "give honest setup complexity assessment",
+      "note if technical help is needed",
+      "do not over-promise ease of setup"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_012",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Is this good for remote teams spread across time zones?",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "address async/remote collaboration capability",
+      "note timezone-relevant features if any",
+      "concrete verdict preferred"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_013",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Would this work for a freelancer?",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "give individual/solo use verdict",
+      "note if solo plan exists",
+      "honest assessment over up-sell"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_014",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Is it suitable for an e-commerce brand managing multiple storefronts?",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "address multi-storefront management fit",
+      "note any limits on connected accounts/workspaces"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_015",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Can this replace our current spreadsheet-based workflow?",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "honestly assess spreadsheet replacement capability",
+      "note what it can and cannot do vs spreadsheets",
+      "avoid overselling"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_016",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Does it work well with large datasets (100k+ rows)?",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "address scale/performance capability honestly",
+      "do not make unfounded performance guarantees",
+      "note plan or infrastructure requirements if relevant"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_017",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Is customer data encrypted?",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "confirm encryption standard (at rest/in transit) if known",
+      "do not make unverifiable security guarantees",
+      "recommend checking security documentation for specifics"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_018",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Is it GDPR compliant?",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "state compliance status if known",
+      "recommend checking privacy policy / DPA for legal confirmation",
+      "do not give definitive legal assurance"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_019",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Does it connect with our existing CRM (Salesforce)?",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "confirm Salesforce integration support",
+      "note native vs third-party connector distinction",
+      "if unsure, direct to integration docs"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_020",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Where is our data stored? Which country?",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "state data residency region if known",
+      "recommend privacy policy for legal confirmation",
+      "no fabricated data residency claims"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_021",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Is there a free trial?",
+    "scenario": "purchase_request",
+    "expected_reply_strategy": "purchase_request",
+    "expected_should_redirect": true,
+    "expected_notes": [
+      "confirm trial availability and duration",
+      "provide trial signup link or next step",
+      "no credit card required note if applicable"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_022",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "How much does it cost?",
+    "scenario": "purchase_request",
+    "expected_reply_strategy": "purchase_request",
+    "expected_should_redirect": true,
+    "expected_notes": [
+      "state pricing tier or range directly",
+      "redirect to pricing page for full details",
+      "do not obscure pricing with vague language"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_023",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Can I book a demo?",
+    "scenario": "purchase_request",
+    "expected_reply_strategy": "purchase_request",
+    "expected_should_redirect": true,
+    "expected_notes": [
+      "confirm demo availability",
+      "provide booking link or next step",
+      "short, direct reply"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_024",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Do you offer annual billing discounts?",
+    "scenario": "purchase_request",
+    "expected_reply_strategy": "purchase_request",
+    "expected_should_redirect": true,
+    "expected_notes": [
+      "confirm annual discount if applicable",
+      "state discount percentage or redirect to pricing page",
+      "no false pricing claims"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_025",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "Is there a startup discount or nonprofit pricing?",
+    "scenario": "purchase_request",
+    "expected_reply_strategy": "purchase_request",
+    "expected_should_redirect": true,
+    "expected_notes": [
+      "confirm special pricing programs if they exist",
+      "redirect to contact/sales if case-by-case",
+      "do not fabricate discounts"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_026",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "How is this different from Notion?",
+    "scenario": "comparison_request",
+    "expected_reply_strategy": "comparison_request",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "give one clear differentiating factor",
+      "do not fabricate competitor weaknesses",
+      "focus on what this product does differently"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_027",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "We already use Asana. Why should we switch?",
+    "scenario": "comparison_request",
+    "expected_reply_strategy": "comparison_request",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "address the specific Asana comparison",
+      "highlight concrete differentiation without disparaging competitor",
+      "acknowledge migration effort honestly"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_028",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "I've heard it gets really slow with large teams. Is that true?",
+    "scenario": "objection_or_concern",
+    "expected_reply_strategy": "objection_or_concern",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "address performance concern directly",
+      "do not dismiss without evidence",
+      "if limitation is real, acknowledge and explain mitigations"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_029",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "We tried a similar tool before and migrating our data was a nightmare. What makes this different?",
+    "scenario": "objection_or_concern",
+    "expected_reply_strategy": "objection_or_concern",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "validate migration concern",
+      "explain migration support or ease without over-promising",
+      "offer to clarify migration path"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  },
+  {
+    "id": "saas_b2b_030",
+    "industry": "saas",
+    "platform": "website_chat",
+    "comment_text": "What happens to our data if we cancel?",
+    "scenario": "objection_or_concern",
+    "expected_reply_strategy": "objection_or_concern",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "explain data retention and export policy on cancellation",
+      "be transparent about deletion timeline",
+      "direct to terms/privacy policy for confirmation"
+    ],
+    "product_context": {
+      "name": "FlowDesk",
+      "category": "workflow management SaaS",
+      "features": [
+        "team workspace",
+        "role-based access",
+        "CSV export",
+        "approval workflows"
+      ],
+      "integrations": [
+        "Google Drive"
+      ],
+      "not_supported": [
+        "native Slack integration",
+        "mobile app"
+      ],
+      "security": {
+        "encryption_in_transit": true,
+        "encryption_at_rest": "unknown",
+        "gdpr": "not confirmed"
+      },
+      "pricing": {
+        "free_trial": "14 days",
+        "starting_price": "$19/user/month",
+        "annual_discount": "unknown"
+      },
+      "unknowns": [
+        "data residency country",
+        "Salesforce integration",
+        "SSO support"
+      ]
+    }
+  }
+]
