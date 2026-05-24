@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -89,6 +90,166 @@ BRAND_DEFAULTS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Hallucination detection (mirrors detectUnsupportedFacts in TypeScript)
+# ---------------------------------------------------------------------------
+
+def detect_unsupported_facts(reply_text: str, product_context: dict) -> list[str]:
+    """Return a list of unsupported factual claims in reply_text."""
+    facts: list[str] = []
+    reply = reply_text.lower()
+
+    unknowns: list[str] = [u.lower() for u in (product_context.get("unknowns") or [])]
+    not_claimed: list[str] = [c.lower() for c in (product_context.get("not_claimed") or [])]
+    not_supported: list[str] = product_context.get("not_supported") or []
+    ingredients: list[str] = [i.lower() for i in (product_context.get("ingredients_summary") or [])]
+    free_from: list[str] = [f.lower() for f in (product_context.get("free_from") or [])]
+    integrations: list[str] = [i.lower() for i in (product_context.get("integrations") or [])]
+    security: dict = product_context.get("security") or {}
+    pricing: dict = product_context.get("pricing") or {}
+
+    # SPF claim when SPF is unknown
+    if any("spf" in u for u in unknowns):
+        if re.search(r"spf\s*\d+", reply):
+            facts.append("SPF value stated but listed as unknown")
+
+    # Niacinamide / 烟酰胺 not in ingredients
+    if not any("niacinamide" in i for i in ingredients):
+        if "niacinamide" in reply or "烟酰胺" in reply_text:
+            facts.append("niacinamide / 烟酰胺 claimed but not in ingredients_summary")
+
+    # Alcohol-free when alcohol not in free_from
+    if not any("alcohol" in f for f in free_from):
+        if "alcohol-free" in reply or "不含酒精" in reply_text:
+            facts.append("alcohol-free claimed but not in free_from")
+
+    # Pregnancy safe when in not_claimed
+    if any("pregnancy" in c for c in not_claimed):
+        if (
+            "pregnancy safe" in reply
+            or "safe for pregnant" in reply
+            or "孕妇可以用" in reply_text
+            or "孕期可以用" in reply_text
+        ):
+            facts.append("pregnancy safe claimed but listed in not_claimed")
+
+    # Wear time duration when listed as unknown
+    if any("wear time" in u for u in unknowns):
+        if (
+            re.search(r"\b\d+[\s\-]+\d+\s*hours?\b", reply)
+            or re.search(r"\b\d+\s*hours?\s*(of\s+)?wear\b", reply)
+            or "小时持妆" in reply_text
+            or "小时不脱色" in reply_text
+        ):
+            facts.append("wear time duration stated but listed as unknown")
+
+    # Waterproof when in not_claimed
+    if any("waterproof" in c for c in not_claimed):
+        if "waterproof" in reply:
+            facts.append("waterproof claimed but listed in not_claimed")
+
+    # SaaS: features in not_supported claimed in reply
+    for feature in not_supported:
+        if feature.lower() in reply:
+            facts.append(f'"{feature}" claimed but listed in not_supported')
+
+    # SaaS: Slack not in integrations
+    if not any("slack" in i for i in integrations):
+        if "slack" in reply:
+            facts.append("Slack integration claimed but not in integrations")
+
+    # SaaS: Salesforce unknown
+    if any("salesforce" in u for u in unknowns):
+        if "salesforce" in reply:
+            facts.append("Salesforce integration claimed but listed as unknown")
+
+    # SaaS: security claims
+    if security.get("encryption_at_rest") == "unknown" and "encrypted at rest" in reply:
+        facts.append("encrypted at rest claimed but listed as unknown")
+    if security.get("gdpr") == "not confirmed" and (
+        "gdpr compliant" in reply or "gdpr-compliant" in reply
+    ):
+        facts.append("GDPR compliant claimed but not confirmed")
+
+    # SaaS: free trial contradiction
+    trial = pricing.get("free_trial")
+    if trial and trial != "none":
+        if "no free trial" in reply or "don't offer a free trial" in reply:
+            facts.append(f"free trial contradiction: product has {trial} trial but reply denies it")
+
+    return facts
+
+
+# ---------------------------------------------------------------------------
+# Product context → knowledge_context entry
+# The standard _format_product_context only reads catalog-schema fields
+# (key_benefits, description, etc.). Our eval contexts use a different schema
+# (ingredients_summary, unknowns, not_supported, etc.), so we also inject the
+# full eval context as a knowledge_context entry so the LLM sees all facts.
+# ---------------------------------------------------------------------------
+
+def _product_context_to_knowledge_entry(ctx: dict) -> dict:
+    """Render an eval product_context as a knowledge_context document entry."""
+    name = ctx.get("name") or "Product"
+    lines = [f"Product facts for {name}:"]
+
+    for key in ("category", "volume", "shade", "finish", "texture"):
+        if ctx.get(key):
+            lines.append(f"  {key}: {ctx[key]}")
+
+    for key, label in [
+        ("features", "Supported features"),
+        ("integrations", "Integrations"),
+        ("ingredients_summary", "Ingredients"),
+        ("free_from", "Free from"),
+        ("claims", "Confirmed claims"),
+    ]:
+        vals = ctx.get(key)
+        if vals:
+            lines.append(f"  {label}: {', '.join(str(v) for v in vals)}")
+
+    for key, label in [
+        ("not_claimed", "NOT claimed (do not assert)"),
+        ("not_supported", "NOT supported (do not claim)"),
+        ("unknowns", "Unknown (do not invent)"),
+    ]:
+        vals = ctx.get(key)
+        if vals:
+            lines.append(f"  {label}: {', '.join(str(v) for v in vals)}")
+
+    security = ctx.get("security")
+    if security:
+        sec_parts = []
+        if security.get("encryption_in_transit") is True:
+            sec_parts.append("encrypted in transit: YES")
+        if security.get("encryption_at_rest") == "unknown":
+            sec_parts.append("encrypted at rest: UNKNOWN (do not claim)")
+        if security.get("gdpr") == "not confirmed":
+            sec_parts.append("GDPR: not confirmed (do not claim compliant)")
+        if sec_parts:
+            lines.append(f"  Security: {'; '.join(sec_parts)}")
+
+    pricing = ctx.get("pricing")
+    if pricing:
+        p_parts = []
+        for k, v in pricing.items():
+            p_parts.append(f"{k}: {v}")
+        lines.append(f"  Pricing: {', '.join(p_parts)}")
+
+    usage_notes = ctx.get("usage_notes")
+    if usage_notes:
+        lines.append(f"  Usage notes: {', '.join(usage_notes)}")
+
+    return {
+        "document_title": f"Product facts: {name}",
+        "content": "\n".join(lines),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Mock DB
+# ---------------------------------------------------------------------------
+
 class _FakeQuery:
     def __init__(self, lead: SimpleNamespace):
         self._lead = lead
@@ -110,8 +271,6 @@ class _FakeDB:
 
 def _make_lead(platform: str, intent: str | None = None) -> SimpleNamespace:
     # buyer_stage=None so the adapter's content-based fallback fires.
-    # Real leads have stored intents; synthetic eval leads don't, so we let the
-    # adapter classify from comment_text the same way it does for null-intent leads.
     return SimpleNamespace(
         id="eval-synthetic",
         account_id="eval-account",
@@ -124,6 +283,10 @@ def _make_lead(platform: str, intent: str | None = None) -> SimpleNamespace:
         preferences={},
     )
 
+
+# ---------------------------------------------------------------------------
+# Pack runner
+# ---------------------------------------------------------------------------
 
 def load_pack(pack_name: str) -> list[dict]:
     fname = PACK_FILES.get(pack_name)
@@ -140,16 +303,23 @@ def run_pack(pack_name: str, llm: LLMClient) -> list[dict]:
 
     for i, item in enumerate(items, 1):
         platform = item["platform"]
-        intent = None  # use expected_reply_strategy to hint, or leave null to let adapter decide
-        lead = _make_lead(platform=platform, intent=intent)
+        product_context = item.get("product_context") or {}
+        lead = _make_lead(platform=platform, intent=None)
         db = _FakeDB(lead)
         svc = DraftGenerationService(db, llm)
+
+        # Pass product_context both as structured field (for catalog schema fields
+        # like name/category) and as a knowledge_context entry (for all grounding
+        # facts that the standard formatter does not read).
+        knowledge_entry = _product_context_to_knowledge_entry(product_context)
 
         owner_settings = {
             **brand,
             "comment_text": item["comment_text"],
             "platform": platform,
             "intent": None,
+            "product_context": product_context,
+            "knowledge_context": [knowledge_entry],
             # buyer_stage intentionally omitted so the adapter uses the lead's
             # null value, which enables content-based fallback classification
         }
@@ -168,6 +338,8 @@ def run_pack(pack_name: str, llm: LLMClient) -> list[dict]:
             strategy = ""
             should_redirect = False
 
+        unsupported = detect_unsupported_facts(draft, product_context) if product_context else []
+
         results.append({
             "id": item["id"],
             "comment_text": item["comment_text"],
@@ -179,6 +351,8 @@ def run_pack(pack_name: str, llm: LLMClient) -> list[dict]:
             "strategy_match": strategy == item["expected_reply_strategy"],
             "draft": draft,
             "expected_notes": item["expected_notes"],
+            "unsupported_facts": unsupported,
+            "unsupported_fact_count": len(unsupported),
         })
 
         sys.stdout.write(f"\r  [{i}/{len(items)}]")
@@ -187,6 +361,10 @@ def run_pack(pack_name: str, llm: LLMClient) -> list[dict]:
     print()
     return results
 
+
+# ---------------------------------------------------------------------------
+# Report
+# ---------------------------------------------------------------------------
 
 def print_report(pack_name: str, results: list[dict]) -> None:
     sep = "─" * 80
@@ -197,17 +375,29 @@ def print_report(pack_name: str, results: list[dict]) -> None:
     print(f"{'═' * 80}")
 
     strategy_match_count = sum(1 for r in results if r["strategy_match"])
-    print(f"\nStrategy match: {strategy_match_count}/{len(results)}\n")
+    total_unsupported = sum(r["unsupported_fact_count"] for r in results)
+    items_with_hallucination = sum(1 for r in results if r["unsupported_fact_count"] > 0)
+
+    print(f"\nStrategy match:       {strategy_match_count}/{len(results)}")
+    print(f"Unsupported facts:    {total_unsupported} total  ({items_with_hallucination} items affected)\n")
 
     for r in results:
         match_tag = "✓" if r["strategy_match"] else "✗"
+        hall_tag = f"  ⚠ {r['unsupported_fact_count']} hallucination(s)" if r["unsupported_fact_count"] else ""
         print(sep)
-        print(f"[{r['id']}] {match_tag} strategy={r['actual_strategy']!r} (expected={r['expected_strategy']!r})")
+        print(f"[{r['id']}] {match_tag} strategy={r['actual_strategy']!r} (expected={r['expected_strategy']!r}){hall_tag}")
         print(f"COMMENT:  {r['comment_text']}")
         print(f"DRAFT:    {r['draft']}")
+        if r["unsupported_facts"]:
+            for fact in r["unsupported_facts"]:
+                print(f"  HALLUCINATION: {fact}")
         print(f"NOTES:    {'; '.join(r['expected_notes'])}")
         print()
 
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 def main() -> None:
     # Force UTF-8 stdout for Windows compatibility
