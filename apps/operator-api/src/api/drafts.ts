@@ -74,6 +74,20 @@ async function recordDecisionFeedback(input: {
 }) {
     const existing = await findExistingDecisionFeedback(input);
     if (existing) {
+        const incomingReasons = input.selectedReasons ?? [];
+        const existingReasons = Array.isArray(existing.selected_reasons) ? existing.selected_reasons as string[] : [];
+        const hasRicherReasons = incomingReasons.length > 0 && existingReasons.length === 0;
+        const hasRicherNote = !!(input.feedbackNote && !existing.feedback_note);
+        if (hasRicherReasons || hasRicherNote) {
+            const updated = await prisma.draftFeedback.update({
+                where: { id: existing.id },
+                data: {
+                    ...(hasRicherReasons && { selected_reasons: incomingReasons }),
+                    ...(hasRicherNote && { feedback_note: input.feedbackNote }),
+                },
+            });
+            return { feedback: updated, deduped: false };
+        }
         return { feedback: existing, deduped: true };
     }
 

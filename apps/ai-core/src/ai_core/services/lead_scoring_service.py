@@ -199,7 +199,7 @@ class LeadScoringService:
             return RecommendedAction.PRIORITY_DM
         
         if stage == BuyerStage.EVALUATING:
-            if confidence > 0.8:
+            if confidence >= 0.5:
                 return RecommendedAction.RECOMMEND_DM
             return RecommendedAction.SILENT_CAPTURE
             

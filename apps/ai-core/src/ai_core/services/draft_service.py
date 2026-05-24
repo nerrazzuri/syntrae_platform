@@ -245,6 +245,8 @@ class DraftGenerationService:
             "suggested_focus": strategy.get("suggested_focus"),
         }
 
+        profile_for_prompt = self._brand_reply_profile_for_prompt(brand_reply_profile, strategy)
+
         extra_instructions = []
         suggested_focus = strategy.get("suggested_focus")
         if suggested_focus:
@@ -258,9 +260,14 @@ class DraftGenerationService:
         if not strategy.get("should_redirect"):
             extra_instructions.append("这条回复不需要导购或 CTA，专注回答用户问题。")
         if strategy.get("reply_intent") == "suitability_advice":
-            extra_instructions.append("这类评论要像顾问一样先给判断/诊断，再给建议。不要硬卖。最多问一个简短追问。")
+            extra_instructions.append("这类评论要像顾问一样先给判断/诊断，再给建议。不要硬卖。不要以提问结尾。")
         if strategy.get("reply_intent") == "purchase_request":
             extra_instructions.append("用户已经表达购买/链接/价格意图，可以直接回答，并允许自然软 CTA。")
+        if strategy.get("reply_intent") == "product_question":
+            extra_instructions.append(
+                "直接回答用户的产品/功能/规格问题。不要主动引入脸型分析、适配诊断、身材建议或外貌相关建议，"
+                "除非用户明确问到。以解答事实性问题为主。"
+            )
 
         return f"""Generate one public social-media reply.
 
@@ -279,7 +286,7 @@ Brand:
 - Domain: {brand_domain or "N/A"}
 
 Brand reply profile summary:
-{self._json_preview(brand_reply_profile)}
+{self._json_preview(profile_for_prompt)}
 
 Product context:
 {product_context_text}
@@ -310,6 +317,16 @@ Additional instructions:
 {chr(10).join(f"- {item}" for item in extra_instructions) if extra_instructions else "- Be specific, natural, and concise."}
 
 Output only the reply text."""
+
+    def _brand_reply_profile_for_prompt(
+        self,
+        brand_reply_profile: dict[str, Any],
+        strategy: dict[str, Any],
+    ) -> dict[str, Any]:
+        profile = dict(brand_reply_profile or {})
+        if strategy.get("reply_intent") != "suitability_advice":
+            profile.pop("diagnostic_factors", None)
+        return profile
 
     def _clean_reply_text(self, response_text: str) -> str:
         text = response_text.strip()

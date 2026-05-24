@@ -21,6 +21,12 @@ GLOBAL_FORBIDDEN_PHRASES = [
     "explore more options",
     "dear customer",
     "feel free to contact us",
+    "你平时的穿搭风格",
+    "你的穿搭风格是",
+    "穿搭风格是什么",
+    "你平时穿搭",
+    "平时搭配什么风格",
+    "你平时搭配什么",
 ]
 
 PURCHASE_PATTERNS = [
@@ -274,6 +280,119 @@ WEAK_SUITABILITY_PATTERNS = [
     "适配吗",
 ]
 
+# --- FIT_SUITABILITY override helpers ---
+# Used by _override_fit_suitability_from_comment to detect comments that were
+# mis-scored as FIT_SUITABILITY at ingestion but are actually product/purchase
+# questions. These constants are intentionally narrow to avoid false overrides.
+
+_BRAND_INFO_PATTERNS = [
+    "什么品牌",
+    "什么牌子",
+    "哪个品牌",
+    "哪个牌子",
+    "是什么品牌",
+    "是什么牌子",
+    "是国产",
+    "国产的",
+    "是店名",
+    "是品牌名",
+    "品牌名",
+    "你们自己",
+    "自己家的",
+    "品牌质量",
+]
+
+_PRODUCT_FEATURE_PATTERNS = [
+    "防晒效果",
+    "防紫外线",
+    "防uv",
+    "uv400",
+    "偏光",
+    "偏装饰",
+    "近视夹",
+    "夹片",
+    "配度数",
+    "有黑色",
+    "有茶色",
+    "有现货",
+    "包邮",
+    "可以寄",
+    "能寄",
+    "寄到",
+    "发货",
+    "性价比",
+    "这个价位",
+]
+
+_PURCHASE_LINK_PATTERNS = [
+    "没看到链接",
+    "私信链接",
+    "发链接",
+    "值得买",
+]
+
+# Patterns that positively confirm a genuine face-shape suitability question
+_FACE_SUITABILITY_PATTERNS = [
+    "圆脸适合",
+    "方脸适合",
+    "长脸适合",
+    "鹅蛋脸适合",
+    "瓜子脸适合",
+    "小脸适合",
+    "大脸适合",
+    "脸型适合",
+    "适合脸型",
+]
+
+# Suitability context: when combined with _FACE_FIT_ANCHORS, confirms personal-fit intent
+_FACE_SUITABILITY_CONTEXT = [
+    "适合",
+    "会不会",
+    "推荐",
+    "哪种",
+    "哪款",
+    "怎么选",
+    "感觉怪",
+    "感觉奇",
+    "老气",
+    "撑不起",
+    "显脸",
+    "显大",
+    "我戴",
+    "戴起来",
+]
+
+# Face/body/fit anchors: presence of any of these means the stored FIT_SUITABILITY
+# is likely correct and the override should be suppressed
+_FACE_FIT_ANCHORS = [
+    "圆脸",
+    "方脸",
+    "长脸",
+    "鹅蛋脸",
+    "瓜子脸",
+    "菱形脸",
+    "倒三角",
+    "脸型",
+    "脸大",
+    "脸小",
+    "小脸",
+    "大脸",
+    "颧骨",
+    "太阳穴",
+    "我戴",
+    "戴起来",
+    "感觉怪",
+    "老气",
+    "撑不起",
+    "显脸",
+    "更显大",
+    "显大",
+    "不适合脸",
+    "脸宽",
+    "脸长",
+    "脸圆",
+]
+
 CONCERN_PATTERNS = [
     "会不会很贵",
     "会不会太贵",
@@ -433,11 +552,10 @@ def _domain_terms(
     terms: list[str] = []
     for key in ("diagnostic_factors", "customer_concerns"):
         terms.extend(_list_from_dict(brand_reply_profile, key))
-
-    if isinstance(product_context, dict):
-        for key in ("category", "target_buyer"):
-            _append_text_values(terms, product_context.get(key))
-
+    # product_context.category / target_buyer are intentionally excluded:
+    # generic category names (e.g. "墨镜") appear in any question about the
+    # product and would falsely trigger suitability_advice on product questions.
+    del product_context
     return _dedupe([term for term in terms if len(_normalize_text(term)) >= 2])
 
 
@@ -548,7 +666,7 @@ def _suggested_focus(
     brand_reply_profile: dict | None,
 ) -> str:
     factors = _list_from_dict(brand_reply_profile, "diagnostic_factors")
-    if factors:
+    if factors and reply_intent == "suitability_advice":
         return "Use these diagnostic factors when relevant: " + ", ".join(factors)
 
     focus_by_intent = {
@@ -632,6 +750,61 @@ def _base_strategy(reply_intent: str, owner_settings: dict | None) -> dict[str, 
     return strategy
 
 
+def _override_fit_suitability_from_comment(
+    comment_text: str | None,
+) -> str | None:
+    """
+    Defensive override: when a stored intent mapped to suitability_advice but
+    the comment is actually a product/brand/purchase question, return the correct
+    intent.  Returns None to keep suitability_advice unchanged.
+
+    Only called when can_fallback is False (known stored intent drove the
+    classification), so this does not affect the generic fallback path.
+    """
+    if not comment_text:
+        return None
+    # Face/fit anchors mean the stored FIT_SUITABILITY is genuine — keep it
+    if _contains_any(comment_text, _FACE_FIT_ANCHORS):
+        return None
+    # Strong suitability or safety patterns also block the override
+    if _contains_any(comment_text, SUITABILITY_PATTERNS) or _contains_any(
+        comment_text, SAFETY_SUITABILITY_PATTERNS
+    ):
+        return None
+    # Brand / identity questions
+    if _contains_any(comment_text, _BRAND_INFO_PATTERNS):
+        return "product_question"
+    # Product feature / spec / availability questions
+    if _contains_any(comment_text, _PRODUCT_FEATURE_PATTERNS):
+        return "product_question"
+    # Purchase link requests
+    if _contains_any(comment_text, _PURCHASE_LINK_PATTERNS):
+        return "purchase_request"
+    # Standard purchase patterns
+    if _contains_any(comment_text, PURCHASE_PATTERNS):
+        return "purchase_request"
+    # Weak suitability without any face/fit context: "可以吗" alone is not
+    # sufficient to confirm personal suitability — treat as product question
+    if _contains_any(comment_text, WEAK_SUITABILITY_PATTERNS):
+        return "product_question"
+    return None
+
+
+def _is_face_suitability(comment_text: str | None) -> bool:
+    """
+    Returns True if the comment is a genuine face-shape or personal-fit question.
+    Used to upgrade general_interest → suitability_advice when stored intent is
+    null/unknown and the buyer_stage gate blocked the normal fallback path.
+    """
+    if not comment_text:
+        return False
+    if _contains_any(comment_text, _FACE_SUITABILITY_PATTERNS):
+        return True
+    return _contains_any(comment_text, _FACE_FIT_ANCHORS) and _contains_any(
+        comment_text, _FACE_SUITABILITY_CONTEXT
+    )
+
+
 def adapt_reply_strategy(
     intent: str | None,
     buyer_stage: str | None,
@@ -655,6 +828,17 @@ def adapt_reply_strategy(
         )
         reply_intent = fallback_intent or reply_intent
 
+    # For suitability_advice (stored FIT_SUITABILITY) or general_interest
+    # (null/weak intent + non-weak buyer_stage), inspect the comment text:
+    # - Non-suitability signal → override to the correct product/purchase intent
+    # - general_interest + confirmed face-shape question → upgrade to suitability_advice
+    if reply_intent in {"suitability_advice", "general_interest"}:
+        _override = _override_fit_suitability_from_comment(comment_text)
+        if _override:
+            reply_intent = _override
+        elif reply_intent == "general_interest" and _is_face_suitability(comment_text):
+            reply_intent = "suitability_advice"
+
     if reply_intent in {"product_question", "general_interest"} and _contains_any(
         comment_text, PURCHASE_PATTERNS
     ):
@@ -671,6 +855,13 @@ def adapt_reply_strategy(
         + _list_from_dict(owner_settings, "forbidden_phrases")
         + _list_from_dict(brand_reply_profile, "forbidden_phrases")
     )
+
+    # For non-suitability replies, explicitly ban diagnostic factors so the model
+    # cannot inject face-shape/fit advice into product, purchase, or general replies
+    if reply_intent != "suitability_advice":
+        forbidden_phrases = _dedupe(
+            forbidden_phrases + _list_from_dict(brand_reply_profile, "diagnostic_factors")
+        )
 
     return {
         **strategy,

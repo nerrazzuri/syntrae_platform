@@ -347,3 +347,273 @@ def test_indonesian_safety_suitability_adds_risk_flag():
 
     assert strategy["reply_intent"] == "suitability_advice"
     assert "SAFETY_SUITABILITY" in strategy["risk_flags"]
+
+
+_SUNGLASSES_PROFILE = {
+    'diagnostic_factors': ['镜框宽度', '镜片大小', '上扬角度', '鼻梁贴合度', '脸型比例', '穿搭风格'],
+    'customer_concerns': ['显脸大', '低鼻梁', '压鼻梁', '不适合脸型', '拍照不自然'],
+}
+_EYEWEAR_PRODUCT_CTX = {'name': 'SUNGLASS', 'category': '墨镜', 'description': 'UV400墨镜'}
+
+
+def _eyewear_fallback(comment_text):
+    return adapt_reply_strategy(
+        intent=None,
+        buyer_stage=None,
+        confidence=None,
+        risk_level=None,
+        platform='xiaohongshu',
+        comment_text=comment_text,
+        product_context=_EYEWEAR_PRODUCT_CTX,
+        brand_reply_profile=_SUNGLASSES_PROFILE,
+    )
+
+
+def test_product_value_question_is_not_suitability():
+    strategy = _eyewear_fallback('小米的99的墨镜可以吗')
+    assert strategy['reply_intent'] != 'suitability_advice'
+
+
+def test_uv_feature_question_is_not_suitability():
+    strategy = _eyewear_fallback('防UV不是偏光镜，这种还要买吗')
+    assert strategy['reply_intent'] != 'suitability_advice'
+
+
+def test_sunscreen_feature_question_is_not_suitability():
+    strategy = _eyewear_fallback('这个墨镜有防晒效果吗')
+    assert strategy['reply_intent'] != 'suitability_advice'
+
+
+def test_face_shape_question_with_suitability_intent_stays_suitability():
+    # LLM correctly scores FIT_SUITABILITY; adapter must honour it
+    strategy = adapt_reply_strategy(
+        intent='FIT_SUITABILITY',
+        buyer_stage='EVALUATING',
+        confidence=0.85,
+        risk_level='LOW',
+        platform='xiaohongshu',
+        comment_text='圆脸适合猫眼吗',
+        brand_reply_profile=_SUNGLASSES_PROFILE,
+    )
+    assert strategy['reply_intent'] == 'suitability_advice'
+
+
+def test_face_concern_with_suitability_intent_remains_suitability():
+    strategy = adapt_reply_strategy(
+        intent='FIT_SUITABILITY',
+        buyer_stage='EVALUATING',
+        confidence=0.85,
+        risk_level='LOW',
+        platform='xiaohongshu',
+        comment_text='脸大戴这个会不会更显大',
+        brand_reply_profile=_SUNGLASSES_PROFILE,
+    )
+    assert strategy['reply_intent'] == 'suitability_advice'
+
+
+def test_frame_size_concern_with_suitability_intent_remains_suitability():
+    strategy = adapt_reply_strategy(
+        intent='FIT_SUITABILITY',
+        buyer_stage='EVALUATING',
+        confidence=0.85,
+        risk_level='LOW',
+        platform='xiaohongshu',
+        comment_text='小脸是不是撑不起大框',
+        brand_reply_profile=_SUNGLASSES_PROFILE,
+    )
+    assert strategy['reply_intent'] == 'suitability_advice'
+
+
+def test_product_question_intent_excludes_diagnostic_factors_from_focus():
+    strategy = adapt_reply_strategy(
+        intent='PRODUCT_INQUIRY',
+        buyer_stage='EVALUATING',
+        confidence=0.8,
+        risk_level='LOW',
+        platform='xiaohongshu',
+        comment_text='小米的99的墨镜可以吗',
+        product_context=_EYEWEAR_PRODUCT_CTX,
+        brand_reply_profile=_SUNGLASSES_PROFILE,
+    )
+    assert strategy['reply_intent'] == 'product_question'
+    focus = strategy.get('suggested_focus', '')
+    assert '镜框宽度' not in focus
+    assert '镜片大小' not in focus
+    # diagnostic_factors should also be in forbidden_phrases for non-suitability
+    assert '镜框宽度' in strategy['forbidden_phrases']
+    assert '镜片大小' in strategy['forbidden_phrases']
+
+
+def test_suitability_advice_does_not_ban_diagnostic_factors():
+    strategy = adapt_reply_strategy(
+        intent='FIT_SUITABILITY',
+        buyer_stage='EVALUATING',
+        confidence=0.85,
+        risk_level='LOW',
+        platform='xiaohongshu',
+        comment_text='圆脸适合猫眼吗',
+        brand_reply_profile=_SUNGLASSES_PROFILE,
+    )
+    assert strategy['reply_intent'] == 'suitability_advice'
+    # diagnostic_factors must NOT be banned for genuine suitability
+    assert '镜框宽度' not in strategy['forbidden_phrases']
+    assert '镜片大小' not in strategy['forbidden_phrases']
+
+
+# --- FIT_SUITABILITY content-based override tests ---
+# All helpers below pass stored intent=FIT_SUITABILITY so the override logic runs.
+
+def _eyewear_stored_suitability(comment_text):
+    return adapt_reply_strategy(
+        intent='FIT_SUITABILITY',
+        buyer_stage='EVALUATING',
+        confidence=0.85,
+        risk_level='LOW',
+        platform='xiaohongshu',
+        comment_text=comment_text,
+        product_context=_EYEWEAR_PRODUCT_CTX,
+        brand_reply_profile=_SUNGLASSES_PROFILE,
+    )
+
+
+# Non-suitability overrides (stored FIT_SUITABILITY on non-suitability comments)
+
+def test_override_value_comparison_is_product_question():
+    strategy = _eyewear_stored_suitability('小米的99的墨镜可以吗')
+    assert strategy['reply_intent'] != 'suitability_advice'
+
+
+def test_override_uv_feature_question_is_product_question():
+    strategy = _eyewear_stored_suitability('防UV不是偏光镜，这种还要买吗')
+    assert strategy['reply_intent'] == 'product_question'
+
+
+def test_override_sunscreen_feature_question_is_product_question():
+    strategy = _eyewear_stored_suitability('这个墨镜有防晒效果吗')
+    assert strategy['reply_intent'] == 'product_question'
+
+
+def test_override_brand_inquiry_is_product_question():
+    strategy = _eyewear_stored_suitability('这是什么品牌呀')
+    assert strategy['reply_intent'] == 'product_question'
+
+
+def test_override_brand_name_vs_store_name_is_product_question():
+    strategy = _eyewear_stored_suitability('SUNGLASS 是店名还是品牌名')
+    assert strategy['reply_intent'] == 'product_question'
+
+
+def test_override_color_availability_is_product_question():
+    strategy = _eyewear_stored_suitability('有黑色吗')
+    assert strategy['reply_intent'] == 'product_question'
+
+
+def test_override_clip_on_feature_is_product_question():
+    strategy = _eyewear_stored_suitability('有近视夹片吗')
+    assert strategy['reply_intent'] == 'product_question'
+
+
+def test_override_prescription_capability_is_product_question():
+    strategy = _eyewear_stored_suitability('可以配度数吗')
+    assert strategy['reply_intent'] == 'product_question'
+
+
+def test_override_shipping_question_is_not_suitability():
+    strategy = _eyewear_stored_suitability('马来西亚可以寄吗')
+    assert strategy['reply_intent'] != 'suitability_advice'
+
+
+def test_override_purchase_link_request_is_purchase_request():
+    strategy = _eyewear_stored_suitability('主页没看到链接，是哪一款')
+    assert strategy['reply_intent'] == 'purchase_request'
+
+
+# True suitability remains (face/fit anchors block the override)
+
+def test_override_does_not_fire_on_round_face_question():
+    strategy = _eyewear_stored_suitability('圆脸适合猫眼吗')
+    assert strategy['reply_intent'] == 'suitability_advice'
+
+
+def test_override_does_not_fire_on_face_size_concern():
+    strategy = _eyewear_stored_suitability('脸大戴这个会不会更显大')
+    assert strategy['reply_intent'] == 'suitability_advice'
+
+
+def test_override_does_not_fire_on_small_face_fit():
+    strategy = _eyewear_stored_suitability('小脸是不是撑不起大框')
+    assert strategy['reply_intent'] == 'suitability_advice'
+
+
+def test_override_does_not_fire_on_cheekbone_fit():
+    strategy = _eyewear_stored_suitability('颧骨高戴这种会不会显脸宽')
+    assert strategy['reply_intent'] == 'suitability_advice'
+
+
+def test_override_does_not_fire_on_wear_feel_complaint():
+    strategy = _eyewear_stored_suitability('为什么我戴猫眼感觉怪怪的')
+    assert strategy['reply_intent'] == 'suitability_advice'
+
+
+def test_override_does_not_fire_on_aged_look_complaint():
+    strategy = _eyewear_stored_suitability('我戴这个感觉很老气，是款式问题吗')
+    assert strategy['reply_intent'] == 'suitability_advice'
+
+
+# --- Phase 2: extended override for null/general_interest intents ---
+
+def _eyewear_null_evaluating(comment_text):
+    return adapt_reply_strategy(
+        intent=None,
+        buyer_stage='EVALUATING',
+        confidence=None,
+        risk_level=None,
+        platform='xiaohongshu',
+        comment_text=comment_text,
+        product_context=_EYEWEAR_PRODUCT_CTX,
+        brand_reply_profile=_SUNGLASSES_PROFILE,
+    )
+
+
+def test_extended_override_value_comparison_with_null_intent():
+    strategy = _eyewear_null_evaluating('小米的99的墨镜可以吗')
+    assert strategy['reply_intent'] != 'suitability_advice'
+
+
+def test_extended_override_uv_feature_with_null_intent():
+    strategy = _eyewear_null_evaluating('UV400不是偏光还要买吗')
+    assert strategy['reply_intent'] == 'product_question'
+
+
+def test_extended_override_color_with_null_intent():
+    strategy = _eyewear_null_evaluating('有黑色吗')
+    assert strategy['reply_intent'] == 'product_question'
+
+
+def test_extended_override_shipping_with_null_intent():
+    strategy = _eyewear_null_evaluating('马来西亚可以寄吗')
+    assert strategy['reply_intent'] != 'suitability_advice'
+
+
+def test_link_request_intent_maps_to_purchase_request():
+    strategy = adapt_reply_strategy(
+        intent='LINK_REQUEST',
+        buyer_stage='EVALUATING',
+        confidence=0.9,
+        risk_level='LOW',
+        platform='xiaohongshu',
+        comment_text='主页没看到链接，是哪一款',
+        product_context=_EYEWEAR_PRODUCT_CTX,
+        brand_reply_profile=_SUNGLASSES_PROFILE,
+    )
+    assert strategy['reply_intent'] == 'purchase_request'
+
+
+def test_extended_override_upgrades_face_question_to_suitability_with_null_intent():
+    strategy = _eyewear_null_evaluating('圆脸适合猫眼吗')
+    assert strategy['reply_intent'] == 'suitability_advice'
+
+
+def test_extended_override_face_concern_upgrades_to_suitability_with_null_intent():
+    strategy = _eyewear_null_evaluating('脸大戴这个会不会更显大')
+    assert strategy['reply_intent'] == 'suitability_advice'

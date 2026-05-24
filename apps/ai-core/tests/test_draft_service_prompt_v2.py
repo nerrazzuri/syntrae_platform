@@ -267,9 +267,165 @@ def test_prompt_version():
     assert result["prompt_version"] == "v2_strategy_platform_profile"
 
 
+
+
 def test_clean_reply_text_strips_only_outer_ascii_double_quotes():
     service = DraftGenerationService(FakeDB(make_lead()), FakeLLMClient())
 
-    assert service._clean_reply_text('"测试回复"') == "测试回复"
-    assert service._clean_reply_text("「不是你不适合猫眼」") == "「不是你不适合猫眼」"
-    assert service._clean_reply_text("“不是你不适合猫眼”") == "“不是你不适合猫眼”"
+    dq = chr(34)  # ASCII double quote U+0022
+    assert service._clean_reply_text(dq + '测试回复' + dq) == '测试回复'
+    assert service._clean_reply_text('「不是你不适合猫眼」') == '「不是你不适合猫眼」'
+    curly_val = '“不是你不适合猫眼”'
+    assert service._clean_reply_text(curly_val) == curly_val
+
+
+_EYEWEAR_PROFILE = {
+    'reply_principles': ['先判断具体问题，再给建议'],
+    'diagnostic_factors': ['镜框宽度', '镜片大小', '上扬角度'],
+    'forbidden_phrases': ['不要像客服'],
+}
+
+
+def test_product_question_prompt_excludes_diagnostic_factors():
+    owner_settings = make_owner_settings(
+        comment_text='有黑色款吗',
+        intent='PRODUCT_INQUIRY',
+        buyer_stage='EVALUATING',
+        brand_reply_profile=_EYEWEAR_PROFILE,
+    )
+    lead = make_lead(intent='PRODUCT_INQUIRY', buyer_stage='EVALUATING')
+
+    _result, fake_llm = generate(owner_settings=owner_settings, lead=lead)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert '镜框宽度' not in user_prompt
+    assert '镜片大小' not in user_prompt
+    assert 'diagnostic_factors' not in user_prompt
+
+
+def test_purchase_request_prompt_excludes_diagnostic_factors():
+    owner_settings = make_owner_settings(
+        comment_text='这个哪里买',
+        intent='PURCHASE_INTENT',
+        buyer_stage='READY',
+        brand_reply_profile=_EYEWEAR_PROFILE,
+    )
+    lead = make_lead(intent='PURCHASE_INTENT', buyer_stage='READY')
+
+    _result, fake_llm = generate(owner_settings=owner_settings, lead=lead)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert '镜框宽度' not in user_prompt
+    assert '镜片大小' not in user_prompt
+    assert 'diagnostic_factors' not in user_prompt
+
+
+def test_suitability_advice_prompt_retains_diagnostic_factors():
+    owner_settings = make_owner_settings(
+        comment_text='帮我看下这副猫眼适不适合我的脸型',
+        intent='FIT_SUITABILITY',
+        buyer_stage='EVALUATING',
+        brand_reply_profile=_EYEWEAR_PROFILE,
+    )
+    lead = make_lead(intent='FIT_SUITABILITY', buyer_stage='EVALUATING')
+
+    _result, fake_llm = generate(owner_settings=owner_settings, lead=lead)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert '镜框宽度' in user_prompt
+    assert '镜片大小' in user_prompt
+    assert 'diagnostic_factors' in user_prompt
+
+
+def test_product_question_prompt_includes_no_diagnostic_injection_instruction():
+    owner_settings = make_owner_settings(
+        comment_text='有黑色吗',
+        intent='FIT_SUITABILITY',
+        buyer_stage='EVALUATING',
+        brand_reply_profile=_EYEWEAR_PROFILE,
+    )
+    lead = make_lead(intent='FIT_SUITABILITY', buyer_stage='EVALUATING')
+
+    _result, fake_llm = generate(owner_settings=owner_settings, lead=lead)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert '不要主动引入脸型分析' in user_prompt
+    assert '适配诊断' in user_prompt
+
+
+def test_suitability_advice_prompt_does_not_include_no_diagnostic_instruction():
+    _result, fake_llm = generate()
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert '不要主动引入脸型分析' not in user_prompt
+
+
+def test_fit_suitability_override_on_color_question_excludes_diagnostic_factors():
+    # Stored FIT_SUITABILITY but comment is a color availability question:
+    # override should downgrade to product_question and strip diagnostic_factors
+    owner_settings = make_owner_settings(
+        comment_text='有黑色吗',
+        intent='FIT_SUITABILITY',
+        buyer_stage='EVALUATING',
+        brand_reply_profile=_EYEWEAR_PROFILE,
+    )
+    lead = make_lead(intent='FIT_SUITABILITY', buyer_stage='EVALUATING')
+
+    _result, fake_llm = generate(owner_settings=owner_settings, lead=lead)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert '镜框宽度' not in user_prompt
+    assert '镜片大小' not in user_prompt
+    assert 'diagnostic_factors' not in user_prompt
+
+
+def test_fit_suitability_not_overridden_on_face_shape_question_retains_diagnostic_factors():
+    # Stored FIT_SUITABILITY on a genuine face-shape question: override must not fire
+    owner_settings = make_owner_settings(
+        comment_text='圆脸适合这款吗',
+        intent='FIT_SUITABILITY',
+        buyer_stage='EVALUATING',
+        brand_reply_profile=_EYEWEAR_PROFILE,
+    )
+    lead = make_lead(intent='FIT_SUITABILITY', buyer_stage='EVALUATING')
+
+    _result, fake_llm = generate(owner_settings=owner_settings, lead=lead)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert '镜框宽度' in user_prompt
+    assert '镜片大小' in user_prompt
+    assert 'diagnostic_factors' in user_prompt
+
+
+def test_null_intent_evaluating_color_question_excludes_diagnostic_factors():
+    owner_settings = make_owner_settings(
+        comment_text='有黑色吗',
+        intent=None,
+        buyer_stage='EVALUATING',
+        brand_reply_profile=_EYEWEAR_PROFILE,
+    )
+    lead = make_lead(intent=None, buyer_stage='EVALUATING')
+
+    _result, fake_llm = generate(owner_settings=owner_settings, lead=lead)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert '镜框宽度' not in user_prompt
+    assert '镜片大小' not in user_prompt
+    assert 'diagnostic_factors' not in user_prompt
+
+
+def test_null_intent_evaluating_face_question_includes_diagnostic_factors():
+    owner_settings = make_owner_settings(
+        comment_text='圆脸适合这款吗',
+        intent=None,
+        buyer_stage='EVALUATING',
+        brand_reply_profile=_EYEWEAR_PROFILE,
+    )
+    lead = make_lead(intent=None, buyer_stage='EVALUATING')
+
+    _result, fake_llm = generate(owner_settings=owner_settings, lead=lead)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert '镜框宽度' in user_prompt
+    assert '镜片大小' in user_prompt
+    assert 'diagnostic_factors' in user_prompt

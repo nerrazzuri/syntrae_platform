@@ -121,13 +121,19 @@ export function RepliesPage() {
         return Boolean(savedEditedText) || text !== originalText || draft?.status === 'EDITED';
     }
 
-    async function recordReviewDecision(draft: any, decisionAction: string, finalText: string) {
+    async function recordReviewDecision(
+        draft: any,
+        decisionAction: string,
+        finalText: string,
+        opts: { selectedReasons?: string[]; feedbackNote?: string } = {},
+    ) {
         const edited = isEditedDecision(draft, finalText);
         await DraftFeedbackApi.record(draft.id, {
             feedback_type: edited ? 'EDITED_BEFORE_SEND' : 'ACCEPTED_AS_IS',
-            selected_reasons: edited ? [] : ['GOOD_REPLY'],
+            selected_reasons: edited ? (opts.selectedReasons ?? []) : ['GOOD_REPLY'],
             human_edited_text: edited ? finalText : undefined,
             final_sent_text: finalText,
+            feedback_note: opts.feedbackNote || undefined,
             metadata: {
                 source: 'replies_ui',
                 decision_action: decisionAction,
@@ -152,6 +158,7 @@ export function RepliesPage() {
                 draftForDecision,
                 isEditedDecision(draftForDecision, finalText) ? 'approve_after_edit' : 'approve_as_is',
                 finalText,
+                { selectedReasons: rejectReasons, feedbackNote: rejectNote || undefined },
             );
             setSendSuccess('Approval feedback recorded for Learning Review.');
             await loadDrafts();
@@ -226,7 +233,10 @@ export function RepliesPage() {
         try {
             const finalText = String(selectedDraft.edited_text || selectedDraft.draft_text || '').trim();
             await api.post(`/drafts/${selectedDraft.id}/send`, {});
-            await recordReviewDecision(selectedDraft, 'send_to_thread', finalText);
+            await recordReviewDecision(selectedDraft, 'send_to_thread', finalText, {
+                selectedReasons: rejectReasons,
+                feedbackNote: rejectNote || undefined,
+            });
             setSendSuccess('Reply sent to the live thread.');
         } catch (err: any) {
             setSendError(err.message || 'Failed to send thread reply.');
