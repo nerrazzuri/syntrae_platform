@@ -1,0 +1,1340 @@
+[
+  {
+    "id": "skincare_xhs_001",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "这个精华液有多少ml？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "state volume directly",
+      "no CTA needed for a spec question"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_002",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "这个成分里有没有酒精？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "answer directly from ingredient list",
+      "do not invent ingredient claims",
+      "if unknown, defer to product label"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_003",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "这款防晒的SPF是多少？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "state SPF/PA value directly",
+      "do not make unsupported UV-protection claims"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_004",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "这款水乳是一套还是分开卖的？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "answer set vs individual availability directly",
+      "soft redirect to product page is acceptable"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_005",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "请问这个洁面是氨基酸的吗？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "answer surfactant type from product info",
+      "do not claim gentleness without basis"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_006",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "这款面膜一盒有几片？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "state count directly",
+      "minimal reply is fine"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_007",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "这款精华有烟酰胺成分吗？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "confirm or deny niacinamide from product data",
+      "do not add unsupported whitening/brightening claims"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_008",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "这个产品的保质期是多久？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "state shelf life and/or PAO directly",
+      "no CTA needed"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_009",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "敏感肌可以用吗？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "give honest fit assessment",
+      "do not guarantee no reaction",
+      "suggest patch test if uncertain",
+      "check for common irritants relevant to sensitive skin"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_010",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "痘痘肌适合吗？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "address comedogenicity risk if known",
+      "do not make medical acne-treatment claims",
+      "recommend checking ingredients for common acne triggers"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_011",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "干皮用了会不会拔干？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "assess texture/hydration level from product context",
+      "give concrete dry-skin verdict",
+      "do not be vague"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_012",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "适合油皮吗？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "give oily skin verdict based on texture and formulation",
+      "concrete answer preferred over generic advice"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_013",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "早C晚A可以一起用吗？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "explain AM vitamin C / PM retinol routine logic",
+      "do not make guaranteed efficacy claims",
+      "note that combining depends on skin tolerance"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_014",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "这个可以和A醇一起叠用吗？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "address retinol layering risk honestly",
+      "recommend gradual introduction for beginners",
+      "no guaranteed outcome claims"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_015",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "这款精华适合多大年龄开始用？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "give age-range guidance based on ingredient profile",
+      "avoid medical anti-aging claims"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_016",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "混合肌能用吗？T区比较油但脸颊干",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "address combination skin specifically",
+      "give zone-specific advice if relevant",
+      "concrete verdict preferred"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_017",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "这个会不会闷痘？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "assess comedogenicity risk from product type/ingredients",
+      "avoid guaranteed non-comedogenic claims",
+      "suggest patch test if borderline"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_018",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "会不会过敏？我皮肤比较敏感",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "do not claim zero allergy risk",
+      "recommend patch test",
+      "note key potentially sensitizing ingredients if any"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_019",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "孕妇可以用吗？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "flag pregnancy-unsafe ingredients if present (retinol, salicylic acid, etc.)",
+      "recommend consulting a doctor for safety confirmation",
+      "do not give definitive medical clearance"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_020",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "屏障受损的敏感肌可以用这款面霜吗？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "assess barrier-repair vs irritant ingredients",
+      "recommend gentle layering and patch test",
+      "no guaranteed repair claims"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_021",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "宝宝可以用吗？小孩皮肤比较嫩",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "do not recommend adult skincare for infants without explicit pediatric formulation",
+      "suggest consulting a pediatrician",
+      "do not give definitive medical clearance"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_022",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "有链接吗？",
+    "scenario": "purchase_request",
+    "expected_reply_strategy": "purchase_request",
+    "expected_should_redirect": true,
+    "expected_notes": [
+      "provide or point to purchase link",
+      "no unsolicited product lecture"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_023",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "多少钱？",
+    "scenario": "purchase_request",
+    "expected_reply_strategy": "purchase_request",
+    "expected_should_redirect": true,
+    "expected_notes": [
+      "state price directly if known",
+      "if unknown, redirect to product page",
+      "no unsolicited ingredient lecture"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_024",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "哪里买最便宜？",
+    "scenario": "purchase_request",
+    "expected_reply_strategy": "purchase_request",
+    "expected_should_redirect": true,
+    "expected_notes": [
+      "point to official channel",
+      "soft CTA acceptable",
+      "do not mention third-party grey market"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_025",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "这个是正品吗？在哪里买正品？",
+    "scenario": "purchase_request",
+    "expected_reply_strategy": "purchase_request",
+    "expected_should_redirect": true,
+    "expected_notes": [
+      "affirm authenticity via official channels",
+      "direct to official store/link"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_026",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "可以私信链接吗？",
+    "scenario": "purchase_request",
+    "expected_reply_strategy": "purchase_request",
+    "expected_should_redirect": true,
+    "expected_notes": [
+      "provide or offer purchase link",
+      "keep reply short and direct"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_027",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "和理肤泉比哪个更温和？",
+    "scenario": "comparison_request",
+    "expected_reply_strategy": "comparison_request",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "give one clear deciding factor",
+      "do not fabricate comparative ingredient claims",
+      "acknowledge if comparison data is limited"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_028",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "这个和玻尿酸精华有什么区别？",
+    "scenario": "comparison_request",
+    "expected_reply_strategy": "comparison_request",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "explain functional difference concisely",
+      "avoid vague marketing language"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_029",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "这个这么贵，效果真的有那么好吗？",
+    "scenario": "objection_or_concern",
+    "expected_reply_strategy": "objection_or_concern",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "validate price concern",
+      "explain value without exaggerated efficacy claims",
+      "do not dismiss the concern"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  },
+  {
+    "id": "skincare_xhs_030",
+    "industry": "skincare",
+    "platform": "xiaohongshu",
+    "comment_text": "网上有很多仿品，怎么辨别这个是正品？",
+    "scenario": "objection_or_concern",
+    "expected_reply_strategy": "objection_or_concern",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "provide authenticity verification guidance",
+      "direct to official channels",
+      "do not dismiss counterfeit concern"
+    ],
+    "product_context": {
+      "name": "LUMIÈRE Glow Serum",
+      "category": "serum",
+      "volume": "30ml",
+      "ingredients_summary": [
+        "peptides",
+        "ceramides",
+        "hyaluronic acid"
+      ],
+      "free_from": [
+        "alcohol",
+        "fragrance"
+      ],
+      "claims": [
+        "hydrating",
+        "supports skin barrier"
+      ],
+      "not_claimed": [
+        "acne treatment",
+        "pregnancy safe",
+        "medical treatment"
+      ],
+      "usage_notes": [
+        "patch test recommended for sensitive skin"
+      ],
+      "unknowns": [
+        "SPF value",
+        "PA rating",
+        "exact shelf life"
+      ]
+    }
+  }
+]

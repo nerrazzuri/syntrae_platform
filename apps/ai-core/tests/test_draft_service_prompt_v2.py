@@ -429,3 +429,128 @@ def test_null_intent_evaluating_face_question_includes_diagnostic_factors():
     assert '镜框宽度' in user_prompt
     assert '镜片大小' in user_prompt
     assert 'diagnostic_factors' in user_prompt
+
+
+# ---------------------------------------------------------------------------
+# P10.4 — XHS human-style guard tests
+# ---------------------------------------------------------------------------
+
+def _system_prompt(fake_llm):
+    return fake_llm.calls[0]['system_message']
+
+
+def test_xhs_system_prompt_includes_human_style_instruction():
+    _result, fake_llm = generate()
+
+    sp = _system_prompt(fake_llm)
+    assert 'XHS 评论区人类风格要求' in sp
+    assert '真实评论区回复' in sp
+
+
+def test_xhs_system_prompt_includes_short_sentence_guidance():
+    _result, fake_llm = generate()
+
+    sp = _system_prompt(fake_llm)
+    assert '1–2 句话' in sp
+
+
+def test_xhs_system_prompt_bans_cs_phrases():
+    _result, fake_llm = generate()
+
+    sp = _system_prompt(fake_llm)
+    assert '随时问我' in sp
+    assert '欢迎咨询' in sp
+    assert '如果还有其他问题' in sp
+    assert '期待你的反馈' in sp
+
+
+def test_xhs_product_question_prompt_says_answer_and_stop():
+    owner_settings = make_owner_settings(
+        comment_text='这个镜框材质是什么',
+        intent='PRODUCT_INQUIRY',
+        buyer_stage='EVALUATING',
+    )
+    lead = make_lead(intent='PRODUCT_INQUIRY', buyer_stage='EVALUATING')
+
+    _result, fake_llm = generate(owner_settings=owner_settings, lead=lead)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert '直接回答后停止' in user_prompt
+    assert '不要追问' in user_prompt
+
+
+def test_xhs_suitability_prompt_says_one_concrete_suggestion():
+    _result, fake_llm = generate()
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert '具体建议就够' in user_prompt
+    assert '不要展开成完整咨询' in user_prompt
+
+
+def test_xhs_objection_prompt_says_brief_and_stop():
+    owner_settings = make_owner_settings(
+        comment_text='这个太贵了，效果真的有那么好吗',
+        intent=None,
+        buyer_stage=None,
+    )
+    lead = make_lead(intent=None, buyer_stage=None)
+
+    _result, fake_llm = generate(owner_settings=owner_settings, lead=lead)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert '简短承认顾虑' in user_prompt
+    assert '不要反问' in user_prompt
+
+
+def test_xhs_purchase_request_still_allows_cta_guidance():
+    owner_settings = make_owner_settings(
+        comment_text='有链接吗？想看下价格',
+        intent='PURCHASE_INTENT',
+        buyer_stage='READY',
+    )
+    lead = make_lead(intent='PURCHASE_INTENT', buyer_stage='READY')
+
+    result, fake_llm = generate(owner_settings=owner_settings, lead=lead)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert 'soft CTA is acceptable' in user_prompt
+    assert result['strategy_meta']['should_redirect'] is True
+
+
+def test_xhs_user_prompt_has_no_trailing_question_instruction():
+    _result, fake_llm = generate()
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert '不要以问句结尾' in user_prompt
+
+
+def test_non_xhs_platform_does_not_receive_xhs_style_instruction():
+    owner_settings = make_owner_settings(
+        platform='website_chat',
+        comment_text='Does it integrate with Salesforce?',
+        intent='PRODUCT_INQUIRY',
+        buyer_stage='EVALUATING',
+        preferred_language='en',
+    )
+    lead = make_lead(platform='website_chat', intent='PRODUCT_INQUIRY', buyer_stage='EVALUATING')
+
+    _result, fake_llm = generate(owner_settings=owner_settings, lead=lead)
+
+    sp = _system_prompt(fake_llm)
+    assert 'XHS 评论区人类风格要求' not in sp
+    assert '1–2 句话' not in sp
+
+
+def test_factual_grounding_instruction_still_present_for_xhs():
+    owner_settings = make_owner_settings(
+        comment_text='这个镜框材质是什么',
+        intent='PRODUCT_INQUIRY',
+        buyer_stage='EVALUATING',
+    )
+    lead = make_lead(intent='PRODUCT_INQUIRY', buyer_stage='EVALUATING')
+
+    _result, fake_llm = generate(owner_settings=owner_settings, lead=lead)
+
+    user_prompt = first_user_prompt(fake_llm)
+    assert 'product_grounding_mode' in user_prompt
+    assert 'answer_from_product' in user_prompt

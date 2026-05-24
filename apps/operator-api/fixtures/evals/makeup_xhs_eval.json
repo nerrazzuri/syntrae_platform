@@ -1,0 +1,1037 @@
+[
+  {
+    "id": "makeup_xhs_001",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "这个口红的色号是几号？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "state shade number/name directly",
+      "no unsolicited skin tone advice"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_002",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "这个粉底液持妆多少小时？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "answer wear time from product claim",
+      "note that results vary by skin type if relevant"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_003",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "这款腮红是哑光还是带珠光的？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "state finish type directly",
+      "minimal reply is fine"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_004",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "这个眼影盘有几个颜色？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "state pan count directly",
+      "briefly describe color range if helpful"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_005",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "这款高光是粉质还是液体？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "answer formulation type directly",
+      "no CTA needed for spec question"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_006",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "这个遮瑕是全遮还是自然遮？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "state coverage level from product description",
+      "note that application technique also affects result"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_007",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "这款睫毛膏有没有防水版本？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "confirm waterproof variant availability",
+      "soft redirect to product page acceptable"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_008",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "这个唇釉的质地会不会很干？",
+    "scenario": "product_question",
+    "expected_reply_strategy": "product_question",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "describe texture from product type",
+      "note that dryness experience varies by lip condition"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_009",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "黄皮适合这个色号吗？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "give concrete yellow-undertone shade verdict",
+      "explain why or why not with one key reason",
+      "avoid generic beauty advice"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_010",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "素颜涂这个口红会不会突兀？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "assess whether shade works no-makeup",
+      "give practical wearing context (bold vs everyday)",
+      "no generic advice"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_011",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "油皮能用这个粉底液吗？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "assess foundation formula for oily skin",
+      "note whether setting powder is recommended",
+      "concrete verdict preferred"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_012",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "这个腮红显毛孔吗？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "assess pore-accentuating risk from product type",
+      "give clear verdict rather than vague hedge"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_013",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "这个粉底会暗沉吗？我是冷白皮",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "address cool-toned skin compatibility with this foundation",
+      "note undertone mismatch risk if applicable",
+      "avoid overconfident skin compatibility claims"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_014",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "会不会显唇纹？嘴唇比较干",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "address lip texture accentuation risk",
+      "recommend lip prep if needed",
+      "concrete assessment preferred"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_015",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "单眼皮适合这个眼影画法吗？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "address monolid suitability specifically",
+      "suggest technique adjustment if needed"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_016",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "偏冷白皮适合这个棕色系腮红吗？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "give undertone-based shade compatibility verdict",
+      "one concrete recommendation preferred over vague advice"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_017",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "新手好上手吗？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "assess beginner-friendliness from product type",
+      "note application difficulty honestly",
+      "avoid over-selling ease"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_018",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "不会化妆的人能用这个眼影盘吗？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "give honest beginner assessment",
+      "if complex, suggest starting technique",
+      "do not overpromise ease"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_019",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "日常通勤适合用这款眼影吗？会不会太浓？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "address everyday wearability",
+      "note intensity level for commute context",
+      "suggest lighter application if needed"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_020",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "学生党日常用这个会不会太夸张？",
+    "scenario": "suitability_advice",
+    "expected_reply_strategy": "suitability_advice",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "give practical daily-wear verdict",
+      "note whether product is day-appropriate",
+      "concrete advice preferred"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_021",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "有链接吗？",
+    "scenario": "purchase_request",
+    "expected_reply_strategy": "purchase_request",
+    "expected_should_redirect": true,
+    "expected_notes": [
+      "provide or point to purchase link",
+      "no unsolicited makeup tutorial"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_022",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "多少钱？",
+    "scenario": "purchase_request",
+    "expected_reply_strategy": "purchase_request",
+    "expected_should_redirect": true,
+    "expected_notes": [
+      "state price directly if known",
+      "if not, redirect to product page",
+      "keep reply brief"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_023",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "哪里可以买到？",
+    "scenario": "purchase_request",
+    "expected_reply_strategy": "purchase_request",
+    "expected_should_redirect": true,
+    "expected_notes": [
+      "name official channel or storefront",
+      "soft CTA acceptable"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_024",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "最近有活动吗？想买",
+    "scenario": "purchase_request",
+    "expected_reply_strategy": "purchase_request",
+    "expected_should_redirect": true,
+    "expected_notes": [
+      "mention current promotion if known",
+      "if unknown, redirect to store page",
+      "no false promotional claims"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_025",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "可以私信链接吗？想下单",
+    "scenario": "purchase_request",
+    "expected_reply_strategy": "purchase_request",
+    "expected_should_redirect": true,
+    "expected_notes": [
+      "offer link or guide to purchase",
+      "short, direct reply"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_026",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "和完美日记比哪个好？",
+    "scenario": "comparison_request",
+    "expected_reply_strategy": "comparison_request",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "compare with one clear differentiating factor",
+      "do not fabricate claims about competitor",
+      "acknowledge uncertainty where data is missing"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_027",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "这个和花西子的同款比哪个显色度更高？",
+    "scenario": "comparison_request",
+    "expected_reply_strategy": "comparison_request",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "compare pigmentation honestly",
+      "if no direct data, say so rather than inventing"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_028",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "这个性价比高吗？感觉价格不低",
+    "scenario": "objection_or_concern",
+    "expected_reply_strategy": "objection_or_concern",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "validate price concern",
+      "explain value proposition without dismissing cost",
+      "no exaggerated claims"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_029",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "这个会不会掉色很快？上次买的某大牌几小时就掉了",
+    "scenario": "objection_or_concern",
+    "expected_reply_strategy": "objection_or_concern",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "validate concern about longevity",
+      "address staying power from product claim without over-promising",
+      "suggest setting tips if applicable"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  },
+  {
+    "id": "makeup_xhs_030",
+    "industry": "makeup",
+    "platform": "xiaohongshu",
+    "comment_text": "这个包装看起来很像仿品，怎么辨别？",
+    "scenario": "objection_or_concern",
+    "expected_reply_strategy": "objection_or_concern",
+    "expected_should_redirect": false,
+    "expected_notes": [
+      "address authenticity concern seriously",
+      "provide verification guidance",
+      "direct to official channels"
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
+  }
+]

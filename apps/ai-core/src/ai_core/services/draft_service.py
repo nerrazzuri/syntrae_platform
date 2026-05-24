@@ -194,6 +194,9 @@ class DraftGenerationService:
         )
         forbidden_text = "\n".join(f"- {phrase}" for phrase in forbidden_phrases)
 
+        xhs_instruction = platform_style.get("xhs_style_instruction", "")
+        xhs_block = f"\n{xhs_instruction}" if xhs_instruction else ""
+
         return f"""你是「{brand_name}」的社交媒体运营。
 
 你的回复会被真人审核后公开发布。
@@ -204,7 +207,7 @@ class DraftGenerationService:
 - {platform_style.get("cultural_notes")}
 - Emoji: {platform_style.get("emoji_guidance")}
 - Addressing: {platform_style.get("address_style")}
-
+{xhs_block}
 品牌原则：
 {self._brand_principles(brand_reply_profile)}
 
@@ -268,6 +271,18 @@ class DraftGenerationService:
                 "直接回答用户的产品/功能/规格问题。不要主动引入脸型分析、适配诊断、身材建议或外貌相关建议，"
                 "除非用户明确问到。以解答事实性问题为主。"
             )
+
+        if platform_style.get("platform_key") == "xiaohongshu":
+            xhs_intent = strategy.get("reply_intent")
+            if xhs_intent == "product_question":
+                extra_instructions.append("直接回答后停止。不要追问，不要加延伸建议。")
+            elif xhs_intent == "suitability_advice":
+                extra_instructions.append("给一个具体建议就够。不要展开成完整咨询，不要以问题结尾。")
+            elif xhs_intent == "objection_or_concern":
+                extra_instructions.append("简短承认顾虑，给一个实际原因，然后停止。不要反问。")
+            elif xhs_intent == "comparison_request":
+                extra_instructions.append("给一个明确的对比角度或结论，不要反问用户更在乎哪方面。")
+            extra_instructions.append("不要以问句结尾。")
 
         return f"""Generate one public social-media reply.
 
