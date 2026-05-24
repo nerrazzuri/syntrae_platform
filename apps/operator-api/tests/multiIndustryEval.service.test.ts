@@ -6,6 +6,7 @@ import {
     validateEvalPack,
     summarizeEvalPack,
     detectUnsupportedFacts,
+    isNegatedMention,
     ALLOWED_SCENARIOS,
     type EvalItem,
 } from '../src/services/multiIndustryEval.service';
@@ -388,4 +389,119 @@ test('detectUnsupportedFacts flags GDPR compliant when not confirmed', () => {
     );
     assert.ok(result.unsupported_fact_count > 0);
     assert.ok(result.unsupported_facts.some((f) => f.toLowerCase().includes('gdpr')));
+});
+
+// --- negation-aware detection tests (P10.1b) ---
+
+test('isNegatedMention returns true for Chinese prefix negation 不含', () => {
+    assert.equal(isNegatedMention('这款产品不含烟酰胺成分', '烟酰胺'), true);
+});
+
+test('isNegatedMention returns true for Chinese multi-char negation 没有', () => {
+    assert.equal(isNegatedMention('产品里没有烟酰胺', '烟酰胺'), true);
+});
+
+test('isNegatedMention returns false when keyword appears without negation', () => {
+    assert.equal(isNegatedMention('这款精华富含烟酰胺，可以美白提亮', '烟酰胺'), false);
+});
+
+test('detectUnsupportedFacts does not flag negated niacinamide (不含烟酰胺)', () => {
+    const result = detectUnsupportedFacts(
+        '这款精华不含烟酰胺，主要成分是透明质酸和神经酰胺。',
+        SKINCARE_CTX,
+    );
+    assert.equal(result.unsupported_fact_count, 0, `Expected no facts, got: ${JSON.stringify(result.unsupported_facts)}`);
+});
+
+test('detectUnsupportedFacts does not flag negated niacinamide (没有烟酰胺)', () => {
+    const result = detectUnsupportedFacts(
+        '产品配方里没有烟酰胺成分，主要是透明质酸。',
+        SKINCARE_CTX,
+    );
+    assert.equal(result.unsupported_fact_count, 0, `Expected no facts, got: ${JSON.stringify(result.unsupported_facts)}`);
+});
+
+test('detectUnsupportedFacts does not flag negated Slack integration', () => {
+    const result = detectUnsupportedFacts(
+        "FlowDesk doesn't have a native integration with Slack at this time.",
+        SAAS_CTX,
+    );
+    assert.equal(result.unsupported_fact_count, 0, `Expected no facts, got: ${JSON.stringify(result.unsupported_facts)}`);
+});
+
+test('detectUnsupportedFacts does not flag negated mobile app claim', () => {
+    const result = detectUnsupportedFacts(
+        "Currently there isn't a dedicated mobile app, but the web interface is mobile-optimised.",
+        SAAS_CTX,
+    );
+    assert.equal(result.unsupported_fact_count, 0, `Expected no facts, got: ${JSON.stringify(result.unsupported_facts)}`);
+});
+
+test('detectUnsupportedFacts does not flag negated Salesforce claim', () => {
+    const result = detectUnsupportedFacts(
+        "FlowDesk does not directly integrate with Salesforce — that information isn't confirmed.",
+        SAAS_CTX,
+    );
+    assert.equal(result.unsupported_fact_count, 0, `Expected no facts, got: ${JSON.stringify(result.unsupported_facts)}`);
+});
+
+test('detectUnsupportedFacts does not flag negated GDPR claim', () => {
+    const result = detectUnsupportedFacts(
+        'GDPR compliance is not confirmed in our current product documentation.',
+        SAAS_CTX,
+    );
+    assert.equal(result.unsupported_fact_count, 0, `Expected no facts, got: ${JSON.stringify(result.unsupported_facts)}`);
+});
+
+test('detectUnsupportedFacts flags GDPR compliance phrase when GDPR not confirmed', () => {
+    const result = detectUnsupportedFacts(
+        'Yes, we prioritize GDPR compliance and fully meet EU data regulations.',
+        SAAS_CTX,
+    );
+    assert.ok(result.unsupported_fact_count > 0);
+    assert.ok(result.unsupported_facts.some((f) => f.toLowerCase().includes('gdpr')));
+});
+
+test('detectUnsupportedFacts flags data residency location when listed as unknown', () => {
+    const result = detectUnsupportedFacts(
+        'Your data is stored primarily in the United States on AWS servers.',
+        SAAS_CTX,
+    );
+    assert.ok(result.unsupported_fact_count > 0);
+    assert.ok(result.unsupported_facts.some((f) => f.toLowerCase().includes('data residency')));
+});
+
+test('detectUnsupportedFacts does not flag negated data residency', () => {
+    const result = detectUnsupportedFacts(
+        'Data residency country is not confirmed in the product details we have.',
+        SAAS_CTX,
+    );
+    assert.equal(result.unsupported_fact_count, 0, `Expected no facts, got: ${JSON.stringify(result.unsupported_facts)}`);
+});
+
+test('detectUnsupportedFacts still flags positive Slack claim (negation-aware regression)', () => {
+    const result = detectUnsupportedFacts(
+        'Great news — FlowDesk integrates directly with Slack for instant team notifications.',
+        SAAS_CTX,
+    );
+    assert.ok(result.unsupported_fact_count > 0);
+    assert.ok(result.unsupported_facts.some((f) => f.toLowerCase().includes('slack')));
+});
+
+test('detectUnsupportedFacts still flags positive mobile app claim (negation-aware regression)', () => {
+    const result = detectUnsupportedFacts(
+        'FlowDesk has a mobile app available on both iOS and Android.',
+        SAAS_CTX,
+    );
+    assert.ok(result.unsupported_fact_count > 0);
+    assert.ok(result.unsupported_facts.some((f) => f.toLowerCase().includes('mobile app')));
+});
+
+test('detectUnsupportedFacts flags Salesforce integration when listed as unknown', () => {
+    const result = detectUnsupportedFacts(
+        'FlowDesk integrates seamlessly with Salesforce for CRM syncing.',
+        SAAS_CTX,
+    );
+    assert.ok(result.unsupported_fact_count > 0);
+    assert.ok(result.unsupported_facts.some((f) => f.toLowerCase().includes('salesforce')));
 });

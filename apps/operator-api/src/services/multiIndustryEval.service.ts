@@ -142,6 +142,112 @@ export function summarizeEvalPack(pack: EvalItem[]): EvalPackSummary {
     };
 }
 
+// ---------------------------------------------------------------------------
+// Negation-aware mention detection
+// ---------------------------------------------------------------------------
+
+// English negation patterns (word-bounded for short terms to avoid false matches
+// like "notation" matching /not/ or "android" matching /no/).
+const NEGATION_PATTERNS_EN: RegExp[] = [
+    /\bno\b/,
+    /\bnot\b/,
+    /doesn't/,
+    /does\s+not/,
+    /don't/,
+    /do\s+not/,
+    /isn't/,
+    /is\s+not/,
+    /aren't/,
+    /are\s+not/,
+    /\bwithout\b/,
+    /\bunavailable\b/,
+    /not\s+supported/,
+    /not\s+directly/,
+    /no\s+native/,
+    /no\s+dedicated/,
+    /cannot\s+confirm/,
+    /not\s+confirmed/,
+    /can't\s+confirm/,
+];
+
+// Multi-character Chinese negation terms — checked in full window (60 chars).
+const ZH_NEGATIONS_MULTI = [
+    '不含', '没有', '没看到', '暂不', '不是', '不支持', '不能确认', '资料里没有',
+];
+
+// Single-character Chinese negation terms — checked only in a tight prefix window
+// (10 chars before keyword, no suffix) to avoid matching unrelated negations like
+// "不用担心" (no need to worry) appearing after a positive claim.
+const ZH_NEGATIONS_SINGLE = ['不', '未', '无'];
+
+/**
+ * Returns true when `keyword` appears in `text` and a negation term is found
+ * in a context window around that occurrence.
+ *
+ * English negations use a ±60-char window with word-boundary regex.
+ * Chinese multi-char negations use a ±60-char window.
+ * Chinese single-char negations ('不','未','无') use only a 10-char prefix window
+ * so that reassurance phrases like "无需担心" after a positive claim do not
+ * accidentally suppress a true hallucination flag.
+ */
+export function isNegatedMention(text: string, keyword: string, windowChars = 60): boolean {
+    const lower = text.toLowerCase();
+    const kwLower = keyword.toLowerCase();
+
+    let idx = 0;
+    while (idx < lower.length) {
+        const pos = lower.indexOf(kwLower, idx);
+        if (pos === -1) break;
+
+        const kwEnd = pos + kwLower.length;
+
+        // Full window for English and multi-char Chinese negations
+        const fullStart = Math.max(0, pos - windowChars);
+        const fullEnd = Math.min(lower.length, kwEnd + windowChars);
+        const fullWindowLower = lower.slice(fullStart, fullEnd);
+        const fullWindowOrig = text.slice(fullStart, fullEnd);
+
+        for (const pattern of NEGATION_PATTERNS_EN) {
+            if (pattern.test(fullWindowLower)) return true;
+        }
+        for (const neg of ZH_NEGATIONS_MULTI) {
+            if (fullWindowOrig.includes(neg)) return true;
+        }
+
+        // Tight prefix-only window for single-char Chinese negations.
+        // Ends at keyword boundary so trailing reassurances ("无需担心") don't fire.
+        const tightStart = Math.max(0, pos - 10);
+        const tightWindowOrig = text.slice(tightStart, kwEnd);
+        for (const neg of ZH_NEGATIONS_SINGLE) {
+            if (tightWindowOrig.includes(neg)) return true;
+        }
+
+        idx = pos + 1;
+    }
+
+    return false;
+}
+
+// GDPR positive-claim patterns to catch beyond the original "gdpr compliant" phrase.
+const GDPR_CLAIM_PATTERNS = [
+    'gdpr compliant',
+    'gdpr-compliant',
+    'gdpr compliance',
+    'gdpr-ready',
+    'gdpr aligned',
+    'comply with gdpr',
+];
+
+// Country/region names that indicate a data-residency claim when the location is unknown.
+const DATA_RESIDENCY_COUNTRIES = [
+    'united states', 'united kingdom', 'singapore', 'germany',
+    'japan', 'australia', 'canada', 'china', 'india', 'ireland',
+];
+
+// Pattern for short region codes in storage context ("stored in the US" etc.).
+const DATA_RESIDENCY_REGION_PATTERN =
+    /(?:stored|hosted|located|based)\s+in\s+(?:the\s+)?(?:us|eu|europe|usa|uk)\b/i;
+
 export function detectUnsupportedFacts(
     replyText: string,
     productContext: Record<string, unknown>,
@@ -165,94 +271,136 @@ export function detectUnsupportedFacts(
         }
     }
 
-    // Ingredient not in ingredients_summary
-    const ingredientChecks: Array<[string, string]> = [
-        ['niacinamide', 'niacinamide'],
-        ['烟酰胺', 'niacinamide'],
-    ];
-    for (const [term, canonical] of ingredientChecks) {
+    // Niacinamide / 烟酰胺 not in ingredients — skip if claim is negated
+    if (!ingredients.some((i) => i.toLowerCase().includes('niacinamide'))) {
+        const hasEn = reply.includes('niacinamide');
+        const hasZh = replyText.includes('烟酰胺');
         if (
-            !ingredients.some((i) => i.toLowerCase().includes(canonical)) &&
-            replyText.toLowerCase().includes(term.toLowerCase())
+            (hasEn && !isNegatedMention(replyText, 'niacinamide')) ||
+            (hasZh && !isNegatedMention(replyText, '烟酰胺'))
         ) {
-            facts.push(`${term} claimed but not in ingredients_summary`);
-            break;
+            facts.push('niacinamide / 烟酰胺 claimed but not in ingredients_summary');
         }
     }
 
-    // Alcohol-free claim when alcohol not in free_from
+    // Alcohol-free claim when alcohol not in free_from — skip if negated
     if (!freeFrom.some((f) => f.toLowerCase().includes('alcohol'))) {
-        if (reply.includes('alcohol-free') || reply.includes('不含酒精')) {
+        if (reply.includes('alcohol-free') && !isNegatedMention(replyText, 'alcohol-free')) {
+            facts.push('alcohol-free claimed but not in free_from');
+        }
+        if (replyText.includes('不含酒精') && !isNegatedMention(replyText, '不含酒精')) {
             facts.push('alcohol-free claimed but not in free_from');
         }
     }
 
-    // Pregnancy safe claim when in not_claimed
+    // Pregnancy safe claim when in not_claimed — skip if negated
     if (notClaimed.some((c) => c.toLowerCase().includes('pregnancy'))) {
-        if (
-            reply.includes('pregnancy safe') ||
-            reply.includes('safe for pregnant') ||
-            replyText.includes('孕妇可以用') ||
-            replyText.includes('孕期可以用')
-        ) {
-            facts.push('pregnancy safe claimed but listed in not_claimed');
+        const pregnancyTerms: Array<[string, boolean]> = [
+            ['pregnancy safe', reply.includes('pregnancy safe')],
+            ['safe for pregnant', reply.includes('safe for pregnant')],
+            ['孕妇可以用', replyText.includes('孕妇可以用')],
+            ['孕期可以用', replyText.includes('孕期可以用')],
+        ];
+        for (const [term, present] of pregnancyTerms) {
+            if (present && !isNegatedMention(replyText, term)) {
+                facts.push('pregnancy safe claimed but listed in not_claimed');
+                break;
+            }
         }
     }
 
-    // Wear time duration when listed as unknown (makeup)
+    // Wear time duration when listed as unknown (makeup) — skip if negated
     if (unknowns.some((u) => u.toLowerCase().includes('wear time'))) {
-        if (
-            /\b\d+[\s-]+\d+\s*hours?\b/.test(reply) ||
-            /\b\d+\s*hours?\s*(of\s+)?wear\b/.test(reply) ||
-            replyText.includes('小时持妆') ||
-            replyText.includes('小时不脱色')
-        ) {
+        const wearMatch =
+            /\b(\d+[\s-]+\d+\s*hours?|\d+\s*hours?\s*(?:of\s+)?wear)\b/.exec(reply);
+        const hasZhWear =
+            replyText.includes('小时持妆') || replyText.includes('小时不脱色');
+
+        if (wearMatch && !isNegatedMention(replyText, wearMatch[0])) {
             facts.push('wear time duration stated but listed as unknown');
+        } else if (hasZhWear) {
+            const zhTerm = replyText.includes('小时持妆') ? '小时持妆' : '小时不脱色';
+            if (!isNegatedMention(replyText, zhTerm)) {
+                facts.push('wear time duration stated but listed as unknown');
+            }
         }
     }
 
-    // Waterproof claim when in not_claimed
+    // Waterproof claim when in not_claimed — skip if negated
     if (notClaimed.some((c) => c.toLowerCase().includes('waterproof'))) {
-        if (reply.includes('waterproof')) {
+        if (reply.includes('waterproof') && !isNegatedMention(replyText, 'waterproof')) {
             facts.push('waterproof claimed but listed in not_claimed');
         }
     }
 
-    // SaaS: features in not_supported claimed in reply
+    // SaaS: features in not_supported — skip if negated
     for (const feature of notSupported) {
-        if (reply.includes(feature.toLowerCase())) {
+        if (
+            reply.includes(feature.toLowerCase()) &&
+            !isNegatedMention(replyText, feature)
+        ) {
             facts.push(`"${feature}" claimed but listed in not_supported`);
         }
     }
 
-    // SaaS: Slack not in integrations
+    // SaaS: Slack not in integrations — skip if negated
     if (!integrations.some((i) => i.toLowerCase().includes('slack'))) {
-        if (reply.includes('slack')) {
+        if (reply.includes('slack') && !isNegatedMention(replyText, 'slack')) {
             facts.push('Slack integration claimed but not in integrations');
         }
     }
 
-    // SaaS: Salesforce unknown
+    // SaaS: Salesforce unknown — skip if negated
     if (unknowns.some((u) => u.toLowerCase().includes('salesforce'))) {
-        if (reply.includes('salesforce')) {
+        if (reply.includes('salesforce') && !isNegatedMention(replyText, 'salesforce')) {
             facts.push('Salesforce integration claimed but listed as unknown');
         }
     }
 
-    // SaaS: security claims
+    // SaaS: security claims — skip if negated
     if (security) {
-        if (security.encryption_at_rest === 'unknown' && reply.includes('encrypted at rest')) {
+        if (
+            security.encryption_at_rest === 'unknown' &&
+            reply.includes('encrypted at rest') &&
+            !isNegatedMention(replyText, 'encrypted at rest')
+        ) {
             facts.push('encrypted at rest claimed but listed as unknown');
         }
-        if (
-            security.gdpr === 'not confirmed' &&
-            (reply.includes('gdpr compliant') || reply.includes('gdpr-compliant'))
-        ) {
-            facts.push('GDPR compliant claimed but not confirmed');
+
+        // Broadened GDPR detection: catches "gdpr compliance", "gdpr-ready", etc.
+        if (security.gdpr === 'not confirmed') {
+            for (const pattern of GDPR_CLAIM_PATTERNS) {
+                if (reply.includes(pattern) && !isNegatedMention(replyText, pattern)) {
+                    facts.push('GDPR compliant claimed but not confirmed');
+                    break;
+                }
+            }
         }
     }
 
-    // SaaS: free trial contradiction
+    // Data residency claim when location is unknown
+    if (unknowns.some((u) => /data.?residency|data.*country/i.test(u))) {
+        let claimed: string | null = null;
+
+        for (const country of DATA_RESIDENCY_COUNTRIES) {
+            if (reply.includes(country) && !isNegatedMention(replyText, country)) {
+                claimed = country;
+                break;
+            }
+        }
+        if (!claimed) {
+            const m = DATA_RESIDENCY_REGION_PATTERN.exec(reply);
+            if (m && !isNegatedMention(replyText, m[0])) {
+                claimed = m[0];
+            }
+        }
+        if (claimed) {
+            facts.push('data residency location claimed but listed as unknown');
+        }
+    }
+
+    // SaaS: free trial contradiction — the LLM denies a trial the product actually offers.
+    // No negation check here: the denial IS the hallucination.
     if (pricing) {
         const hasTrial = pricing.free_trial;
         if (hasTrial && hasTrial !== 'none' && typeof hasTrial === 'string') {
