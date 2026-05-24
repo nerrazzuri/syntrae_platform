@@ -73,6 +73,7 @@ COMPARISON_PATTERNS = [
     "哪个更好",
     "哪个更",
     "比哪个",
+    "比怎么样",
     "对比",
     # "比较" intentionally excluded: means "relatively" as adverb and fires too broadly
     "有什么区别",
@@ -168,10 +169,13 @@ SUITABILITY_PATTERNS = [
     "学生党",
     # Skincare — skin type (standalone)
     "敏感肌",
-    # Skincare routine compatibility
+    # Skincare routine compatibility / layering
     "叠用",
+    "可以叠",
     "一起用",
     "适合多大",
+    # Skin barrier / condition
+    "屏障受损",
     # English cross-industry suitability
     "suit me",
     "suitable for me",
@@ -501,6 +505,7 @@ CONCERN_PATTERNS = [
     "担心",
     "太贵",
     "这么贵",
+    "价格有点高",
     "没效果",
     "仿品",
     "正品吗",
