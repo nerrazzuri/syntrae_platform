@@ -10,7 +10,28 @@
     "expected_notes": [
       "state shade number/name directly",
       "no unsolicited skin tone advice"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_002",
@@ -23,7 +44,28 @@
     "expected_notes": [
       "answer wear time from product claim",
       "note that results vary by skin type if relevant"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_003",
@@ -36,7 +78,28 @@
     "expected_notes": [
       "state finish type directly",
       "minimal reply is fine"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_004",
@@ -49,7 +112,28 @@
     "expected_notes": [
       "state pan count directly",
       "briefly describe color range if helpful"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_005",
@@ -62,7 +146,28 @@
     "expected_notes": [
       "answer formulation type directly",
       "no CTA needed for spec question"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_006",
@@ -75,7 +180,28 @@
     "expected_notes": [
       "state coverage level from product description",
       "note that application technique also affects result"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_007",
@@ -88,7 +214,28 @@
     "expected_notes": [
       "confirm waterproof variant availability",
       "soft redirect to product page acceptable"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_008",
@@ -101,7 +248,28 @@
     "expected_notes": [
       "describe texture from product type",
       "note that dryness experience varies by lip condition"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_009",
@@ -115,7 +283,28 @@
       "give concrete yellow-undertone shade verdict",
       "explain why or why not with one key reason",
       "avoid generic beauty advice"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_010",
@@ -129,7 +318,28 @@
       "assess whether shade works no-makeup",
       "give practical wearing context (bold vs everyday)",
       "no generic advice"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_011",
@@ -143,7 +353,28 @@
       "assess foundation formula for oily skin",
       "note whether setting powder is recommended",
       "concrete verdict preferred"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_012",
@@ -156,7 +387,28 @@
     "expected_notes": [
       "assess pore-accentuating risk from product type",
       "give clear verdict rather than vague hedge"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_013",
@@ -170,7 +422,28 @@
       "address cool-toned skin compatibility with this foundation",
       "note undertone mismatch risk if applicable",
       "avoid overconfident skin compatibility claims"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_014",
@@ -184,7 +457,28 @@
       "address lip texture accentuation risk",
       "recommend lip prep if needed",
       "concrete assessment preferred"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_015",
@@ -197,7 +491,28 @@
     "expected_notes": [
       "address monolid suitability specifically",
       "suggest technique adjustment if needed"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_016",
@@ -210,7 +525,28 @@
     "expected_notes": [
       "give undertone-based shade compatibility verdict",
       "one concrete recommendation preferred over vague advice"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_017",
@@ -224,7 +560,28 @@
       "assess beginner-friendliness from product type",
       "note application difficulty honestly",
       "avoid over-selling ease"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_018",
@@ -238,7 +595,28 @@
       "give honest beginner assessment",
       "if complex, suggest starting technique",
       "do not overpromise ease"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_019",
@@ -252,7 +630,28 @@
       "address everyday wearability",
       "note intensity level for commute context",
       "suggest lighter application if needed"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_020",
@@ -266,7 +665,28 @@
       "give practical daily-wear verdict",
       "note whether product is day-appropriate",
       "concrete advice preferred"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_021",
@@ -279,7 +699,28 @@
     "expected_notes": [
       "provide or point to purchase link",
       "no unsolicited makeup tutorial"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_022",
@@ -293,7 +734,28 @@
       "state price directly if known",
       "if not, redirect to product page",
       "keep reply brief"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_023",
@@ -306,7 +768,28 @@
     "expected_notes": [
       "name official channel or storefront",
       "soft CTA acceptable"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_024",
@@ -320,7 +803,28 @@
       "mention current promotion if known",
       "if unknown, redirect to store page",
       "no false promotional claims"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_025",
@@ -333,7 +837,28 @@
     "expected_notes": [
       "offer link or guide to purchase",
       "short, direct reply"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_026",
@@ -347,7 +872,28 @@
       "compare with one clear differentiating factor",
       "do not fabricate claims about competitor",
       "acknowledge uncertainty where data is missing"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_027",
@@ -360,7 +906,28 @@
     "expected_notes": [
       "compare pigmentation honestly",
       "if no direct data, say so rather than inventing"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_028",
@@ -374,7 +941,28 @@
       "validate price concern",
       "explain value proposition without dismissing cost",
       "no exaggerated claims"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_029",
@@ -388,7 +976,28 @@
       "validate concern about longevity",
       "address staying power from product claim without over-promising",
       "suggest setting tips if applicable"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   },
   {
     "id": "makeup_xhs_030",
@@ -402,6 +1011,27 @@
       "address authenticity concern seriously",
       "provide verification guidance",
       "direct to official channels"
-    ]
+    ],
+    "product_context": {
+      "name": "VELVET Air Lip Tint",
+      "category": "lip tint",
+      "shade": "03 Rose Brown",
+      "finish": "soft matte",
+      "texture": "lightweight velvet",
+      "claims": [
+        "daily wearable",
+        "medium pigmentation"
+      ],
+      "not_claimed": [
+        "waterproof",
+        "transfer-proof",
+        "8-hour wear"
+      ],
+      "unknowns": [
+        "exact wear time",
+        "full shade range",
+        "competitor comparison data"
+      ]
+    }
   }
 ]

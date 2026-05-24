@@ -196,3 +196,85 @@ Compare these metrics against the sunglasses/XHS v8 baseline to identify industr
 - [x] TypeScript build passes (`pnpm --filter operator-api build`)
 - [x] No generation behaviour changes
 - [x] No ai-core prompt/QC/strategy changes
+
+---
+
+## P10.1 — Product Context Grounding
+
+**Date:** 2026-05-24
+**Branch:** feature/evals-p101-product-context-grounding
+
+### Problem
+
+Initial multi-industry generation eval (run without product context) revealed widespread
+hallucination: the LLM invented SPF values, ingredient claims, integrations, and security
+guarantees that had no basis in product data. This is not an adapter or QC issue — it is a
+missing grounding input.
+
+### Changes
+
+#### `EvalItem` type extensions
+
+```typescript
+product_context?: Record<string, unknown>;
+knowledge_context?: Array<Record<string, unknown>>;
+```
+
+`product_context` is now present on every fixture item. `knowledge_context` is reserved for
+future use (FAQ entries, policy excerpts). Both fields are optional and validated by
+`validateEvalPack()`.
+
+#### Product contexts added per pack
+
+| Pack | Product | Key unknowns / not_claimed |
+|------|---------|---------------------------|
+| `skincare_xhs` | LUMIÈRE Glow Serum (30ml, peptides/ceramides/HA) | SPF value, PA rating, pregnancy safe, acne treatment |
+| `makeup_xhs` | VELVET Air Lip Tint (shade 03 Rose Brown, soft matte) | exact wear time, waterproof, transfer-proof |
+| `saas_b2b` | FlowDesk (workflow SaaS) | native Slack integration, mobile app, encryption at rest, GDPR, Salesforce, SSO |
+
+#### `detectUnsupportedFacts(replyText, productContext)`
+
+New exported function. Given a generated reply and the item's `product_context`, returns:
+
+```typescript
+{ unsupported_fact_count: number, unsupported_facts: string[] }
+```
+
+Checks (by industry pattern):
+- **Skincare**: SPF claim when SPF is unknown; niacinamide/烟酰胺 when not in ingredients; pregnancy safe when in `not_claimed`
+- **Makeup**: wear time duration when listed as unknown; waterproof when in `not_claimed`
+- **SaaS**: Slack integration when not in integrations; mobile app when in `not_supported`; encrypted at rest when unknown; GDPR compliant when not confirmed; Salesforce when unknown; free trial contradiction
+
+#### Replay script
+
+`replay_multi_industry_eval.ts` now includes `product_context` in the dry-run JSON output
+so downstream grading scripts can access it alongside each item.
+
+### Tests
+
+12 new tests added to `multiIndustryEval.service.test.ts` (total: 30 tests):
+
+- 3 `validateEvalPack` tests for `product_context` / `knowledge_context` field validation
+- 1 test confirming all 90 fixture items carry `product_context`
+- 8 `detectUnsupportedFacts` tests (2 clean-reply baselines + 6 hallucination detections)
+
+### How to Run
+
+```bash
+# Run only multi-industry eval tests (30 tests)
+node --test --import tsx tests/multiIndustryEval.service.test.ts
+
+# Full operator-api test suite
+pnpm --filter operator-api test
+```
+
+### Updated Acceptance Criteria
+
+- [x] `EvalItem` type has optional `product_context` and `knowledge_context` fields
+- [x] `validateEvalPack()` validates both new fields
+- [x] All 90 fixture items carry `product_context`
+- [x] `detectUnsupportedFacts()` exported and functional
+- [x] 12 new tests pass (30 total)
+- [x] TypeScript build passes
+- [x] No generation behaviour changes
+- [x] No ai-core prompt/QC/strategy changes

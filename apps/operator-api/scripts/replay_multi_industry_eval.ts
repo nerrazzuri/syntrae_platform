@@ -83,6 +83,7 @@ async function main() {
                     scenario: item.scenario,
                     expected_reply_strategy: item.expected_reply_strategy,
                     expected_should_redirect: item.expected_should_redirect,
+                    product_context: item.product_context ?? null,
                     generated_draft: null,
                 })),
             };
