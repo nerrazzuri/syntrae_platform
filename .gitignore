@@ -42,3 +42,13 @@ browser_profiles/
 .DS_Store
 .idea/
 .vscode/
+
+# Local credentials and session artifacts - never commit
+cookies.txt
+signup.json
+signup_verify.json
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
