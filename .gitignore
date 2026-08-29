@@ -48,3 +48,13 @@ browser_profiles/
 .codex/
 .docker/
 DESIGN.md
+
+# Local credentials and session artifacts - never commit
+cookies.txt
+signup.json
+signup_verify.json
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
